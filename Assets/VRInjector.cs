@@ -38,9 +38,9 @@ public class VRInjector : MonoBehaviour {
     {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
-        if (!SteamVRPrefab || !CameraRigPrefab)
+        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefab)
         {
-            Debug.LogError("Attempted to inject VR but either SteamVRPrefab or CameraRigPrefab wasn't set!");
+            Debug.LogError("Attempted to inject VR, but either SteamVRPrefab, CameraRigPrefab, or UnderControllerUIPrefab wasn't set!");
             yield return 0;
         }
 
@@ -58,7 +58,7 @@ public class VRInjector : MonoBehaviour {
             oldCamera.GetComponent<Camera>().enabled = false;
             oldCamera.GetComponent<AudioListener>().enabled = false;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             Debug.LogError("Unable to get the original camera and/or the old AudioListenerer to disable it for VR!");
         }

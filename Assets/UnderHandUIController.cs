@@ -4,11 +4,18 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class CompassDisplay : MonoBehaviour {
-
+/**
+ * Controls displaying and hiding the UI that attaches underneath a VR controller
+ *
+ * A ray is cast out from the underside of the controller. When it collides with a collider in the proper layer, the UI appears
+ **/
+public class UnderHandUIController : MonoBehaviour {
     private SteamVR_TrackedObject trackedObj;
     private int counter;
-    public GameObject compassQuad;
+
+    [Tooltip("The UI to display or hide. It should be a child of the controller and appropriately sized and positioned.")]
+    public GameObject UIQuadPrefab;
+    private GameObject UIQuad;
 
     [Tooltip("The under-controller UI will display when the bottom of the controller is facing the user. " +
         "In order to accomplish this, a raycast is shot out towards the camera. This variable needs to be set " +
@@ -20,7 +27,6 @@ public class CompassDisplay : MonoBehaviour {
         get { return SteamVR_Controller.Input((int)trackedObj.index); } 
     }
 
-
     private void Awake()
     {
         trackedObj = GetComponent<SteamVR_TrackedObject>();
@@ -29,6 +35,8 @@ public class CompassDisplay : MonoBehaviour {
     void Start ()
     {
         counter = 0;
+        //UIQuad = Instantiate(UIQuadPrefab);
+
 	}
 	
 	void Update ()
@@ -49,9 +57,9 @@ public class CompassDisplay : MonoBehaviour {
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * hit.distance, Color.yellow);
             Controller.TriggerHapticPulse(2000);
-            if (compassQuad)
+            if (UIQuad)
             {
-                RawImage ri = compassQuad.GetComponent<RawImage>();
+                RawImage ri = UIQuad.GetComponent<RawImage>();
                 if (ri)
                 {
                     Debug.Log("Activating compass");
@@ -62,9 +70,9 @@ public class CompassDisplay : MonoBehaviour {
         else
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * 1000, Color.white);
-            if (compassQuad)
+            if (UIQuad)
             {
-                RawImage ri = compassQuad.GetComponent<RawImage>();
+                RawImage ri = UIQuad.GetComponent<RawImage>();
                 if (ri)
                 {
                     ri.enabled = false;
