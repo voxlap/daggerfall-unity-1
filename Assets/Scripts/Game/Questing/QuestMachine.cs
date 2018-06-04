@@ -100,6 +100,14 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
+        /// Gets current count of all active SiteLinks.
+        /// </summary>
+        public int SiteLinkCount
+        {
+            get { return siteLinks.Count; }
+        }
+
+        /// <summary>
         /// Gets Quests source folder in StreamingAssets.
         /// </summary>
         public static string QuestSourceFolder
@@ -315,6 +323,7 @@ namespace DaggerfallWorkshop.Game.Questing
             RegisterAction(new PlayVideo(null));
             RegisterAction(new PcAt(null));
             RegisterAction(new CreateNpcAt(null));
+            RegisterAction(new CreateNpc(null));
             RegisterAction(new PlaceNpc(null));
             RegisterAction(new PlaceItem(null));
             RegisterAction(new GivePc(null));
@@ -555,7 +564,7 @@ namespace DaggerfallWorkshop.Game.Questing
         /// <returns>Quest.</returns>
         public Quest ParseQuest(string questName, string[] questSource)
         {
-            LogFormat("Parsing quest {0}", questName);
+            LogFormat("\r\n\r\nParsing quest {0}", questName);
 
             try
             {
@@ -567,7 +576,7 @@ namespace DaggerfallWorkshop.Game.Questing
             }
             catch (Exception ex)
             {
-                LogFormat("Parsing quest {0}\r\n{1}", questName, ex.Message);
+                LogFormat("Parsing quest {0} FAILED!\r\n{1}", questName, ex.Message);
 
                 return null;
             }
@@ -1486,7 +1495,7 @@ namespace DaggerfallWorkshop.Game.Questing
             using (StreamWriter sw = File.AppendText(LogPath))
             {
                 sw.Write(text);
-                sw.Write("\r\n\r\n");
+                sw.Write("\r\n");
             }
 
             Debug.Log(text);
