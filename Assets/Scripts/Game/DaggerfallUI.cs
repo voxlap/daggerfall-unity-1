@@ -280,9 +280,6 @@ namespace DaggerfallWorkshop.Game
             RenderTarget.OnCreateTargetTexture += RenderTarget_OnCreateTargetTexture;
             Questing.Actions.GivePc.OnOfferPending += GivePc_OnOfferPending;
 
-            // We only use our render target for texture clearing, set it well behind everything else
-            RenderTarget.CustomGUIDepth = 10;
-
             SetupSingleton();
         }
 
@@ -357,7 +354,10 @@ namespace DaggerfallWorkshop.Game
             if (Event.current.type != EventType.Repaint)
                 return;
 
-            //RenderTarget.Clear();
+            RenderTexture oldRt = RenderTexture.active;
+            RenderTexture.active = RenderTarget.TargetTexture;
+
+            RenderTarget.Clear();
 
             // Draw top window
             if (uiManager.TopWindow != null)
@@ -371,6 +371,8 @@ namespace DaggerfallWorkshop.Game
                 Vector2 versionTextPos = new Vector2(Screen.width - versionTextWidth, 0);
                 versionFont.DrawText(versionText, versionTextPos, versionTextScaleVector2, versionTextColor);
             }
+
+            RenderTexture.active = oldRt;
         }
 
         void ProcessMessages()
@@ -1238,8 +1240,7 @@ namespace DaggerfallWorkshop.Game
             if (!rawImage)
                 return;
 
-            // Set target render texture to raw image output
-            rawImage.texture = RenderTarget.TargetTexture;
+            // Set target render texture to use native size
             rawImage.SetNativeSize();
         }
 
@@ -1250,16 +1251,15 @@ namespace DaggerfallWorkshop.Game
         UnityEngine.UI.RawImage FindNonDiegeticCanvasRawImage()
         {
             // Must be able to find output canvas object
-            GameObject nonDiegeticUIOutput = DaggerfallUI.Instance.NonDiegeticUIOutput;
-            if (!nonDiegeticUIOutput)
+            if (!NonDiegeticUIOutput)
                 return null;
 
             // Output canvas object must be active
-            if (!nonDiegeticUIOutput.activeInHierarchy)
+            if (!NonDiegeticUIOutput.activeInHierarchy)
                 return null;
 
             // Get raw image component
-            UnityEngine.UI.RawImage rawImage = nonDiegeticUIOutput.GetComponent<UnityEngine.UI.RawImage>();
+            UnityEngine.UI.RawImage rawImage = NonDiegeticUIOutput.GetComponent<UnityEngine.UI.RawImage>();
             if (!rawImage)
                 return null;
 
