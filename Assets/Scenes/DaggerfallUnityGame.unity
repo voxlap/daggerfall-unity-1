@@ -465,6 +465,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   OutputImage: {fileID: 100870829}
   EnableCustomStack: 0
+  customWidth: 0
+  customHeight: 0
 --- !u!114 &97801944
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -824,8 +826,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SteamVRPrefab: {fileID: 132594, guid: ef28424db4f9ecf438ac9619c4a67929, type: 2}
   CameraRigPrefab: {fileID: 146900, guid: c4b5efd2540352142bc4a91e77654986, type: 2}
-  UnderControllerUIPrefab: {fileID: 1702480124139398, guid: 511f9451bba7f7844ba62cf35aeca978,
+  UnderControllerUIPrefab: {fileID: 1603071218044670, guid: 817387ea0704a50429f8db3c59a7b1c0,
     type: 2}
+  VRUIManagerPrefab: {fileID: 1318417632695750, guid: 2f1129fa24149d54e97ee49d5109a35d,
+    type: 2}
+  controllerLeftName: Controller (left)
+  controllerRightName: Controller (right)
+  cameraEyeName: Camera (eye)
 --- !u!1001 &334547542
 Prefab:
   m_ObjectHideFlags: 0

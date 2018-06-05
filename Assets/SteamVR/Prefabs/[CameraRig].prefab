@@ -84,6 +84,7 @@ GameObject:
   - component: {fileID: 11470538}
   - component: {fileID: 9213436}
   - component: {fileID: 135127473871917358}
+  - component: {fileID: 114710808084659224}
   m_Layer: 5
   m_Name: Camera (head)
   m_TagString: MainCamera
@@ -568,12 +569,11 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 159396}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2e64fc10b75d964cb85e8038a3cb416, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  compassQuad: {fileID: 0}
   collisionLayerName: UI
 --- !u!114 &114208182183936960
 MonoBehaviour:
@@ -581,12 +581,11 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 124034}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f2e64fc10b75d964cb85e8038a3cb416, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  compassQuad: {fileID: 0}
   collisionLayerName: UI
 --- !u!114 &114316947555938410
 MonoBehaviour:
@@ -599,6 +598,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &114710808084659224
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 155680}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -619905303, guid: f70555f144d8491a825f0804e09c671c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_FirstSelected: {fileID: 0}
+  m_sendNavigationEvents: 1
+  m_DragThreshold: 10
 --- !u!135 &135127473871917358
 SphereCollider:
   m_ObjectHideFlags: 1

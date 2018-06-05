@@ -10,12 +10,14 @@ using UnityEngine.UI;
  * A ray is cast out from the underside of the controller. When it collides with a collider in the proper layer, the UI appears
  **/
 public class UnderHandUIController : MonoBehaviour {
+    [Tooltip("This is set at runtime by the injector that Instantiates this prefab as a child of the controller.")]
+    public GameObject myController;
+
     private SteamVR_TrackedObject trackedObj;
     private int counter;
 
-    [Tooltip("The UI to display or hide. It should be a child of the controller and appropriately sized and positioned.")]
-    public GameObject UIQuadPrefab;
-    private GameObject UIQuad;
+    [Tooltip("The GameObject that owns the actual UI to display or hide..")]
+    public GameObject UIOwner;
 
     [Tooltip("The under-controller UI will display when the bottom of the controller is facing the user. " +
         "In order to accomplish this, a raycast is shot out towards the camera. This variable needs to be set " +
@@ -24,12 +26,18 @@ public class UnderHandUIController : MonoBehaviour {
 
     private SteamVR_Controller.Device Controller
     {
-        get { return SteamVR_Controller.Input((int)trackedObj.index); } 
+        get
+        {
+            if (!trackedObj)
+            {
+                trackedObj = myController.GetComponent<SteamVR_TrackedObject>();
+            }
+            return SteamVR_Controller.Input((int)trackedObj.index);
+        } 
     }
 
     private void Awake()
     {
-        trackedObj = GetComponent<SteamVR_TrackedObject>();
     }
 
     void Start ()
@@ -57,28 +65,14 @@ public class UnderHandUIController : MonoBehaviour {
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * hit.distance, Color.yellow);
             Controller.TriggerHapticPulse(2000);
-            if (UIQuad)
-            {
-                RawImage ri = UIQuad.GetComponent<RawImage>();
-                if (ri)
-                {
-                    Debug.Log("Activating compass");
-                    ri.enabled = true;
-                }
-            }
+            if (UIOwner)
+                UIOwner.SetActive(true);
         }
         else
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * 1000, Color.white);
-            if (UIQuad)
-            {
-                RawImage ri = UIQuad.GetComponent<RawImage>();
-                if (ri)
-                {
-                    ri.enabled = false;
-                }
-                
-            }
+            if (UIOwner)
+                UIOwner.SetActive(false);
         }
         /*
         Quaternion rot = Controller.transform.rot;

@@ -10,6 +10,7 @@ public class VRInjector : MonoBehaviour {
     public GameObject SteamVRPrefab;
     public GameObject CameraRigPrefab;
     public GameObject UnderControllerUIPrefab;
+    public GameObject VRUIManagerPrefab;
 
     [Tooltip("This name must match the name in the left controller prefab")]
     public String controllerLeftName = "Controller (left)";
@@ -28,6 +29,7 @@ public class VRInjector : MonoBehaviour {
     private GameObject controllerRight;
     private GameObject oldCamera;
     private GameObject eyesCamera;
+    private GameObject vruiManager;
 
     private void Start()
     {
@@ -38,9 +40,9 @@ public class VRInjector : MonoBehaviour {
     {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
-        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefab)
+        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefab || !VRUIManagerPrefab)
         {
-            Debug.LogError("Attempted to inject VR, but either SteamVRPrefab, CameraRigPrefab, or UnderControllerUIPrefab wasn't set!");
+            Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefab, UnderControllerUIPrefab or VRUIManagerPrefab. This error is non-recoverable for VR support.");
             yield return 0;
         }
 
@@ -48,7 +50,7 @@ public class VRInjector : MonoBehaviour {
         playerMouseLook = player.GetComponentInChildren<PlayerMouseLook>();
         if (!player || !playerMouseLook)
         {
-            Debug.LogError("Attempted to inject VR but I wasn't able to find either the PlayerAdvanced or the PlayerMouseLook!");
+            Debug.LogError("Attempted to inject VR but I wasn't able to find either the PlayerAdvanced or the PlayerMouseLook! This error is non-recoverable for VR support.");
             yield return 0;
         }
 
@@ -60,7 +62,7 @@ public class VRInjector : MonoBehaviour {
         }
         catch (Exception)
         {
-            Debug.LogError("Unable to get the original camera and/or the old AudioListenerer to disable it for VR!");
+            Debug.LogError("Unable to get the original camera and/or the old AudioListenerer to disable it for VR! If you continue, VR support will most likely be broken.");
         }
 
 
@@ -75,12 +77,20 @@ public class VRInjector : MonoBehaviour {
 
         if (controllerLeft && controllerRight)
         {
-            GameObject.Instantiate(UnderControllerUIPrefab).transform.parent = controllerLeft.transform;
-            GameObject.Instantiate(UnderControllerUIPrefab).transform.parent = controllerRight.transform;
+            GameObject controller = GameObject.Instantiate(UnderControllerUIPrefab);
+            controller.transform.parent = controllerLeft.transform;
+            controller.transform.localPosition = new Vector3(0, 0, 0);
+            controller.GetComponent<UnderHandUIController>().myController = controllerLeft;
+
+            controller = GameObject.Instantiate(UnderControllerUIPrefab);
+            controller.transform.parent = controllerRight.transform;
+            controller.transform.localPosition = new Vector3(0, 0, 0);
+            controller.GetComponent<UnderHandUIController>().myController = controllerRight;
+
         }
         else
         {
-            Debug.LogError("Unable to get the two VR controller objects!");
+            Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
         }
 
         eyesCamera = GameObject.Find(cameraEyeName);
@@ -88,13 +98,14 @@ public class VRInjector : MonoBehaviour {
         {
             SphereCollider uiHeadCollider = eyesCamera.AddComponent<SphereCollider>();
             uiHeadCollider.isTrigger = true;
-            uiHeadCollider.radius = 0.2f;
+            uiHeadCollider.radius = 0.3f;
         }
         else
         {
-            Debug.LogError("Unable to get the newly created 'Camera (eyes)' object!");
+            Debug.LogError("Unable to get the newly created 'Camera (eyes)' object! If you continue, the UI for VR controllers will be broken.");
         }
 
+        vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
 	}
 	
 	// Update is called once per frame

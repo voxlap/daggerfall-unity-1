@@ -1,4 +1,4 @@
-﻿// Project:         Daggerfall Tools For Unity
+// Project:         Daggerfall Tools For Unity
 // Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -23,8 +23,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public UnityEngine.UI.RawImage OutputImage;
         public bool EnableCustomStack = false;
 
-        int customWidth = 0;
-        int customHeight = 0;
+        public int customWidth = 0;
+        public int customHeight = 0;
         Panel parentPanel;
 
         int createCount = 0;

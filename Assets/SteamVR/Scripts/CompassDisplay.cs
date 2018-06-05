@@ -4,16 +4,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+[RequireComponent(typeof(UserInterfaceRenderTarget))]
 public class CompassDisplay : MonoBehaviour {
 
     private SteamVR_TrackedObject trackedObj;
     private int counter;
-    public GameObject compassQuad;
 
     [Tooltip("The under-controller UI will display when the bottom of the controller is facing the user. " +
         "In order to accomplish this, a raycast is shot out towards the camera. This variable needs to be set " +
         "to the layer that the VR camera is on.")]
     public string collisionLayerName = "UI";
+
+    private UserInterfaceRenderTarget ui;
+    private HUDCompass compass;
+    private RawImage ri;
 
     private SteamVR_Controller.Device Controller
     {
@@ -29,10 +33,20 @@ public class CompassDisplay : MonoBehaviour {
     void Start ()
     {
         counter = 0;
+        ui = GetComponent<UserInterfaceRenderTarget>();
+        ui.CustomHeight = 69;
+        ui.CustomHeight = 17;
+
+        compass = new HUDCompass();
+        ui.ParentPanel.Components.Add(compass);
+
+        ri = gameObject.GetComponent<RawImage>();
 	}
 	
 	void Update ()
     {
+        compass.Scale = ui.ParentPanel.LocalScale;
+
         counter++;
         if (counter < 10) return;
         counter = 0;
@@ -49,28 +63,13 @@ public class CompassDisplay : MonoBehaviour {
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * hit.distance, Color.yellow);
             Controller.TriggerHapticPulse(2000);
-            if (compassQuad)
-            {
-                RawImage ri = compassQuad.GetComponent<RawImage>();
-                if (ri)
-                {
-                    Debug.Log("Activating compass");
-                    ri.enabled = true;
-                }
-            }
+            ri.enabled = true;
+            Debug.Log("Activating compass");
         }
         else
         {
             Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * 1000, Color.white);
-            if (compassQuad)
-            {
-                RawImage ri = compassQuad.GetComponent<RawImage>();
-                if (ri)
-                {
-                    ri.enabled = false;
-                }
-                
-            }
+            ri.enabled = true;
         }
         /*
         Quaternion rot = Controller.transform.rot;
