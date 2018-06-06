@@ -9,7 +9,8 @@ public class VRInjector : MonoBehaviour {
 
     public GameObject SteamVRPrefab;
     public GameObject CameraRigPrefab;
-    public GameObject UnderControllerUIPrefab;
+    public GameObject UnderControllerUIPrefabLeft;
+    public GameObject UnderControllerUIPrefabRight;
     public GameObject VRUIManagerPrefab;
 
     [Tooltip("This name must match the name in the left controller prefab")]
@@ -40,9 +41,9 @@ public class VRInjector : MonoBehaviour {
     {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
-        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefab || !VRUIManagerPrefab)
+        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab)
         {
-            Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefab, UnderControllerUIPrefab or VRUIManagerPrefab. This error is non-recoverable for VR support.");
+            Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab or VRUIManagerPrefab. This error is non-recoverable for VR support.");
             yield return 0;
         }
 
@@ -77,12 +78,12 @@ public class VRInjector : MonoBehaviour {
 
         if (controllerLeft && controllerRight)
         {
-            GameObject controller = GameObject.Instantiate(UnderControllerUIPrefab);
+            GameObject controller = GameObject.Instantiate(UnderControllerUIPrefabLeft);
             controller.transform.parent = controllerLeft.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerLeft;
 
-            controller = GameObject.Instantiate(UnderControllerUIPrefab);
+            controller = GameObject.Instantiate(UnderControllerUIPrefabRight);
             controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerRight;
