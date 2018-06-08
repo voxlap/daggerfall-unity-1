@@ -30,7 +30,6 @@ public class ViveControllerInputTest : MonoBehaviour {
         {
             //InputManager.Instance.addAction(InputManager.Actions.ActivateCenterObject);
             Debug.Log(gameObject.name + " Trigger pressed");
-            DaggerfallUI.Instance.EnableDefaultUserInterface = false;
         }
 /*        if (Controller.GetAxis() != Vector2.zero)
         {

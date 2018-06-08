@@ -11,7 +11,6 @@ public class VRUIManager : MonoBehaviour
 {
 	void Start ()
     {
-        DaggerfallUI.Instance.EnableDefaultUserInterface = false;
 
         /*GameObject quad = GameObject.FindGameObjectWithTag("UI");
         RawImage rawImage = DaggerfallUI.Instance.NonDiegeticUIOutput.GetComponent<RawImage>();
