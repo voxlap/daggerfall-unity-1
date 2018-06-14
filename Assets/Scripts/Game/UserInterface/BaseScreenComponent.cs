@@ -565,7 +565,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
 
             // Get left and right mouse down for general click handling and double-click sampling
-            bool leftMouseDown = Input.GetMouseButtonDown(0);
+            bool leftMouseDown = Input.GetMouseButtonDown(0) || Input.GetButtonDown("VRTrigger");
             bool rightMouseDown = Input.GetMouseButtonDown(1);
             bool middleMouseDown = Input.GetMouseButtonDown(2);
 

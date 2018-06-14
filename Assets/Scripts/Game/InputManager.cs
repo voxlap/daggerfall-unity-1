@@ -1,4 +1,4 @@
-﻿// Project:         Daggerfall Tools For Unity
+// Project:         Daggerfall Tools For Unity
 // Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -38,7 +38,7 @@ namespace DaggerfallWorkshop.Game
 
         KeyCode[] reservedKeys = new KeyCode[] { KeyCode.Escape, KeyCode.BackQuote };
         Dictionary<KeyCode, Actions> actionKeyDict = new Dictionary<KeyCode, Actions>();
-        List<Actions> currentActions = new List<Actions>();
+        public List<Actions> currentActions = new List<Actions>();
         List<Actions> previousActions = new List<Actions>();
         bool isPaused;
         bool wasPaused;

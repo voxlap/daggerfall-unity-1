@@ -465,8 +465,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   OutputImage: {fileID: 100870829}
   EnableCustomStack: 0
-  customWidth: 0
-  customHeight: 0
 --- !u!114 &97801944
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -889,6 +887,21 @@ Prefab:
     - target: {fileID: 100000, guid: 53a45b46ca97a974f8e677f68c2a85e6, type: 2}
       propertyPath: m_Layer
       value: 13
+      objectReference: {fileID: 0}
+    - target: {fileID: 114583161180529142, guid: 53a45b46ca97a974f8e677f68c2a85e6,
+        type: 2}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 114583161180529142, guid: 53a45b46ca97a974f8e677f68c2a85e6,
+        type: 2}
+      propertyPath: heightFog
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 114583161180529142, guid: 53a45b46ca97a974f8e677f68c2a85e6,
+        type: 2}
+      propertyPath: fogShader
+      value: 
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_ParentPrefab: {fileID: 100100000, guid: 53a45b46ca97a974f8e677f68c2a85e6, type: 2}

@@ -558,11 +558,13 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 159396}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
+    type: 2}
 --- !u!114 &114107983819648994
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -593,11 +595,13 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 124034}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
+    type: 2}
 --- !u!114 &114710808084659224
 MonoBehaviour:
   m_ObjectHideFlags: 1

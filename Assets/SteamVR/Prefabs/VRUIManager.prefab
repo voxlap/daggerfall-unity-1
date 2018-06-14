@@ -51,3 +51,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbc259d87e8ced54a951e3bc0a47a0c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  FloatingUIPrefab: {fileID: 1309422617389174, guid: 1dc6d20d97703634ab0535825856e3b4,
+    type: 2}

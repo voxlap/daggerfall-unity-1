@@ -23,8 +23,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public UnityEngine.UI.RawImage OutputImage;
         public bool EnableCustomStack = false;
 
-        public int customWidth = 0;
-        public int customHeight = 0;
+        int customWidth = 0;
+        int customHeight = 0;
         Panel parentPanel;
 
         int createCount = 0;
