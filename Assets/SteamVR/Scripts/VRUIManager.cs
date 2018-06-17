@@ -21,13 +21,13 @@ public class VRUIManager : MonoBehaviour {
         if (FloatingUIPrefab) {
             floatingUI = Instantiate(FloatingUIPrefab);
         } else {
-            Debug.Log("The VR UI Manager was unable to create the floating UI! The VR UI will be very broken.");
+            Debug.LogError("The VR UI Manager was unable to create the floating UI! The VR UI will be very broken.");
             return;
         }
 
         eyesCamera = GameObject.Find(CameraEyeName);
         if (!eyesCamera) {
-            Debug.Log("The VR UI Manager was unable to find the Camera (eyes) component with name " + CameraEyeName + ". Improper setting in the injected VRUI Manager prefab? The VR UI will be very broken.");
+            Debug.LogError("The VR UI Manager was unable to find the Camera (eyes) component with name " + CameraEyeName + ". Improper setting in the injected VRUI Manager prefab? The VR UI will be very broken.");
             return;
         }
 

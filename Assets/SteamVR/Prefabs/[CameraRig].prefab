@@ -28,6 +28,7 @@ GameObject:
   - component: {fileID: 11411726}
   - component: {fileID: 114316947555938410}
   - component: {fileID: 114208182183936960}
+  - component: {fileID: 114010848696155268}
   m_Layer: 0
   m_Name: Controller (left)
   m_TagString: Untagged
@@ -103,6 +104,7 @@ GameObject:
   - component: {fileID: 11463128}
   - component: {fileID: 114093765297726962}
   - component: {fileID: 114107983819648994}
+  - component: {fileID: 114101775045763862}
   m_Layer: 0
   m_Name: Controller (right)
   m_TagString: Untagged
@@ -552,7 +554,39 @@ Prefab:
   m_ParentPrefab: {fileID: 0}
   m_RootGameObject: {fileID: 146900}
   m_IsPrefabParent: 1
+--- !u!114 &114010848696155268
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 124034}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20f2d85e1877f3d4791ca5c215eb1723, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  VR_UI_MANAGER_NAME: VRUIManager(Clone)
+  PLAYER_ADVANCED_NAME: PlayerAdvanced
+  LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
+    type: 2}
+  hand: 0
+  FORWARD_SENSITIVITY: 0.05
+  STRAFE_SENSITIVITY: 0.05
 --- !u!114 &114093765297726962
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 159396}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  FLOATING_UI_TARGET_NAME: FloatingUI
+  LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
+    type: 2}
+--- !u!114 &114101775045763862
 MonoBehaviour:
   m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}
@@ -560,11 +594,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 159396}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
+  m_Script: {fileID: 11500000, guid: 20f2d85e1877f3d4791ca5c215eb1723, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  VR_UI_MANAGER_NAME: VRUIManager(Clone)
+  PLAYER_ADVANCED_NAME: PlayerAdvanced
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
+  hand: 1
+  FORWARD_SENSITIVITY: 0.05
+  STRAFE_SENSITIVITY: 0.05
 --- !u!114 &114107983819648994
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -595,11 +634,12 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 124034}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
 --- !u!114 &114710808084659224

@@ -42,24 +42,19 @@ public class ViveControllerInputTest : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update ()
-    {
-        if (Controller.GetPress(SteamVR_Controller.ButtonMask.Touchpad))
-        {
+    void Update() { 
+        if (Controller.GetPress(SteamVR_Controller.ButtonMask.Touchpad)) {
             RaycastHit hit;
-            if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100))
-            {
+            if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100)) {
                 hitPoint = hit.point;
                 ShowLaser(hit);
-                if (hit.transform.gameObject.name == FLOATING_UI_TARGET_NAME + "(Clone)")
-                {
+                if (hit.transform.gameObject.name == FLOATING_UI_TARGET_NAME + "(Clone)") {
                     //Debug.Log("World position: " + hit.point.ToString());
                     //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
                     Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
                     //Debug.Log("Inverse Transform Point: " + localPoint);
                     FloatingUITest test = hit.transform.gameObject.GetComponent<FloatingUITest>();
-                    if (test)
-                    {
+                    if (test) {
                         test.HandlePointer(localPoint);
                     }
 
