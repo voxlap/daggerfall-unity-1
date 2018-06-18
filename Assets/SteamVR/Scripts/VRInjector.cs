@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class VRInjector : MonoBehaviour {
-
     public GameObject SteamVRPrefab;
     public GameObject CameraRigPrefab;
     public GameObject UnderControllerUIPrefabLeft;
@@ -22,6 +21,14 @@ public class VRInjector : MonoBehaviour {
     [Tooltip("The name assigned by SteamVR when it creates the camera object for the player's eyes")]
     public String cameraEyeName = "Camera (eye)";
 
+    [Tooltip("The name in Daggerfall Unity for the PlayerAdvanced GameObject")]
+    public String playerAdvancedName = "PlayerAdvanced";
+
+    // TODO: Change this value based on user's height?
+    [Tooltip("Changes the player's height to this value. Currently this is determined by testing, but maybe it should be scaled based on " +
+        "the VR user's actual height.")]
+    public float defaultCharacterControllerHeight = 0.8f;
+
     private GameObject player;
     private PlayerMouseLook playerMouseLook;
     private GameObject steamVR;
@@ -31,41 +38,35 @@ public class VRInjector : MonoBehaviour {
     private GameObject oldCamera;
     private GameObject eyesCamera;
     private GameObject vruiManager;
+    private GameObject playerAdvanced;
 
-    private void Start()
-    {
+    private void Start() {
         StartCoroutine(Setup());
     }
 
-    private IEnumerator Setup()
-    {
+    private IEnumerator Setup() {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
-        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab)
-        {
+        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab) { 
             Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab or VRUIManagerPrefab. This error is non-recoverable for VR support.");
             yield return 0;
         }
 
         player = GameObject.Find("PlayerAdvanced");
         playerMouseLook = player.GetComponentInChildren<PlayerMouseLook>();
-        if (!player || !playerMouseLook)
-        {
+        if (!player || !playerMouseLook) {
             Debug.LogError("Attempted to inject VR but I wasn't able to find either the PlayerAdvanced or the PlayerMouseLook! This error is non-recoverable for VR support.");
             yield return 0;
         }
 
-        try
-        {
-            GameObject oldCamera = player.transform.Find("SmoothFollower").gameObject.transform.Find("Camera").gameObject;
+        try {
+            oldCamera = player.transform.Find("SmoothFollower").gameObject.transform.Find("Camera").gameObject;
             oldCamera.GetComponent<Camera>().enabled = false;
             oldCamera.GetComponent<AudioListener>().enabled = false;
         }
-        catch (Exception)
-        {
+        catch (Exception) {
             Debug.LogError("Unable to get the original camera and/or the old AudioListenerer to disable it for VR! If you continue, VR support will most likely be broken.");
         }
-
 
         steamVR = GameObject.Instantiate(SteamVRPrefab);
         cameraRig = GameObject.Instantiate(CameraRigPrefab);
@@ -76,8 +77,7 @@ public class VRInjector : MonoBehaviour {
         controllerRight = cameraRig.transform.Find(controllerRightName).gameObject;
         controllerLeft = cameraRig.transform.Find(controllerLeftName).gameObject;
 
-        if (controllerLeft && controllerRight)
-        {
+        if (controllerLeft && controllerRight) {
             GameObject controller = GameObject.Instantiate(UnderControllerUIPrefabLeft);
             controller.transform.parent = controllerLeft.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
@@ -87,31 +87,41 @@ public class VRInjector : MonoBehaviour {
             controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerRight;
-
         }
-        else
-        {
+        else {
             Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
         }
 
         eyesCamera = GameObject.Find(cameraEyeName);
-        if (eyesCamera)
-        {
+        if (eyesCamera && oldCamera) {
             SphereCollider uiHeadCollider = eyesCamera.AddComponent<SphereCollider>();
             uiHeadCollider.isTrigger = true;
             uiHeadCollider.radius = 0.3f;
+            oldCamera.transform.localPosition = new Vector3(0, 0, 0);
+            oldCamera.transform.parent = eyesCamera.transform;
+            oldCamera.transform.rotation = Quaternion.identity;
         }
-        else
-        {
-            Debug.LogError("Unable to get the newly created 'Camera (eyes)' object! If you continue, the UI for VR controllers will be broken.");
+        else {
+            Debug.LogError("Unable to get the newly created 'Camera (eyes)' object! If you continue, the VR UI and sprite rotation will be broken.");
         }
 
         vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
-	}
+
+        playerAdvanced = GameObject.Find(playerAdvancedName);
+        CharacterController cc = null;
+        if (playerAdvanced) {
+            cc = playerAdvanced.GetComponent<CharacterController>();
+            if (cc) {
+                cc.height = defaultCharacterControllerHeight;
+            } else {
+                Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a CharacterController! Player height may be wrong.");
+            }
+        } else {
+            Debug.LogError("Unable to get the PlayerAdvanced (" + playerAdvancedName + ") GameObject! Wrong name set in VRInjector in Unity Editor? Player height and some other things may be incorrect.");
+        }
+    }
 	
-	// Update is called once per frame
-	void Update()
-    {
+	void Update() {
 		
 	}
 }
