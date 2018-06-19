@@ -1,3 +1,6 @@
+using DaggerfallWorkshop;
+using DaggerfallWorkshop.Game;
+using System;
 using UnityEngine;
 
 public class VRController : MonoBehaviour  {
@@ -31,7 +34,7 @@ public class VRController : MonoBehaviour  {
     private GameObject laser;
     private Transform laserTransform;
     private Vector3 hitPoint;
-    private bool laserOn = true;
+    private bool laserOn = false;
 
     private bool _init = false;
 
@@ -93,16 +96,63 @@ public class VRController : MonoBehaviour  {
             RaycastHit hit;
             if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100)) {
                 hitPoint = hit.point;
-                ShowLaser(hit);
+                if (handleHitObject(hit.collider.gameObject)) {
+                    laserOn = false;
+                } else {
+                    ShowLaser(hit);
+                }
             } 
         }
 
         if (hand == HANDEDNESS.LEFT) {
-
+            handleLeftController();
         } else if (hand == HANDEDNESS.RIGHT) {
-
+            handleRightController();
         }
+    }
 
+    private bool handleHitObject(GameObject hitObject) {
+        bool handled = false;
+        if (hitObject) {
+            DaggerfallActionDoor door = hitObject.GetComponent<DaggerfallActionDoor>();
+            if (door) {
+                handleHitDoor(hitObject);
+                handled = true;
+            }
+        }
+        return handled;
+    }
+
+    private void handleHitDoor(GameObject hitDoor) {
+        MeshRenderer mr = hitDoor.GetComponent<MeshRenderer>(); 
+        if (mr) {
+            mr.enabled = !mr.enabled;
+        }
+    }
+
+    private void handleRightController() { 
+        // Touchpad press for rotate
+        if (Controller.GetPressDown(SteamVR_Controller.ButtonMask.Touchpad)) {
+            Vector2 touchpad = Controller.GetAxis();
+            if (touchpad.x > 0.3f) {
+                if (touchpad.x > 0.6f) 
+                    player.transform.Rotate(0, 30, 0);
+                else
+                    player.transform.Rotate(0, 10, 0);
+            }
+            else if (touchpad.x < -0.3f) {
+                if (touchpad.x < -0.6f)  
+                    player.transform.Rotate(0, -30, 0);
+                else
+                    player.transform.Rotate(0, -10, 0);
+            } else {
+                laserOn = !laserOn;
+            }
+        }
+    }
+
+    private void handleLeftController() {
+        // Touchpad drag for slide
         if (Controller.GetAxis() != Vector2.zero) {
             Vector2 touchpad = Controller.GetAxis();
             if (touchpad.y > 0.2f || touchpad.y < -0.2f) {

@@ -11,6 +11,7 @@ public class VRInjector : MonoBehaviour {
     public GameObject UnderControllerUIPrefabLeft;
     public GameObject UnderControllerUIPrefabRight;
     public GameObject VRUIManagerPrefab;
+    public GameObject OverControllerUIPrefab;
 
     [Tooltip("This name must match the name in the left controller prefab")]
     public String controllerLeftName = "Controller (left)";
@@ -47,8 +48,8 @@ public class VRInjector : MonoBehaviour {
     private IEnumerator Setup() {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
-        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab) { 
-            Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab or VRUIManagerPrefab. This error is non-recoverable for VR support.");
+        if (!SteamVRPrefab || !CameraRigPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab || !OverControllerUIPrefab) { 
+            Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab, VRUIManagerPrefab, or OverControllerUIPrefab. This error is non-recoverable for VR support.");
             yield return 0;
         }
 
@@ -87,6 +88,14 @@ public class VRInjector : MonoBehaviour {
             controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerRight;
+
+            controller = GameObject.Instantiate(OverControllerUIPrefab);
+            controller.transform.parent = controllerLeft.transform;
+            controller.transform.localPosition = new Vector3(0, 0, 0);
+
+            controller = GameObject.Instantiate(OverControllerUIPrefab);
+            controller.transform.parent = controllerRight.transform;
+            controller.transform.localPosition = new Vector3(0, 0, 0);
         }
         else {
             Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
