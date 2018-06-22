@@ -16,6 +16,9 @@ public class VRController : MonoBehaviour  {
     [Tooltip("Set this to the proper hand.")]
     public HANDEDNESS hand = HANDEDNESS.UNKNOWN;
 
+    [Tooltip("The name assigned by SteamVR when it creates the camera object for the player's eyes")]
+    public String CameraEyeName = "Camera (eye)";
+
     public float FORWARD_SENSITIVITY = 0.05f;
     public float STRAFE_SENSITIVITY = 0.05f;
 
@@ -25,6 +28,7 @@ public class VRController : MonoBehaviour  {
     private SteamVR_TrackedObject trackedObj;
     private GameObject player;
     private CharacterController cc;
+    private GameObject eyesCamera;
 
     private SteamVR_Controller.Device Controller {
         get { return SteamVR_Controller.Input((int)trackedObj.index); }
@@ -35,6 +39,7 @@ public class VRController : MonoBehaviour  {
     private Transform laserTransform;
     private Vector3 hitPoint;
     private bool laserOn = false;
+    private InputManager inputManager;
 
     private bool _init = false;
 
@@ -72,9 +77,16 @@ public class VRController : MonoBehaviour  {
             return;
         }
 
+        eyesCamera = GameObject.Find(CameraEyeName);
+        if (!eyesCamera) {
+            Debug.LogError("A VR Controller script was unable to find the Camera (eyes) component with name " + CameraEyeName + ". Improper setting in the injected VRUI Manager prefab? Movement will be broken.");
+            return;
+        }
+
         // Initiate controller-specific elements
         laser = Instantiate(LaserPrefab);
         laserTransform = laser.transform;
+        inputManager = InputManager.Instance;
         _init = true;
 	}
 
@@ -96,11 +108,7 @@ public class VRController : MonoBehaviour  {
             RaycastHit hit;
             if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100)) {
                 hitPoint = hit.point;
-                if (handleHitObject(hit.collider.gameObject)) {
-                    laserOn = false;
-                } else {
-                    ShowLaser(hit);
-                }
+                ShowLaser(hit);
             } 
         }
 
@@ -111,16 +119,12 @@ public class VRController : MonoBehaviour  {
         }
     }
 
-    private bool handleHitObject(GameObject hitObject) {
-        bool handled = false;
-        if (hitObject) {
-            DaggerfallActionDoor door = hitObject.GetComponent<DaggerfallActionDoor>();
-            if (door) {
-                handleHitDoor(hitObject);
-                handled = true;
-            }
-        }
-        return handled;
+    private void tryAction() {
+        RaycastHit hit;
+        if (Physics.Raycast(trackedObj.transform.position, trackedObj.transform.forward, out hit, 75)) {
+            hitPoint = hit.point;
+            InputManager.Instance.currentActions.Add(InputManager.Actions.ActivateCenterObject);
+        } 
     }
 
     private void handleHitDoor(GameObject hitDoor) {
@@ -133,30 +137,35 @@ public class VRController : MonoBehaviour  {
     private void handleRightController() { 
         // Touchpad press for rotate
         if (Controller.GetPressDown(SteamVR_Controller.ButtonMask.Touchpad)) {
-            Vector2 touchpad = Controller.GetAxis();
-            if (touchpad.x > 0.3f) {
-                if (touchpad.x > 0.6f) 
-                    player.transform.Rotate(0, 30, 0);
-                else
-                    player.transform.Rotate(0, 10, 0);
-            }
-            else if (touchpad.x < -0.3f) {
-                if (touchpad.x < -0.6f)  
-                    player.transform.Rotate(0, -30, 0);
-                else
-                    player.transform.Rotate(0, -10, 0);
+            if (!inputManager.IsPaused) { 
+                Vector2 touchpad = Controller.GetAxis();
+                if (!inputManager.IsPaused && touchpad.x > 0.3f) {
+                    if (touchpad.x > 0.6f) 
+                        player.transform.RotateAround(eyesCamera.transform.position, player.transform.up, 30);
+                    else
+                        player.transform.RotateAround(eyesCamera.transform.position, player.transform.up, 10);
+                }
+                else if (!inputManager.IsPaused && touchpad.x < -0.3f) {
+                    if (touchpad.x < -0.6f)  
+                        player.transform.RotateAround(eyesCamera.transform.position, player.transform.up, -30);
+                    else
+                        player.transform.RotateAround(eyesCamera.transform.position, player.transform.up, -10);
+                } else {
+                    laserOn = !laserOn;
+                    tryAction();
+                }
             } else {
-                laserOn = !laserOn;
+                // Game is paused, handle UI input events
             }
         }
     }
 
     private void handleLeftController() {
         // Touchpad drag for slide
-        if (Controller.GetAxis() != Vector2.zero) {
+        if (!inputManager.IsPaused && Controller.GetAxis() != Vector2.zero) {
             Vector2 touchpad = Controller.GetAxis();
-            if (touchpad.y > 0.2f || touchpad.y < -0.2f) {
-                cc.Move(transform.forward * touchpad.y * FORWARD_SENSITIVITY);
+            if (touchpad.y > 0.15f || touchpad.y < -0.15f) {
+                cc.Move(trackedObj.transform.forward * touchpad.y * FORWARD_SENSITIVITY);
                 //player.transform.position -= player.transform.forward * Time.deltaTime * (touchpad.y * FORWARD_SENSITIVITY);
 
                 //Vector2 pos = player.transform.position;
@@ -164,8 +173,8 @@ public class VRController : MonoBehaviour  {
                 //player.transform.position = pos;
             }
 
-            if (touchpad.x > 0.2f || touchpad.x < -0.2f) {
-                cc.Move(transform.right * touchpad.x * FORWARD_SENSITIVITY);
+            if (touchpad.x > 0.15f || touchpad.x < -0.15f) {
+                cc.Move(trackedObj.transform.right * touchpad.x * FORWARD_SENSITIVITY);
                 //player.transform.position -= player.transform.right * Time.deltaTime * (touchpad.x * STRAFE_SENSITIVITY);
             }
             Debug.Log(gameObject.name + Controller.GetAxis());

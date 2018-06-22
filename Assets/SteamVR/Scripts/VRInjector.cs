@@ -125,9 +125,23 @@ public class VRInjector : MonoBehaviour {
             } else {
                 Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a CharacterController! Player height may be wrong.");
             }
+
+            PlayerActivate pa = playerAdvanced.GetComponent<PlayerActivate>();
+            if (pa) {
+                pa.mainCamera = eyesCamera;
+            } else {
+                Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a PlayerAdvanced script! Activating things in VR will be broken.");
+            }
+
         } else {
             Debug.LogError("Unable to get the PlayerAdvanced (" + playerAdvancedName + ") GameObject! Wrong name set in VRInjector in Unity Editor? Player height and some other things may be incorrect.");
         }
+
+        //TODO: DEBUG: REMOVEME:
+        playerAdvanced.transform.position = new Vector3(18.60975f, 0.46f, 18.25393f);
+        playerAdvanced.transform.eulerAngles = new Vector3(0, 155.087f, 0);
+
+
     }
 	
 	void Update() {

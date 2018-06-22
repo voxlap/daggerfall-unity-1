@@ -32,7 +32,7 @@ namespace DaggerfallWorkshop.Game
     {
         PlayerGPS playerGPS;
         PlayerEnterExit playerEnterExit;        // Example component to enter/exit buildings
-        GameObject mainCamera;
+        public GameObject mainCamera;
         int playerLayerMask = 0;
 
         Transform deferredInteriorDoorOwner;    // Used to defer interior transition after popup message

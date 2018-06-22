@@ -44,8 +44,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   OutputImage: {fileID: 114467233150007424}
   EnableCustomStack: 1
-  customWidth: 0
-  customHeight: 0
 --- !u!114 &114342669836117136
 MonoBehaviour:
   m_ObjectHideFlags: 1

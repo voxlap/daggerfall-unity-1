@@ -111,8 +111,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   OutputImage: {fileID: 114801202468659880}
   EnableCustomStack: 1
-  customWidth: 0
-  customHeight: 0
 --- !u!222 &222641590925328188
 CanvasRenderer:
   m_ObjectHideFlags: 1

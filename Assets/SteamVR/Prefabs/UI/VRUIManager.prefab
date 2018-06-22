@@ -53,3 +53,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   FloatingUIPrefab: {fileID: 1309422617389174, guid: 1dc6d20d97703634ab0535825856e3b4,
     type: 2}
+  CameraEyeName: Camera (eye)
