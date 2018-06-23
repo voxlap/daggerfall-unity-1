@@ -68,7 +68,7 @@ public class ViveControllerInputTest : MonoBehaviour
         }
 
         if (Controller.GetHairTriggerDown()) {
-            InputManager.Instance.currentActions.Add(InputManager.Actions.ActivateCenterObject);
+            InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
             Debug.Log(gameObject.name + " Trigger pressed");
         }
 
