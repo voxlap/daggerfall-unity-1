@@ -38,7 +38,7 @@ namespace DaggerfallWorkshop.Game
 
         KeyCode[] reservedKeys = new KeyCode[] { KeyCode.Escape, KeyCode.BackQuote };
         Dictionary<KeyCode, Actions> actionKeyDict = new Dictionary<KeyCode, Actions>();
-        public List<Actions> currentActions = new List<Actions>();
+        private List<Actions> currentActions = new List<Actions>();
         List<Actions> previousActions = new List<Actions>();
         bool isPaused;
         bool wasPaused;
@@ -341,6 +341,14 @@ namespace DaggerfallWorkshop.Game
             mouseY = 0;
             lookX = 0;
             lookY = 0;
+        }
+
+        /// <summary>
+        /// Adds an action
+        /// </summary>
+        public void AddAction(Actions action)
+        {
+            currentActions.Add(action);
         }
 
         /// <summary>
