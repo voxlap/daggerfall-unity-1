@@ -32,7 +32,8 @@ namespace DaggerfallWorkshop.Game
     {
         PlayerGPS playerGPS;
         PlayerEnterExit playerEnterExit;        // Example component to enter/exit buildings
-        public GameObject mainCamera;
+        GameObject rayEmitter {get; set;}       // The object from which a ray is shot to determine if the player can interact with an object
+                                                // By default this is MainCamera, but mods can set this with a helper
         int playerLayerMask = 0;
 
         Transform deferredInteriorDoorOwner;    // Used to defer interior transition after popup message
@@ -40,6 +41,9 @@ namespace DaggerfallWorkshop.Game
 
         PlayerActivateModes currentMode = PlayerActivateModes.Grab;
         bool castPending = false;
+
+        float clickDelay = 0;
+        float clickDelayStartTime = 0;
 
         public float RayDistance = 0;           // Distance of ray check, tune this to your scale and preference
         public float ActivateDistance = 2.3f;   // Distance within which something must be for player to activate it. Tune as needed.
@@ -75,13 +79,13 @@ namespace DaggerfallWorkshop.Game
         {
             playerGPS = GetComponent<PlayerGPS>();
             playerEnterExit = GetComponent<PlayerEnterExit>();
-            mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
+            rayEmitter = GameObject.FindGameObjectWithTag("MainCamera");
             playerLayerMask = LayerMask.NameToLayer("Player");
         }
 
         void Update()
         {
-            if (mainCamera == null)
+            if (rayEmitter == null)
                 return;
 
             // Do nothing if player has spell ready to cast as activate button is now used to fire spell
@@ -112,13 +116,24 @@ namespace DaggerfallWorkshop.Game
             else if (InputManager.Instance.ActionStarted(InputManager.Actions.TalkMode))
                 ChangeInteractionMode(PlayerActivateModes.Talk);
 
+            // Handle click delay
+            if (clickDelay > 0 && Time.realtimeSinceStartup < clickDelayStartTime + clickDelay)
+            {
+                return;
+            }
+            else
+            {
+                clickDelay = 0;
+                clickDelayStartTime = 0;
+            }
+
             // Fire ray into scene
             if (InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
             {
                 // TODO: Clean all this up
 
                 // Fire ray into scene for hit tests (excluding player so their ray does not intersect self)
-                Ray ray = new Ray(transform.position + Vector3.up * 0.8f, mainCamera.transform.forward);
+                Ray ray = new Ray(transform.position + Vector3.up * 0.8f, rayEmitter.transform.forward);
                 RaycastHit hit;
                 RayDistance = 75f; // Approximates classic at full view distance (default setting). Classic seems to do raycasts for as far as it can render objects.
                 bool hitSomething = Physics.Raycast(ray, out hit, RayDistance, playerLayerMask);
@@ -473,6 +488,16 @@ namespace DaggerfallWorkshop.Game
                     #endregion
                 }
             }
+        }
+
+        /// <summary>
+        /// Set a click delay before new clicks are accepted, usually when exiting UI.
+        /// </summary>
+        /// <param name="delay">Delay in seconds. Valid range is 0.0 - 1.0</param>
+        public void SetClickDelay(float delay = 0.3f)
+        {
+            clickDelay = Mathf.Clamp01(delay);
+            clickDelayStartTime = Time.realtimeSinceStartup;
         }
 
         private void HandleLootContainer(RaycastHit hit, DaggerfallLoot loot)
