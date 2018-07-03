@@ -63,8 +63,8 @@ public class UnderHandUIController : MonoBehaviour {
         RaycastHit hit;
         if (Physics.Raycast(transform.position, transform.TransformDirection(Vector3.down), out hit, Mathf.Infinity, layerMask))
         {
-            Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * hit.distance, Color.yellow);
-            Controller.TriggerHapticPulse(2000);
+            //Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * hit.distance, Color.yellow);
+            //Controller.TriggerHapticPulse(2000);
             if (UIOwner)
                 UIOwner.SetActive(true);
         }

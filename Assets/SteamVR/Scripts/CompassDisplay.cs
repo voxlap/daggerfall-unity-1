@@ -68,7 +68,7 @@ public class CompassDisplay : MonoBehaviour {
         }
         else
         {
-            Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * 1000, Color.white);
+            //Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.down) * 1000, Color.white);
             ri.enabled = true;
         }
         /*

@@ -32,7 +32,7 @@ namespace DaggerfallWorkshop.Game
     {
         PlayerGPS playerGPS;
         PlayerEnterExit playerEnterExit;        // Example component to enter/exit buildings
-        GameObject rayEmitter {get; set;}       // The object from which a ray is shot to determine if the player can interact with an object
+        public GameObject rayEmitter {get; set;}       // The object from which a ray is shot to determine if the player can interact with an object
                                                 // By default this is MainCamera, but mods can set this with a helper
         int playerLayerMask = 0;
 
@@ -133,9 +133,22 @@ namespace DaggerfallWorkshop.Game
                 // TODO: Clean all this up
 
                 // Fire ray into scene for hit tests (excluding player so their ray does not intersect self)
-                Ray ray = new Ray(transform.position + Vector3.up * 0.8f, rayEmitter.transform.forward);
+//                Ray ray = new Ray(transform.position + Vector3.up * 0.8f, rayEmitter.transform.forward);
+                Ray ray = new Ray(rayEmitter.transform.position, rayEmitter.transform.forward);
                 RaycastHit hit;
                 RayDistance = 75f; // Approximates classic at full view distance (default setting). Classic seems to do raycasts for as far as it can render objects.
+                int mask = ~(1<<LayerMask.NameToLayer("Player"));
+                Debug.DrawRay(rayEmitter.transform.position, rayEmitter.transform.forward, Color.red, 1f);
+
+                // Works
+                RaycastHit[] hits = Physics.RaycastAll(rayEmitter.transform.position, rayEmitter.transform.forward, 100f, playerLayerMask);
+                bool tmpHit = Physics.Raycast(rayEmitter.transform.position, rayEmitter.transform.forward, 100f, playerLayerMask);
+
+                // Works
+                RaycastHit newHit;
+                bool tmpHit2 = Physics.Raycast(rayEmitter.transform.position, rayEmitter.transform.forward, out newHit, 100f, playerLayerMask);
+
+                // Doesn't work
                 bool hitSomething = Physics.Raycast(ray, out hit, RayDistance, playerLayerMask);
                 if (hitSomething)
                 {

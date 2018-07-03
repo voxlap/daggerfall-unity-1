@@ -567,9 +567,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   VR_UI_MANAGER_NAME: VRUIManager(Clone)
   PLAYER_ADVANCED_NAME: PlayerAdvanced
+  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
   hand: 0
+  CameraEyeName: Camera (eye)
+  LeftGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
+  RightGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
+  GloveAnimControllerPrefab: {fileID: 9100000, guid: 65182af7826a78a498cb64c8445e1de6,
+    type: 2}
   FORWARD_SENSITIVITY: 0.05
   STRAFE_SENSITIVITY: 0.05
 --- !u!114 &114093765297726962
@@ -599,9 +605,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   VR_UI_MANAGER_NAME: VRUIManager(Clone)
   PLAYER_ADVANCED_NAME: PlayerAdvanced
+  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
   hand: 1
+  CameraEyeName: Camera (eye)
+  LeftGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
+  RightGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
+  GloveAnimControllerPrefab: {fileID: 9100000, guid: 65182af7826a78a498cb64c8445e1de6,
+    type: 2}
   FORWARD_SENSITIVITY: 0.05
   STRAFE_SENSITIVITY: 0.05
 --- !u!114 &114107983819648994

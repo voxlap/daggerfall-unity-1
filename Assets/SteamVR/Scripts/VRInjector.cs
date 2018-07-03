@@ -36,6 +36,8 @@ public class VRInjector : MonoBehaviour {
     private GameObject cameraRig;
     private GameObject controllerLeft;
     private GameObject controllerRight;
+    private GameObject controllerLeftVirtual; // these GameObjects own the controller{Left,Right} objects, facilitating VR emulation
+    private GameObject controllerRightVirtual;// by letting you move the GOs independently of the real tracking
     private GameObject oldCamera;
     private GameObject eyesCamera;
     private GameObject vruiManager;
@@ -80,22 +82,38 @@ public class VRInjector : MonoBehaviour {
 
         if (controllerLeft && controllerRight) {
             GameObject controller = GameObject.Instantiate(UnderControllerUIPrefabLeft);
-            controller.transform.parent = controllerLeft.transform;
+            controller.transform.SetParent(controllerLeft.transform);
+            //controller.transform.parent = controllerLeft.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerLeft;
 
             controller = GameObject.Instantiate(UnderControllerUIPrefabRight);
-            controller.transform.parent = controllerRight.transform;
+            controller.transform.SetParent(controllerRight.transform);
+            //controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
             controller.GetComponent<UnderHandUIController>().myController = controllerRight;
 
             controller = GameObject.Instantiate(OverControllerUIPrefab);
-            controller.transform.parent = controllerLeft.transform;
+            controller.transform.SetParent(controllerLeft.transform);
+            //controller.transform.parent = controllerLeft.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
 
             controller = GameObject.Instantiate(OverControllerUIPrefab);
             controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
+
+            /*
+            controllerLeftVirtual = new GameObject();
+            controllerLeftVirtual.transform.parent = cameraRig.transform;
+            controllerLeftVirtual.transform.localPosition = new Vector3(0, 0, 0);
+            controllerLeft.transform.parent = controllerLeftVirtual.transform;
+
+            controllerRightVirtual = new GameObject();
+            controllerRightVirtual.transform.parent = cameraRig.transform;
+            controllerRightVirtual.transform.localPosition = new Vector3(0, 0, 0);
+            controllerRight.transform.parent = controllerRightVirtual.transform;
+            */
+
         }
         else {
             Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
@@ -107,7 +125,8 @@ public class VRInjector : MonoBehaviour {
             uiHeadCollider.isTrigger = true;
             uiHeadCollider.radius = 0.3f;
             oldCamera.transform.localPosition = new Vector3(0, 0, 0);
-            oldCamera.transform.parent = eyesCamera.transform;
+            oldCamera.transform.position = new Vector3(0, 0, 0);
+            oldCamera.transform.SetParent(eyesCamera.transform, false);
             oldCamera.transform.rotation = Quaternion.identity;
         }
         else {
@@ -128,7 +147,7 @@ public class VRInjector : MonoBehaviour {
 
             PlayerActivate pa = playerAdvanced.GetComponent<PlayerActivate>();
             if (pa) {
-                pa.mainCamera = eyesCamera;
+                pa.rayEmitter = eyesCamera;
             } else {
                 Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a PlayerAdvanced script! Activating things in VR will be broken.");
             }
@@ -137,10 +156,25 @@ public class VRInjector : MonoBehaviour {
             Debug.LogError("Unable to get the PlayerAdvanced (" + playerAdvancedName + ") GameObject! Wrong name set in VRInjector in Unity Editor? Player height and some other things may be incorrect.");
         }
 
-        //TODO: DEBUG: REMOVEME:
-        playerAdvanced.transform.position = new Vector3(18.60975f, 0.46f, 18.25393f);
-        playerAdvanced.transform.eulerAngles = new Vector3(0, 155.087f, 0);
+        vruiManager.GetComponent<VRUIManager>().playerAdvanced = playerAdvanced;
 
+        //TODO: DEBUG: REMOVEME:
+
+        // facing door
+        playerAdvanced.transform.position = new Vector3(26.28f, 0.46f, 19.19f);
+        playerAdvanced.transform.eulerAngles = new Vector3(0, 5.087f, 0);
+
+        // facing loot
+        /*
+        playerAdvanced.transform.position = new Vector3(29.52595f, 0.46f, 12.14156f);
+        playerAdvanced.transform.eulerAngles = new Vector3(0, 155.087f, 0);
+        */
+
+        // dungeon room
+        /*
+        playerAdvanced.transform.position = new Vector3(41.92409f, 6.86f, 16.05263f);
+        playerAdvanced.transform.eulerAngles = new Vector3(0, -164.913f, 0);
+        */
 
     }
 	

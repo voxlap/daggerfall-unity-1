@@ -570,7 +570,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             bool middleMouseDown = Input.GetMouseButtonDown(2);
 
             // Get left and right mouse down for up/down events
-            bool leftMouseHeldDown = Input.GetMouseButton(0);
+            bool leftMouseHeldDown = Input.GetMouseButtonDown(0) || Input.GetButtonDown("VRTrigger");
             bool rightMouseHeldDown = Input.GetMouseButton(1);
             bool middleMouseHeldDown = Input.GetMouseButton(2);
 

@@ -53,4 +53,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   FloatingUIPrefab: {fileID: 1309422617389174, guid: 1dc6d20d97703634ab0535825856e3b4,
     type: 2}
+  floatingUI: {fileID: 0}
+  FollowingUIPrefab: {fileID: 1978699560337488, guid: 39cbe0dcd268a1e43b6cd8f687b1b96e,
+    type: 2}
   CameraEyeName: Camera (eye)
+  UI_LAYER_MASK_NAME: UI
+  HintPrefab: {fileID: 1785574018573570, guid: 76b775ba9014898478657a7961f4ff35, type: 2}
+  playerAdvancedName: PlayerAdvanced
+  playerAdvanced: {fileID: 0}

@@ -28,10 +28,10 @@ public class FloatingUITest : MonoBehaviour
 
         if (DebugIndicatorPrefab) {
             debugIndicator = Instantiate(DebugIndicatorPrefab);
-            debugIndicator.transform.localPosition.Set(0, 0, 0);
+            debugIndicator.transform.localPosition.Set(0, 0, 10);
             debugIndicator.transform.parent = gameObject.transform;
         } else {
-            Debug.Log("Unable to create a debug indicator in the floating VR UI.");
+            Debug.LogError("Unable to create a debug indicator in the floating VR UI.");
         }
     }
 
@@ -102,6 +102,9 @@ public class FloatingUITest : MonoBehaviour
 
     private void repositionDebugIcon(Vector2 point) {
         debugIndicator.transform.localPosition = point;
+        debugIndicator.transform.Translate(0f, -0.2f, -0.1f);
+        debugIndicator.transform.localRotation = Quaternion.identity;
+        debugIndicator.transform.Rotate(0, 0, 90f);
     }
 }
 
