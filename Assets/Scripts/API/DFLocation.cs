@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,8 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Collections.Generic;
-using System.Text;
 using DaggerfallConnect.Arena2;
 #endregion
 
@@ -119,6 +117,7 @@ namespace DaggerfallConnect
             Special2 = 0xdf,
             Special3 = 0xf9,
             Special4 = 0xfa,
+            AnyHouse = 0xfffe,      // DaggerfallUnity: all valid house types
             AllValid = 0xffff,      // DaggerfallUnity: all valid types
         }
 
@@ -547,6 +546,15 @@ namespace DaggerfallConnect
             /// <summary>Unknown.</summary>
             public Byte[] Unknown2;
 
+            /// <summary>Unknown.</summary>
+            public Byte Unknown3;
+
+            /// <summary>ASCII value for first letter in .RMB file name.</summary>
+            public Byte Letter1ForRMBName;
+
+            /// <summary>If non-zero, ships can be purchased at banks here. Also has an unknown use.</summary>
+            public Byte PortTownAndUnknown;
+
             /// <summary>Only first Width*Height elements will have any meaning.</summary>
             public Byte[] BlockIndex;
 
@@ -558,9 +566,9 @@ namespace DaggerfallConnect
 
             /// <summary>Resolved block names.</summary>
             public string[] BlockNames;
-            
+
             /// <summary>Unknown.</summary>
-            public Byte[] Unknown3;
+            public Byte[] Unknown4;
 
             /// <summary>Always 0.</summary>
             public UInt64 NullValue1;
@@ -569,13 +577,13 @@ namespace DaggerfallConnect
             public Byte NullValue2;
 
             /// <summary>Unknown.</summary>
-            public UInt32[] Unknown4;
+            public UInt32[] Unknown5;
 
             /// <summary>Always 0.</summary>
             public Byte[] NullValue3;
 
             /// <summary>Unknown.</summary>
-            public UInt32 Unknown5;
+            public UInt32 Unknown6;
         }
 
         #endregion
@@ -625,7 +633,7 @@ namespace DaggerfallConnect
         {
             /// <summary>X position of block.</summary>
             public SByte X;
-            
+
             /// <summary>Y position of block.</summary>
             public SByte Z;
 

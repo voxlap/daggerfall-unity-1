@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -162,9 +162,7 @@ namespace DaggerfallWorkshop.Game
 
             // There are 3 pain-like sounds for each race/gender. The third one, used here, sounds like
             // it may have been meant for when the player dies.
-
-            PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            SoundClips sound = GetRaceGenderPain3Sound((Races)playerEntity.RaceTemplate.ID, playerEntity.Gender);
+            SoundClips sound = GetRaceGenderPain3Sound(playerEntity.Race, playerEntity.Gender);
 
             if (DaggerfallUI.Instance.DaggerfallAudioSource)
                 DaggerfallUI.Instance.DaggerfallAudioSource.PlayOneShot(sound, 0);

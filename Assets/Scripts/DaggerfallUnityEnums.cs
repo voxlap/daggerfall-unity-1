@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -220,7 +220,8 @@ namespace DaggerfallWorkshop
         PrimaryAttack,      // Records 5-9      (Usually a melee attack animation)
         Hurt,               // Records 10-14    (Mob has been struck)
         Idle,               // Records 15-19    (Frost and ice Daedra have animated idle states)
-        RangedAttack1,      // Records 20-24    (Spellcast or bow attack based on mobile type)
+        RangedAttack1,      // Records 20-24    (Bow attack)
+        Spell,              // Records 20-24 or, if absent, copy of PrimaryAttack
         RangedAttack2,      // Records 25-29    (Bow attack on 475, 489, 490 only, absent on other humanoids)
         // TODO: Seducer transform special
     }
@@ -252,6 +253,35 @@ namespace DaggerfallWorkshop
         Golem,              // Golems (flesh, fire, frost, iron)
         Water,              // Water creatures (dreugh, slaughterfish, lamia)
         Human,              // A human creature
+    }
+
+    /// <summary>
+    /// Mobile teams.
+    /// </summary>
+    public enum MobileTeams
+    {
+        PlayerEnemy,
+        PlayerAlly,
+        Vermin,
+        Spriggans,
+        Bears,
+        Tigers,
+        Spiders,
+        Orcs,
+        Centaurs,
+        Werecreatures,
+        Nymphs,
+        Aquatic,
+        Harpies,
+        Undead,
+        Giants,
+        Scorpions,
+        Magic,
+        Daedra,
+        Dragonlings,
+        KnightsAndMages,
+        Criminals,
+        CityWatch,
     }
 
     /// <summary>
@@ -320,7 +350,6 @@ namespace DaggerfallWorkshop
         None,
         Iron,
         Steel,
-        Chain,
         Silver,
         Elven,
         Dwarven,
@@ -355,9 +384,11 @@ namespace DaggerfallWorkshop
         // Weapon and armour dyes
         Iron = 15,
         Steel = 16,
-        Chain = 17,
+        Chain = 18, // This enum kept for compatibility with older saves
         Unchanged = 18,
-        SilverOrElven = 19,
+        SilverOrElven = 18, // This enum kept for compatibility with older saves
+        Silver = 18,
+        Elven = 19,
         Dwarven = 20,
         Mithril = 21,
         Adamantium = 22,
@@ -473,6 +504,8 @@ namespace DaggerfallWorkshop
         CIF,
         RCI,
         CFA,
+        BSS,
+        GFX,
     }
 
     /// <summary>
@@ -592,5 +625,119 @@ namespace DaggerfallWorkshop
         None = -1,
         QuestSpawn = 11,        // Quest spawn marker (Foe/Person resources)
         QuestItem = 18,         // Quest item marker (Item resource)
+    }
+
+    /// <summary>
+    /// Phases of the moons.
+    /// </summary>
+    public enum LunarPhases
+    {
+        None = -1,
+        New = 0,
+        OneWax = 1,
+        HalfWax = 2,
+        ThreeWax = 3,
+        Full = 4,
+        ThreeWane = 5,
+        HalfWane = 6,
+        OneWane = 7,
+    }
+
+    /// <summary>
+    /// Lycanthropy variants.
+    /// </summary>
+    public enum LycanthropyTypes
+    {
+        None = 0,
+        Werewolf = 1,
+        Wereboar = 2,
+    }
+
+    /// <summary>
+    /// Vampire clans.
+    /// </summary>
+    public enum VampireClans
+    {
+        None = 0,
+        Vraseth = 150,
+        Haarvenu = 151,
+        Thrafey = 152,
+        Lyrezi = 153,
+        Montalion = 154,
+        Khulari = 155,
+        Garlythi = 156,
+        Anthotis = 157,
+        Selenu = 158,
+    }
+
+    /// <summary>
+    /// Regions across the game world.
+    /// Values maps to zero-based region index.
+    /// Not all regions used in game.
+    /// </summary>
+    public enum DaggerfallRegions
+    {
+        AlikrDesert = 0,
+        DragontailMountains = 1,
+        GlenpointFoothills = 2,
+        DaggerfallBluffs = 3,
+        YeorthBurrowland = 4,
+        Dwynnen = 5,
+        RavennianForest = 6,
+        Devilrock = 7,
+        MaleknaForest = 8,
+        IsleOfBalfiera = 9,
+        Bantha = 10,
+        Dakfron = 11,
+        IslandsInTheWesternIlliacBay = 12,
+        TamarilynPoint = 13,
+        LainlynCliffs = 14,
+        BjoulsaeRiver = 15,
+        WrothgarianMountains = 16,
+        Daggerfall = 17,
+        Glenpoint = 18,
+        Betony = 19,
+        Sentinel = 20,
+        Anticlere = 21,
+        Lainlyn = 22,
+        Wayrest = 23,
+        GenTemHighRockVillage = 24,
+        GenRaiHammerfellVillage = 25,
+        OrsiniumArea = 26,
+        SkeffingtonWood = 27,
+        HammerfellBayCoast = 28,
+        HammerfellSeaCoast = 29,
+        HighRockBayCoast = 30,
+        HighRockSeaCoast = 31,
+        Northmoor = 32,
+        Menevia = 33,
+        Alcaire = 34,
+        Koegria = 35,
+        Bhoraine = 36,
+        Kambria = 37,
+        Phrygias = 38,
+        Urvaius = 39,
+        Ykalon = 40,
+        Daenia = 41,
+        Shalgora = 42,
+        AbibonGora = 43,
+        Kairou = 44,
+        Pothago = 45,
+        Myrkwasa = 46,
+        Ayasofya = 47,
+        Tigonus = 48,
+        Kozanset = 49,
+        Satakalaam = 50,
+        Totambu = 51,
+        Mournoth = 52,
+        Ephesus = 53,
+        Santaki = 54,
+        Antiphyllos = 55,
+        Bergama = 56,
+        Gavaudon = 57,
+        Tulune = 58,
+        GlenumbraMoors = 59,
+        IlessanHills = 60,
+        Cybiades = 61,
     }
 }

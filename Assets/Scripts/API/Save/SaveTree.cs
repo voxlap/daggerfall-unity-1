@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,9 +10,7 @@
 //
 
 using System;
-using System.Text;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect.Utility;
 
@@ -33,7 +31,7 @@ namespace DaggerfallConnect.Save
         public Dictionary<uint, SaveTreeBaseRecord> RecordDictionary = new Dictionary<uint, SaveTreeBaseRecord>();
 
         // Private fields
-        FileProxy saveTreeFile = new FileProxy();
+        readonly FileProxy saveTreeFile = new FileProxy();
         int duplicateKeysFound = 0;
 
         /// <summary>
@@ -150,7 +148,7 @@ namespace DaggerfallConnect.Save
         {
             List<SaveTreeBaseRecord> newList = new List<SaveTreeBaseRecord>();
 
-            foreach(SaveTreeBaseRecord record in source)
+            foreach (SaveTreeBaseRecord record in source)
             {
                 if (record.Parent == null)
                     continue;
@@ -354,6 +352,7 @@ namespace DaggerfallConnect.Save
         public UInt32 RecordID;                 // Unique ID of this record. Called "mapID" and "map identifier" by Fixsave.
         public Byte QuestID;                    // Associated quest ID of this record (0 if no quest)
         public UInt32 ParentRecordID;           // ID of parent record
+        public UInt32 Time;                     // Time in game minutes. Known uses: Time for magically-created items to disappear, time for items under repair to be done being repaired.
         public UInt32 ItemObject;               // chunktcl's description: ItemObject. Active spell/spell book/permanent treasure container
         public UInt32 QuestObjectID;            // chunktcl's description: QuestObjectID
         public UInt32 NextObject;               // chunktcl's description: Link to next object in series

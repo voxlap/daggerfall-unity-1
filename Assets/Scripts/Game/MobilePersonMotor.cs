@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -209,14 +209,27 @@ namespace DaggerfallWorkshop.Game
 
             // Go idle if near player
             distanceToPlayer = GameManager.Instance.PlayerMotor.DistanceToPlayer(transform.position);
+            bool withinIdleDistance = (distanceToPlayer < idleDistance);
             bool playerStandingStill = GameManager.Instance.PlayerMotor.IsStandingStill;
-            if (!playerStandingStill && mobileBillboard.IsIdle)
+            bool sheathed = GameManager.Instance.WeaponManager.Sheathed;
+            bool invisible = GameManager.Instance.PlayerEntity.IsInvisible;
+            bool inBeastForm = GameManager.Instance.PlayerEntity.IsInBeastForm;
+
+            bool wantsToStop = playerStandingStill && withinIdleDistance && sheathed && !invisible && !inBeastForm;
+
+            // greatly reduce # of calls to AreEnemiesNearby() by short-circuit evaluation
+            if (wantsToStop && !GameManager.Instance.AreEnemiesNearby())
+                wantsToStop = true;
+            else
+                wantsToStop = false;
+
+            if (!wantsToStop && mobileBillboard.IsIdle)
             {
                 // Switch animation state back to moving
                 mobileBillboard.IsIdle = false;
                 currentMobileState = MobileStates.MovingForward;
             }
-            else if (playerStandingStill && !mobileBillboard.IsIdle && distanceToPlayer < idleDistance)
+            else if (wantsToStop && !mobileBillboard.IsIdle)
             {
                 // Switch animation state to idle
                 mobileBillboard.IsIdle = true;

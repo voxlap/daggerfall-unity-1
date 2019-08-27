@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.IO;
 using DaggerfallConnect.Utility;
 #endregion
@@ -35,7 +34,7 @@ namespace DaggerfallConnect.Arena2
         const int pakBufferLengthValue = pakWidthValue * pakHeightValue;
 
         /// <summary>Abstracts PAK file to a managed disk or memory stream.</summary>
-        private FileProxy managedFile = new FileProxy();
+        private readonly FileProxy managedFile = new FileProxy();
 
         /// <summary>Extracted PAK file buffer.</summary>
         private Byte[] pakExtractedBuffer = new Byte[pakBufferLengthValue];

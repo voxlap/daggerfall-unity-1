@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -34,6 +34,7 @@ namespace DaggerfallWorkshop.Utility
         WoodsFile woodsFileReader;
         FactionFile factionFileReader;
         FlatsFile flatsFileReader;
+        PaintFile paintFileReader;
         Dictionary<int, MapSummary> mapDict;
         Dictionary<int, int> locationIdToMapIdDict;
 
@@ -80,6 +81,11 @@ namespace DaggerfallWorkshop.Utility
         public FlatsFile FlatsFileReader
         {
             get { return flatsFileReader; }
+        }
+
+        public PaintFile PaintFileReader
+        {
+            get { return paintFileReader; }
         }
 
         #region Constructors
@@ -257,6 +263,16 @@ namespace DaggerfallWorkshop.Utility
             return -1;
         }
 
+        /// <summary>
+        /// Gets path to FACTION.TXT file in StreamingAssets/Factions folder.
+        /// </summary>
+        /// <returns>Full path to file.</returns>
+        public string GetFactionFilePath()
+        {
+            string path = Path.Combine(Application.streamingAssetsPath, "Factions");
+            return Path.Combine(path, FactionFile.Filename);
+        }
+
         #endregion
 
         #region Private Methods
@@ -276,9 +292,11 @@ namespace DaggerfallWorkshop.Utility
             if (woodsFileReader == null)
                 woodsFileReader = new WoodsFile(Path.Combine(arena2Path, WoodsFile.Filename), FileUsage.UseMemory, true);
             if (factionFileReader == null)
-                factionFileReader = new FactionFile(Path.Combine(arena2Path, FactionFile.Filename), FileUsage.UseMemory, true);
+                factionFileReader = new FactionFile(GetFactionFilePath(), FileUsage.UseMemory, true);
             if (flatsFileReader == null)
                 flatsFileReader = new FlatsFile(Path.Combine(arena2Path, FlatsFile.Filename), FileUsage.UseMemory, true);
+            if (paintFileReader == null)
+                paintFileReader = new PaintFile(Path.Combine(arena2Path, PaintFile.Filename), FileUsage.UseMemory, true);
 
             // Build map lookup dictionary
             if (mapDict == null && mapFileReader != null)

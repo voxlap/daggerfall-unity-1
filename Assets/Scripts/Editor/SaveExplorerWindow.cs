@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -471,7 +471,7 @@ namespace DaggerfallWorkshop
                 return false;
 
             if (factionFile == null)
-                factionFile = new FactionFile(Path.Combine(dfUnity.Arena2Path, FactionFile.Filename), FileUsage.UseMemory, true);
+                factionFile = new FactionFile(dfUnity.ContentReader.GetFactionFilePath(), FileUsage.UseMemory, true);
 
             if (saveGames == null || saveTrees == null || saveNames == null)
             {
@@ -486,7 +486,7 @@ namespace DaggerfallWorkshop
                     {
                         if (saveGames.HasSave(i))
                         {
-                            saveGames.OpenSave(i);
+                            saveGames.OpenSave(i, false);
                             saveTrees[i] = saveGames.SaveTree;
                             saveVars[i] = saveGames.SaveVars;
                             saveNames[i] = new GUIContent(saveGames.SaveName);
@@ -499,6 +499,35 @@ namespace DaggerfallWorkshop
                             saveVars[i] = null;
                             saveTextures[i] = null;
                             saveNames[i] = new GUIContent("Empty");
+                        }
+                    }
+                }
+
+                // Prevent duplicate names so save games aren't automatically removed from the Save Select GUI
+                for (int i = 0; i < saveNames.Length; i++)
+                {
+                    int duplicateCount = 0;
+                    for (int j = i + 1; j < saveNames.Length; j++)
+                    {
+                        if (saveNames[j].text == saveNames[i].text)
+                        {
+                            bool unique = false;
+                            while (!unique)
+                            {
+                                unique = true;
+                                string replaceText = saveNames[j].text + "(" + ++duplicateCount + ")";
+                                for (int k = 0; k < saveNames.Length; k++)
+                                {
+                                    if (saveNames[k].text == replaceText)
+                                    {
+                                        unique = false;
+                                        break;
+                                    }
+                                }
+
+                                if (unique)
+                                    saveNames[j].text = replaceText;
+                            }
                         }
                     }
                 }

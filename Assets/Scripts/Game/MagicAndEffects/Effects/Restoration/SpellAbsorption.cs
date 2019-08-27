@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,7 @@
 // Notes:
 //
 
-using UnityEngine;
 using DaggerfallConnect;
-using DaggerfallWorkshop.Game.Entity;
-using System;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -21,11 +18,13 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class SpellAbsorption : IncumbentEffect
     {
+        public static readonly string EffectKey = "SpellAbsorption";
+
         public override void SetProperties()
         {
-            properties.Key = "SpellAbsorption";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(20, 255);
-            properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "spellAbsorption");
+            properties.GroupName = TextManager.Instance.GetText(textDatabase, "spellAbsorption");
             properties.SpellMakerDescription = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1568);
             properties.SpellBookDescription = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1268);
             properties.SupportDuration = true;

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -17,8 +17,7 @@ using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Banking;
-using DaggerfallConnect.Arena2;
-using DaggerfallWorkshop.Game.Guilds;
+using DaggerfallWorkshop.Game.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -76,6 +75,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         bool enemyBrokeRest = false;
         int remainingHoursRented = -1;
         Vector3 allocatedBed;
+        bool ignoreAllocatedBed = false;
         bool abortRestForEnemySpawn = false;
 
         PlayerEntity playerEntity;
@@ -99,9 +99,10 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         #region Constructors
 
-        public DaggerfallRestWindow(IUserInterfaceManager uiManager)
+        public DaggerfallRestWindow(IUserInterfaceManager uiManager, bool ignoreAllocatedBed = false)
             : base(uiManager)
         {
+            this.ignoreAllocatedBed = ignoreAllocatedBed;
         }
 
         #endregion
@@ -171,6 +172,10 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 hud.Update();
             }
 
+            // Tick sleep event on full or timed sleep
+            if (currentRestMode == RestModes.FullRest || currentRestMode == RestModes.TimedRest)
+                RaiseOnSleepTickEvent();
+
             ShowStatus();
             if (currentRestMode != RestModes.Selection)
             {
@@ -209,11 +214,16 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Get references
             playerEntity = GameManager.Instance.PlayerEntity;
             hud = DaggerfallUI.Instance.DaggerfallHUD;
+
+            GameManager.OnEncounter += GameManager_OnEncounter;
+
         }
 
         public override void OnPop()
         {
             base.OnPop();
+            ignoreAllocatedBed = false;
+            GameManager.OnEncounter -= GameManager_OnEncounter;
 
             Debug.Log(string.Format("Resting raised time by {0} hours total", totalHours));
         }
@@ -414,7 +424,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             int healthRecoveryRate = FormulaHelper.CalculateHealthRecoveryRate(playerEntity);
             int fatigueRecoveryRate = FormulaHelper.CalculateFatigueRecoveryRate(playerEntity.MaxFatigue);
-            int spellPointRecoveryRate = FormulaHelper.CalculateSpellPointRecoveryRate(playerEntity.MaxMagicka);
+            int spellPointRecoveryRate = FormulaHelper.CalculateSpellPointRecoveryRate(playerEntity);
 
             playerEntity.CurrentHealth += healthRecoveryRate;
             playerEntity.CurrentFatigue += fatigueRecoveryRate;
@@ -432,7 +442,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // For example, sorcerers cannot recover magicka from resting
             if (playerEntity.CurrentHealth == playerEntity.MaxHealth &&
                 playerEntity.CurrentFatigue == playerEntity.MaxFatigue &&
-                playerEntity.CurrentMagicka == playerEntity.MaxMagicka)
+                (playerEntity.CurrentMagicka == playerEntity.MaxMagicka || playerEntity.Career.NoRegenSpellPoints))
             {
                 return true;
             }
@@ -443,34 +453,29 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         /// <summary>
         /// Check if player is allowed to rest at this location.
         /// </summary>
-        bool CanRest()
+        bool CanRest(bool alreadyWarned = false)
         {
             remainingHoursRented = -1;
             allocatedBed = Vector3.zero;
             PlayerEnterExit playerEnterExit = GameManager.Instance.PlayerEnterExit;
             PlayerGPS playerGPS = GameManager.Instance.PlayerGPS;
 
-            bool inTown = playerGPS.IsPlayerInTown(true);
-
-            if (inTown && !playerEnterExit.IsPlayerInside)
+            if (playerGPS.IsPlayerInTown(true, true))
             {
-                CloseWindow();
-                DaggerfallUI.MessageBox(cityCampingIllegal);
+                if (!alreadyWarned)
+                {
+                    CloseWindow();
+                    DaggerfallUI.MessageBox(cityCampingIllegal);
+                }
 
                 // Register crime and start spawning guards
                 playerEntity.CrimeCommitted = PlayerEntity.Crimes.Vagrancy;
                 playerEntity.SpawnCityGuards(true);
 
-                return false;
+                return alreadyWarned;
             }
-            else if ((inTown || !playerGPS.HasCurrentLocation) && playerEnterExit.IsPlayerInsideBuilding)
+            else if (playerGPS.IsPlayerInTown() && playerEnterExit.IsPlayerInsideBuilding)
             {
-                // Check for guild hall rest privileges
-                if (GameManager.Instance.GuildManager.GetGuild(playerEnterExit.BuildingDiscoveryData.factionID).CanRest())
-                {
-                    playerEnterExit.Interior.FindMarker(out allocatedBed, DaggerfallInterior.InteriorMarkerTypes.Rest);
-                    return true;
-                }
                 // Check owned locations
                 string sceneName = DaggerfallInterior.GetSceneName(playerGPS.CurrentLocation.MapTableData.MapId, playerEnterExit.BuildingDiscoveryData.buildingKey);
                 if (SaveLoadManager.StateManager.ContainsPermanentScene(sceneName))
@@ -484,9 +489,21 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     int mapId = playerGPS.CurrentLocation.MapTableData.MapId;
                     RoomRental_v1 room = GameManager.Instance.PlayerEntity.GetRentedRoom(mapId, buildingKey);
                     remainingHoursRented = PlayerEntity.GetRemainingHours(room);
-                    allocatedBed = room.allocatedBed;
+
+                    // Get allocated bed marker - default to 0 if out of range
+                    // We relink marker position by index as building positions are not stable, they can move from terrain mods or floating Y
+                    Vector3[] restMarkers = playerEnterExit.Interior.FindMarkers(DaggerfallInterior.InteriorMarkerTypes.Rest);
+                    int bedIndex = (room.allocatedBedIndex >= 0 && room.allocatedBedIndex < restMarkers.Length) ? room.allocatedBedIndex : 0;
+                    allocatedBed = restMarkers[bedIndex];
                     if (remainingHoursRented > 0)
                         return true;
+                }
+                // Check for guild hall rest privileges (exclude taverns since they are all marked as fighters guilds in data)
+                if (playerEnterExit.BuildingDiscoveryData.buildingType != DFLocation.BuildingTypes.Tavern &&
+                    GameManager.Instance.GuildManager.GetGuild(playerEnterExit.BuildingDiscoveryData.factionID).CanRest())
+                {
+                    playerEnterExit.Interior.FindMarker(out allocatedBed, DaggerfallInterior.InteriorMarkerTypes.Rest);
+                    return true;
                 }
                 CloseWindow();
                 DaggerfallUI.MessageBox(HardStrings.haveNotRentedRoom);
@@ -497,21 +514,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         void MoveToBed()
         {
-            if (allocatedBed != Vector3.zero)
+            if (allocatedBed != Vector3.zero && !ignoreAllocatedBed)
             {
                 PlayerMotor playerMotor = GameManager.Instance.PlayerMotor;
                 playerMotor.transform.position = allocatedBed;
-                playerMotor.FixStanding();
+                playerMotor.FixStanding(0.4f, 0.4f);
             }
         }
 
-        #endregion
-
-        #region Event Handlers
-
-        private void WhileButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        void DoRestForAWhile(bool alreadyWarned)
         {
-            if (CanRest())
+            if (CanRest(alreadyWarned))
             {
                 DaggerfallInputMessageBox mb = new DaggerfallInputMessageBox(uiManager, this);
                 mb.SetTextBoxLabel(HardStrings.restHowManyHours);
@@ -526,13 +539,63 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
-        private void HealedButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        void DoRestUntilHealed(bool alreadyWarned)
         {
-            if (CanRest())
+            if (CanRest(alreadyWarned))
             {
                 waitTimer = Time.realtimeSinceStartup;
                 currentRestMode = RestModes.FullRest;
                 MoveToBed();
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        private void WhileButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            if (DaggerfallUnity.Settings.IllegalRestWarning && GameManager.Instance.PlayerGPS.IsPlayerInTown(true, true))
+            {
+                DaggerfallMessageBox mb = DaggerfallUI.MessageBox(TextManager.Instance.GetText("DaggerfallUI", "illegalRestWarning"));
+                mb.AddButton(DaggerfallMessageBox.MessageBoxButtons.Yes);
+                mb.AddButton(DaggerfallMessageBox.MessageBoxButtons.No);
+                mb.OnButtonClick += ConfirmIllegalRestForAWhile_OnButtonClick;
+            }
+            else
+            {
+                DoRestForAWhile(false);
+            }
+        }
+
+        private void ConfirmIllegalRestForAWhile_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
+        {
+            if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Yes)
+            {
+                DoRestForAWhile(true);
+            }
+        }
+
+        private void HealedButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            if (DaggerfallUnity.Settings.IllegalRestWarning && GameManager.Instance.PlayerGPS.IsPlayerInTown(true, true))
+            {
+                DaggerfallMessageBox mb = DaggerfallUI.MessageBox(TextManager.Instance.GetText("DaggerfallUI", "illegalRestWarning"));
+                mb.AddButton(DaggerfallMessageBox.MessageBoxButtons.Yes);
+                mb.AddButton(DaggerfallMessageBox.MessageBoxButtons.No);
+                mb.OnButtonClick += ConfirmIllegalRestUntilHealed_OnButtonClick;
+            }
+            else
+            {
+                DoRestUntilHealed(false);
+            }
+        }
+
+        private void ConfirmIllegalRestUntilHealed_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
+        {
+            if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Yes)
+            {
+                DoRestUntilHealed(true);
             }
         }
 
@@ -607,7 +670,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 time = 0;
             }
-            else if (time > 3)
+            else if (time > DaggerfallUnity.Settings.LoiterLimitInHours)
             {
                 DaggerfallUI.MessageBox(cannotLoiterMoreThan3HoursTextId);
                 return;
@@ -616,6 +679,21 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             hoursRemaining = time;
             waitTimer = Time.realtimeSinceStartup;
             currentRestMode = RestModes.Loiter;
+        }
+
+
+        private void GameManager_OnEncounter()
+        {
+            AbortRestForEnemySpawn();
+        }
+
+        // OnSleepTick - does not fire while loitering
+        public delegate void OnOnSleepTickEventHandler();
+        public static event OnOnSleepTickEventHandler OnSleepTick;
+        void RaiseOnSleepTickEvent()
+        {
+            if (OnSleepTick != null)
+                OnSleepTick();
         }
 
         #endregion

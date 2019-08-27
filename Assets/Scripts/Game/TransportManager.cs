@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,9 +11,13 @@ using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Game.Banking;
+using DaggerfallWorkshop.Game.Items;
 
 namespace DaggerfallWorkshop.Game
 {
+
+    #region Enums
+
     public enum TransportModes
     {
         Foot,
@@ -22,9 +26,17 @@ namespace DaggerfallWorkshop.Game
         Ship  // (not a real player transport mode)
     }
 
+    #endregion
+
     public class TransportManager : MonoBehaviour
     {
+        #region Public Fields
+
         public float RidingVolumeScale = 1.0f;  // TODO: Should this be the same setting as PlayerFootsteps.FootstepVolumeScale?
+
+        #endregion
+
+        #region Properties
 
         public TransportModes TransportMode
         {
@@ -43,6 +55,70 @@ namespace DaggerfallWorkshop.Game
             get { return boardShipPosition; }
             set { boardShipPosition = value; }
         }
+        
+        #endregion
+        
+        #region Public Methods
+        /// <summary>True when there's a recorded position before boarding and player is on the ship</summary>
+        public bool IsOnShip()
+        {
+            StreamingWorld world = GameManager.Instance.StreamingWorld;
+            DFPosition shipCoords = DaggerfallBankManager.GetShipCoords();
+            return boardShipPosition != null && world.MapPixelX == shipCoords.X && world.MapPixelY == shipCoords.Y;
+        }
+
+        /// <summary>
+        /// True when player has bought a ship
+        /// </summary>
+        public bool HasShip()
+        {
+            return DaggerfallBankManager.OwnsShip;
+        }
+
+        /// <summary>
+        /// True when player owns a ship
+        /// </summary>
+        /// <returns></returns>
+        public bool HasCart()
+        {
+            ItemCollection inventory = GameManager.Instance.PlayerEntity.Items;
+
+            return inventory.Contains(ItemGroups.Transportation, (int)Transportation.Small_cart);
+        }
+
+        /// <summary>
+        /// True when player owns a horse
+        /// </summary>
+        /// <returns></returns>
+        public bool HasHorse()
+        {
+            ItemCollection inventory = GameManager.Instance.PlayerEntity.Items;
+
+            return inventory.Contains(ItemGroups.Transportation, (int)Transportation.Horse);
+        }
+
+        /// <summary>
+        /// Mounts a horse or cart if available if on foot, otherwise gets on foot
+        /// </summary>
+        public void ToggleMount()
+        {
+            if (TransportMode == TransportModes.Horse || TransportMode == TransportModes.Cart)
+            {
+                TransportMode = TransportModes.Foot;
+            }
+            else if (HasHorse())
+            {
+                TransportMode = TransportModes.Horse;
+            }
+            else if (HasCart())
+            {
+                TransportMode = TransportModes.Cart;
+            }
+        }
+
+        #endregion
+
+        #region Private Fields
 
         private TransportModes mode = TransportModes.Foot;
         private PlayerPositionData_v1 boardShipPosition;    // Holds the player position from before boarding a ship.
@@ -73,6 +149,9 @@ namespace DaggerfallWorkshop.Game
         float neighTime = 0;
         bool wasMovingLessThanHalfSpeed = true;
 
+        #endregion
+
+        #region Unity
         // Use this for initialization
         void Start()
         {
@@ -86,9 +165,9 @@ namespace DaggerfallWorkshop.Game
             ridingAudioSource.loop = false;
             ridingAudioSource.dopplerLevel = 0f;
             ridingAudioSource.spatialBlend = 0f;
-            ridingAudioSource.volume = RidingVolumeScale;
+            ridingAudioSource.volume = RidingVolumeScale * DaggerfallUnity.Settings.SoundVolume;
 
-            neighClip = dfAudioSource.GetAudioClip((int) horseSound);
+            neighClip = dfAudioSource.GetAudioClip((int)horseSound);
 
             // Init event listener for transitions.
             PlayerEnterExit.OnPreTransition += new PlayerEnterExit.OnPreTransitionEventHandler(HandleTransition);
@@ -110,6 +189,8 @@ namespace DaggerfallWorkshop.Game
             // Handle horse & cart riding animation & sounds.
             if (mode == TransportModes.Horse || mode == TransportModes.Cart)
             {
+                // refresh audio volume to reflect global changes
+                ridingAudioSource.volume = RidingVolumeScale * DaggerfallUnity.Settings.SoundVolume;
                 if (playerMotor.IsStandingStill || !playerMotor.IsGrounded || GameManager.IsGamePaused)
                 {   // Stop animation frames and sound playing.
                     lastFrameTime = 0;
@@ -144,13 +225,16 @@ namespace DaggerfallWorkshop.Game
                     }
 
                     if (!ridingAudioSource.isPlaying)
+                    {
+                        ridingAudioSource.volume = RidingVolumeScale * DaggerfallUnity.Settings.SoundVolume;
                         ridingAudioSource.Play();
+                    }
                 }
                 // Time for a whinney?
                 if (neighTime < Time.time)
                 {
-                    dfAudioSource.AudioSource.PlayOneShot(neighClip, RidingVolumeScale);
-                    neighTime = Time.time + Random.Range(2, 30);
+                    dfAudioSource.AudioSource.PlayOneShot(neighClip, RidingVolumeScale * DaggerfallUnity.Settings.SoundVolume);
+                    neighTime = Time.time + Random.Range(2, 40);
                 }
             }
         }
@@ -164,7 +248,7 @@ namespace DaggerfallWorkshop.Game
                     // Draw horse texture behind other HUD elements & weapons.
                     GUI.depth = 2;
                     // Get horse texture scaling factor. (only use height to avoid aspect ratio issues like fat horses)
-                    float horseScaleY = (float) Screen.height / (float) nativeScreenHeight;
+                    float horseScaleY = (float)Screen.height / (float)nativeScreenHeight;
                     // Calculate position for horse texture and draw it.
                     Rect pos = new Rect(
                                     Screen.width / 2f - (ridingTexure.width * horseScaleY) / 2f,
@@ -176,6 +260,9 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        #endregion
+
+        #region Private Methods
         private void UpdateMode(TransportModes transportMode)
         {
             // Update the transport mode and stop any riding sounds playing.
@@ -190,7 +277,7 @@ namespace DaggerfallWorkshop.Game
 
                 // Setup appropriate riding sounds.
                 SoundClips sound = (mode == TransportModes.Horse) ? horseRidingSound2 : cartRidingSound;
-                ridingAudioSource.clip = dfAudioSource.GetAudioClip((int) sound);
+                ridingAudioSource.clip = dfAudioSource.GetAudioClip((int)sound);
 
                 // Setup appropriate riding textures.
                 string textureName = (mode == TransportModes.Horse) ? horseTextureName : cartTextureName;
@@ -216,7 +303,7 @@ namespace DaggerfallWorkshop.Game
                 DFPosition shipCoords = DaggerfallBankManager.GetShipCoords();
 
                 // Is there recorded position before boarding and is player on the ship?
-                if (boardShipPosition != null && world.MapPixelX == shipCoords.X && world.MapPixelY == shipCoords.Y)
+                if (IsOnShip())
                 {
                     // Check for terrain sampler changes. (so don't fall through floor)
                     StreamingWorld.RepositionMethods reposition = StreamingWorld.RepositionMethods.None;
@@ -248,6 +335,7 @@ namespace DaggerfallWorkshop.Game
                 DaggerfallUI.Instance.FadeBehaviour.FadeHUDFromBlack();
                 mode = TransportModes.Foot;
             }
-        }
+        } 
+        #endregion
     }
 }

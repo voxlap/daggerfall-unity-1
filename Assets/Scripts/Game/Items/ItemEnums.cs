@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -8,8 +8,6 @@
 //
 // Notes:
 //
-
-using System;
 
 namespace DaggerfallWorkshop.Game.Items
 {
@@ -37,7 +35,7 @@ namespace DaggerfallWorkshop.Game.Items
         Artifacts = 5,
         MensClothing = 6,
         Books = 7,
-        Furniture = 8, // According to Daghex
+        Furniture = 8,
         UselessItems2 = 9,
         ReligiousItems = 10,
         Maps = 11,
@@ -149,6 +147,26 @@ namespace DaggerfallWorkshop.Game.Items
         Hands = 4,
         Legs = 5,
         Feet = 6,
+    }
+
+    /// <summary>
+    /// Poison IDs. The first 8 are found on enemy weapons. The last 4 are created by ingesting drugs.
+    /// </summary>
+    public enum Poisons
+    {
+        None = -1,
+        Nux_Vomica = 128,
+        Arsenic = 129,
+        Moonseed = 130,
+        Drothweed = 131,
+        Somnalius = 132,
+        Pyrrhic_Acid = 133,
+        Magebane = 134,
+        Thyrwort = 135,
+        Indulcet = 136,
+        Sursum = 137,
+        Quaesto_Vil = 138,
+        Aegrotat = 139,
     }
 
     public enum Drugs //checked
@@ -289,15 +307,15 @@ namespace DaggerfallWorkshop.Game.Items
         Champion_straps = 181,
     }
 
-    public enum Books  // modified to conform with real Daggerfall save game - IC112016
+    public enum Books
     {
-        UNKNOWN_BOOK_TYPE = 276,
-        Potion_recipe = 277,
-        Parchment = 279,
-        Book = 279,
+        Book0 = 277,
+        Book1 = 277,
+        Book2 = 277,
+        Book3 = 277,
     }
 
-    public enum Furniture // Index numbers are from ItemTemplates.txt
+    public enum Furniture
     {
         Plain_single_bed = 217,
         Fancy_single_bed = 218,
@@ -337,7 +355,7 @@ namespace DaggerfallWorkshop.Game.Items
         Bandage = 249,
         Oil = 252,
         Candle = 253,
-        Parchment = 278,
+        Parchment = 279,
     }
 
     public enum ReligiousItems  //checked
@@ -525,8 +543,8 @@ namespace DaggerfallWorkshop.Game.Items
 
     public enum MiscellaneousIngredients2 //checked
     {
-        Ivory,
-        Pearl,
+        Ivory = 76,
+        Pearl = 77,
     }
 
     public enum Transportation  //Checked
@@ -575,9 +593,8 @@ namespace DaggerfallWorkshop.Game.Items
         Spellbook = 132,
         Soul_trap = 274,
         Letter_of_credit = 275,
-        //Ruby = 0,
-        UNKNOWN_MISC_ITEM, // modified order to ensure Potion_recipe is index 4 -IC112016
-        Potion_recipe = 277,
+        Unused,
+        Potion_recipe = 278,
         Dead_Body = 281,
         House_Deed = 285,
         Ship_Deed = 286,

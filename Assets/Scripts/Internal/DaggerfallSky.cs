@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -47,6 +47,7 @@ namespace DaggerfallWorkshop
         public bool ShowStars = true;                                       // Draw stars onto night skies
         public Color SkyTintColor = new Color(0.5f, 0.5f, 0.5f, 1.0f);      // Modulates output texture colour
         public float SkyColorScale = 1.0f;                                  // Scales sky color brighter or darker
+        public AnimationCurve SkyCurve;                                     // Animation curve of sky
         public WeatherStyle WeatherStyle = WeatherStyle.Normal;             // Style of weather for texture changes
 
         const int myCameraDepth = -3;           // Relative camera depth to main camera
@@ -72,7 +73,7 @@ namespace DaggerfallWorkshop
         System.Random random = new System.Random(0);
         bool showNightSky = true;
 
-        SkyColors skyColors = new SkyColors();
+        public SkyColors skyColors = new SkyColors();
         float starChance = 0.004f;
         byte[] starColorIndices = new byte[] { 16, 32, 74, 105, 112, 120 };     // Some random sky colour indices
 
@@ -84,6 +85,11 @@ namespace DaggerfallWorkshop
         }
 
         #endregion
+
+        public Camera SkyCamera
+        {
+            get { return myCamera; }
+        }
 
         void Start()
         {
@@ -196,41 +202,38 @@ namespace DaggerfallWorkshop
             float halfScreenWidth = Screen.width * 0.5f;
 
             // Scroll left-right
-            float percent = 0;
-            float scrollX = 0;
-            float westOffset = 0;
-            float eastOffset = 0;
-            if (angles.y >= 90f && angles.y < 180f)
+            float westOffset;
+            float eastOffset;
+            float scrollX;
+            // -180f <= yAngle < 180f
+            float yAngle = angles.y < 180f ? angles.y : angles.y - 360f;
+            if (yAngle >= 0f)
             {
-                percent = 1.0f - ((360f - angles.y) / 180f);
-                scrollX = -width * percent;
+                float percent = 1.0f - yAngle / 180f;
+                scrollX = width * (percent - 1.0f);
 
-                westOffset = -width + halfScreenWidth;
-                eastOffset = halfScreenWidth;
+                // westRect center
+                westOffset = halfScreenWidth;
+                if (yAngle < 90f)
+                    // eastRect to the left of westRect
+                    eastOffset = halfScreenWidth - width;
+                else
+                    // eastRect to the right of westRect
+                    eastOffset = halfScreenWidth + width;
             }
-            else if (angles.y >= 0f && angles.y < 90f)
+            else
             {
-                percent = 1.0f - ((360f - angles.y) / 180f);
-                scrollX = -width * percent;
+                float percent = -yAngle / 180f;
+                scrollX = width * (percent - 1.0f);
 
-                westOffset = -width + halfScreenWidth;
-                eastOffset = westOffset - width;
-            }
-            else if (angles.y >= 180f && angles.y < 270f)
-            {
-                percent = 1.0f - (angles.y / 180f);
-                scrollX = width * percent;
-
-                westOffset = -width + halfScreenWidth;
+                // eastRect center
                 eastOffset = halfScreenWidth;
-            }
-            else// if (angles.y >= 270f && angles.y < 360f)
-            {
-                percent = 1.0f - (angles.y / 180f);
-                scrollX = width * percent;
-
-                eastOffset = halfScreenWidth;
-                westOffset = eastOffset + width;
+                if (yAngle < -90f)
+                    // westRect to the left of eastRect
+                    westOffset = halfScreenWidth - width;
+                else
+                    // westRect to the right of eastRect
+                    westOffset = halfScreenWidth + width;
             }
 
             // Scroll up-down
@@ -318,6 +321,11 @@ namespace DaggerfallWorkshop
             westTexture.Apply(false, true);
             eastTexture.Apply(false, true);
 
+            SetSkyFogColor(colors);
+        }
+
+        public void SetSkyFogColor(SkyColors colors)
+        {
             // Set camera clear colour
             cameraClearColor = colors.clearColor;
             myCamera.backgroundColor = ((cameraClearColor * SkyTintColor) * 2f) * SkyColorScale;
@@ -362,13 +370,19 @@ namespace DaggerfallWorkshop
             else
                 showNightSky = true;
 
-            // Adjust sky frame by time of day
+            // Adjust sky frame by time of day curve
+            // Classic Daggerfall does not evenly spread frames across the day
+            // Morning ramp-up bewteen 6am-8am and afternoon ramp-down between 4pm-6pm happens relatively quickly
+            // Sky animation then slows down between 10am-2pm during brightest hours of day
             if (!IsNight)
             {
-                float minute = dfUnity.WorldTime.Now.MinuteOfDay - DaggerfallDateTime.DawnHour * DaggerfallDateTime.MinutesPerHour;
-                float divisor = ((DaggerfallDateTime.DuskHour - DaggerfallDateTime.DawnHour) * DaggerfallDateTime.MinutesPerHour) / 64f;   // Total of 64 steps in daytime cycle
-                float frame = minute / divisor;
-                SkyFrame = (int)frame;
+                // Get value 0-1 for dawn through dusk
+                float dawn = DaggerfallDateTime.DawnHour * DaggerfallDateTime.MinutesPerHour;
+                float dayRange = DaggerfallDateTime.DuskHour * DaggerfallDateTime.MinutesPerHour - dawn;
+                float time = (dfUnity.WorldTime.Now.MinuteOfDay - dawn) / dayRange;
+
+                // Set sky frame based on curve
+                SkyFrame = (int)(SkyCurve.Evaluate(time) * 64);
             }
             else
             {

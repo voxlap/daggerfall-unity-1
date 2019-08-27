@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,7 +12,6 @@
 using UnityEngine;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
-using FullSerializer;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -21,9 +20,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class TransferHealth : BaseEntityEffect
     {
+        public static readonly string EffectKey = "Transfer-Health";
+
         public override void SetProperties()
         {
-            properties.Key = "Transfer-Health";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(11, 8);
             properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "transfer");
             properties.SubGroupName = TextManager.Instance.GetText("ClassicEffects", "health");
@@ -49,7 +50,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
             // Damage health on target and heal health of caster
             int magnitude = GetMagnitude(caster);
-            entityBehaviour.Entity.DecreaseHealth(magnitude);
+            entityBehaviour.DamageHealthFromSource(this, magnitude, false, Vector3.zero);
             caster.Entity.IncreaseHealth(magnitude);
             PlayerAggro();
         }

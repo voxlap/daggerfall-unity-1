@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Hazelnut
 // 
 // Notes:
 //
@@ -19,6 +19,8 @@ using DaggerfallConnect.Utility;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Utility.AssetInjection;
+using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Serialization;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -57,13 +59,16 @@ namespace DaggerfallWorkshop.Game
         Rect weaponPosition;
         float weaponScaleX;
         float weaponScaleY;
-        Dictionary<string, Texture2D> CustomTextures;
 
         DaggerfallAudioSource dfAudioSource;
         WeaponAnimation[] weaponAnims;
         WeaponStates weaponState = WeaponStates.Idle;
         int currentFrame = 0;
+        int animTicks = 0;
         Rect curAnimRect;
+
+        readonly Dictionary<int, Texture2D> customTextures = new Dictionary<int, Texture2D>();
+        Texture2D curCustomTexture;
 
         #region Properties
 
@@ -82,8 +87,8 @@ namespace DaggerfallWorkshop.Game
         {
             GUI.depth = 1;
 
-            // Must be ready
-            if (!ReadyCheck() || WeaponType == WeaponTypes.None || GameManager.IsGamePaused)
+            // Must be ready and not loading the game
+            if (!ReadyCheck() || WeaponType == WeaponTypes.None || GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress)
                 return;
 
             // Must have current weapon texture atlas
@@ -98,11 +103,7 @@ namespace DaggerfallWorkshop.Game
             if (Event.current.type.Equals(EventType.Repaint) && ShowWeapon)
             {
                 // Draw weapon texture behind other HUD elements
-                Texture2D tex;
-                if (CustomTextures.TryGetValue((int)weaponState + "-" + currentFrame, out tex))
-                    GUI.DrawTexture(weaponPosition, tex);
-                else
-                    GUI.DrawTextureWithTexCoords(weaponPosition, weaponAtlas, curAnimRect);
+                GUI.DrawTextureWithTexCoords(weaponPosition, curCustomTexture ? curCustomTexture : weaponAtlas, curAnimRect);
             }
         }
 
@@ -111,10 +112,7 @@ namespace DaggerfallWorkshop.Game
             // Get state based on attack direction
             WeaponStates state;
 
-            // Bows has only one type of attack
-            if (WeaponType == WeaponTypes.Bow)
-                state = WeaponStates.StrikeDown;
-            else switch (direction)
+            switch (direction)
             {
                 case WeaponManager.MouseDirections.Down:
                     state = WeaponStates.StrikeDown;
@@ -138,8 +136,8 @@ namespace DaggerfallWorkshop.Game
                     return;
             }
 
-            // Do not change if already playing attack animation
-            if (!IsPlayingOneShot())
+            // Do not change if already playing attack animation, unless releasing an arrow (bow & state=up->down)
+            if (!IsPlayingOneShot() || (WeaponType == WeaponTypes.Bow && weaponState == WeaponStates.StrikeUp && state == WeaponStates.StrikeDown))
                 ChangeWeaponState(state);
         }
 
@@ -147,8 +145,9 @@ namespace DaggerfallWorkshop.Game
         {
             weaponState = state;
 
-            if (!(WeaponType == WeaponTypes.Bow && state == WeaponStates.StrikeDown))
-                currentFrame = 0;
+            // Only reset frame to 0 for bows if idle state
+            if (WeaponType != WeaponTypes.Bow || state == WeaponStates.Idle)
+                currentFrame = animTicks = 0;
 
             UpdateWeapon();
         }
@@ -171,6 +170,11 @@ namespace DaggerfallWorkshop.Game
             return currentFrame;
         }
 
+        public float GetAnimTime()
+        {
+            return animTicks * GetAnimTickTime();
+        }
+
         public void PlayActivateSound()
         {
             if (dfAudioSource)
@@ -189,14 +193,31 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        public void PlayAttackVoice(SoundClips customSound = SoundClips.None)
+        {
+            if (dfAudioSource)
+            {
+                if (customSound == SoundClips.None)
+                {
+                    PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+                    SoundClips sound = DaggerfallEntity.GetRaceGenderAttackSound(playerEntity.Race, playerEntity.Gender, true);
+                    float pitch = dfAudioSource.AudioSource.pitch;
+                    dfAudioSource.AudioSource.pitch = pitch + UnityEngine.Random.Range(0, 0.3f);
+                    dfAudioSource.PlayOneShot(sound, 0, 1f);
+                    dfAudioSource.AudioSource.pitch = pitch;
+                }
+                else
+                {
+                    dfAudioSource.PlayOneShot(customSound, 0, 1f);
+                }
+            }
+        }
+
         #region Private Methods
 
         private bool IsPlayingOneShot()
         {
-            if (weaponState != WeaponStates.Idle)
-                return true;
-
-            return false;
+            return (weaponState != WeaponStates.Idle);
         }
 
         private void UpdateWeapon()
@@ -229,50 +250,65 @@ namespace DaggerfallWorkshop.Game
             else
                 weaponAnimRecordIndex = (int)weaponState;
 
-            if (FlipHorizontal && (weaponState == WeaponStates.Idle || weaponState == WeaponStates.StrikeDown || weaponState == WeaponStates.StrikeUp))
+            try
             {
-                // Mirror weapon rect
-                Rect rect = weaponRects[weaponIndices[weaponAnimRecordIndex].startIndex + currentFrame];
-                curAnimRect = new Rect(rect.xMax, rect.yMin, -rect.width, rect.height);
+                bool isImported = customTextures.TryGetValue(MaterialReader.MakeTextureKey(0, (byte)weaponAnimRecordIndex, (byte)currentFrame), out curCustomTexture);
+                if (FlipHorizontal && (weaponState == WeaponStates.Idle || weaponState == WeaponStates.StrikeDown || weaponState == WeaponStates.StrikeUp))
+                {
+                    // Mirror weapon rect
+                    if (isImported)
+                    {
+                        curAnimRect = new Rect(1, 0, -1, 1);
+                    }
+                    else
+                    {
+                        Rect rect = weaponRects[weaponIndices[weaponAnimRecordIndex].startIndex + currentFrame];
+                        curAnimRect = new Rect(rect.xMax, rect.yMin, -rect.width, rect.height);
+                    }
+                }
+                else
+                {
+                    curAnimRect = isImported ? new Rect(0, 0, 1, 1) : weaponRects[weaponIndices[weaponAnimRecordIndex].startIndex + currentFrame];
+                }
+                WeaponAnimation anim = weaponAnims[(int)weaponState];
+
+                // Get weapon dimensions
+                int width = weaponIndices[weaponAnimRecordIndex].width;
+                int height = weaponIndices[weaponAnimRecordIndex].height;
+
+                // Get weapon scale
+                weaponScaleX = (float)Screen.width / (float)nativeScreenWidth;
+                weaponScaleY = (float)Screen.height / (float)nativeScreenHeight;
+
+                // Adjust scale to be slightly larger when not using point filtering
+                // This reduces the effect of filter shrink at edge of display
+                if (dfUnity.MaterialReader.MainFilterMode != FilterMode.Point)
+                {
+                    weaponScaleX *= 1.01f;
+                    weaponScaleY *= 1.01f;
+                }
+
+                // Source weapon images are designed to overlay a fixed 320x200 display.
+                // Some weapons need to align with both top, bottom, and right of display.
+                // This means they might be a little stretched on widescreen displays.
+                switch (anim.Alignment)
+                {
+                    case WeaponAlignment.Left:
+                        AlignLeft(anim, width, height);
+                        break;
+
+                    case WeaponAlignment.Center:
+                        AlignCenter(anim, width, height);
+                        break;
+
+                    case WeaponAlignment.Right:
+                        AlignRight(anim, width, height);
+                        break;
+                }
             }
-            else
+            catch (IndexOutOfRangeException)
             {
-                curAnimRect = weaponRects[weaponIndices[weaponAnimRecordIndex].startIndex + currentFrame];
-            }
-            WeaponAnimation anim = weaponAnims[(int)weaponState];
-
-            // Get weapon dimensions
-            int width = weaponIndices[weaponAnimRecordIndex].width;
-            int height = weaponIndices[weaponAnimRecordIndex].height;
-
-            // Get weapon scale
-            weaponScaleX = (float)Screen.width / (float)nativeScreenWidth;
-            weaponScaleY = (float)Screen.height / (float)nativeScreenHeight;
-
-            // Adjust scale to be slightly larger when not using point filtering
-            // This reduces the effect of filter shrink at edge of display
-            if (dfUnity.MaterialReader.MainFilterMode != FilterMode.Point)
-            {
-                weaponScaleX *= 1.01f;
-                weaponScaleY *= 1.01f;
-            }
-
-            // Source weapon images are designed to overlay a fixed 320x200 display.
-            // Some weapons need to align with both top, bottom, and right of display.
-            // This means they might be a little stretched on widescreen displays.
-            switch (anim.Alignment)
-            {
-                case WeaponAlignment.Left:
-                    AlignLeft(anim, width, height);
-                    break;
-
-                case WeaponAlignment.Center:
-                    AlignCenter(anim, width, height);
-                    break;
-
-                case WeaponAlignment.Right:
-                    AlignRight(anim, width, height);
-                    break;
+                DaggerfallUnity.LogMessage("Index out of range exception for weapon animation. Probably due to weapon breaking + being unequipped during animation.");
             }
         }
 
@@ -344,19 +380,7 @@ namespace DaggerfallWorkshop.Game
         {
             while (true)
             {
-                Entity.PlayerEntity player = GameManager.Instance.PlayerEntity;
-                float speed = 0;
-                float time = 0;
-                if (player != null)
-                {
-                    if (WeaponType == WeaponTypes.Bow)
-                        time = Entity.PlayerEntity.ClassicUpdateInterval;
-                    else
-                    {
-                        speed = 3 * (115 - player.Stats.LiveSpeed);
-                        time = speed / 980; // Approximation of classic frame update
-                    }
-                }
+                float time = GetAnimTickTime();
 
                 if (weaponAnims != null && ShowWeapon)
                 {
@@ -375,6 +399,14 @@ namespace DaggerfallWorkshop.Game
                             leftUnarmedAnimIndex = 0;
                         }
                     }
+                    else if (WeaponType == WeaponTypes.Bow && weaponState == WeaponStates.StrikeUp)
+                    {
+                        // Step each frame for drawing the bow until reach frame for ready to release arrow
+                        if (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
+                            currentFrame++;
+                        // Record animation ticks for drawing and then holding a bow
+                        animTicks++;
+                    }
                     else
                     {
                         // Step frame
@@ -387,7 +419,7 @@ namespace DaggerfallWorkshop.Game
                                 if (WeaponType == WeaponTypes.Bow)
                                     ShowWeapon = false;                 // Immediately hide bow so its idle frame doesn't show before it is hidden for its cooldown
                             }
-                            else if (WeaponType == WeaponTypes.Bow)
+                            else if (WeaponType == WeaponTypes.Bow && !DaggerfallUnity.Settings.BowDrawback)
                                 currentFrame = 3;
                             else
                                 currentFrame = 0;                       // Otherwise keep looping frames
@@ -400,6 +432,19 @@ namespace DaggerfallWorkshop.Game
                 }
 
                 yield return new WaitForSeconds(time);
+            }
+        }
+
+        private float GetAnimTickTime()
+        {
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            float speed = 0;
+            if (WeaponType == WeaponTypes.Bow || player == null)
+                return GameManager.classicUpdateInterval;
+            else
+            {
+                speed = 3 * (115 - player.Stats.LiveSpeed);
+                return speed / 980; // Approximation of classic frame update
             }
         }
 
@@ -442,7 +487,7 @@ namespace DaggerfallWorkshop.Game
             Rect rect;
             List<Texture2D> textures = new List<Texture2D>();
             List<RecordIndex> indices = new List<RecordIndex>();
-            CustomTextures = new Dictionary<string, Texture2D>();
+            customTextures.Clear();
             for (int record = 0; record < cifFile.RecordCount; record++)
             {
                 int frames = cifFile.GetFrameCount(record);
@@ -460,19 +505,12 @@ namespace DaggerfallWorkshop.Game
                     textures.Add(GetWeaponTexture2D(filename, record, frame, metalType, out rect, border, dilate));
 
                     Texture2D tex;
-                    if (TextureReplacement.TryImportCifRci(filename, record, frame, metalType, out tex))
+                    if (TextureReplacement.TryImportCifRci(filename, record, frame, metalType, true, out tex))
                     {
-                        tex.filterMode = (FilterMode)DaggerfallUnity.Settings.MainFilterMode;
-                        CustomTextures.Add(record + "-" + frame, tex);
+                        tex.filterMode = dfUnity.MaterialReader.MainFilterMode;
+                        tex.wrapMode = TextureWrapMode.Mirror;
+                        customTextures.Add(MaterialReader.MakeTextureKey(0, (byte)record, (byte)frame), tex);
                     }
-
-                    //// Import custom texture
-                    //if (TextureReplacement.CustomCifExist(filename, record, frame, metalType))
-                    //{
-                    //    Texture2D tex = TextureReplacement.LoadCustomCif(filename, record, frame, metalType);
-                    //    tex.filterMode = (FilterMode)DaggerfallUnity.Settings.MainFilterMode;
-                    //    CustomTextures.Add(record + "-" + frame, tex);
-                    //}
                 }
             }
 
@@ -511,7 +549,7 @@ namespace DaggerfallWorkshop.Game
 
             // Tint based on metal type
             // But not for steel as that is default colour in files
-            if (metalType != MetalTypes.Steel)
+            if (metalType != MetalTypes.Steel && metalType != MetalTypes.None)
                 dfBitmap = ImageProcessing.ChangeDye(dfBitmap, ImageProcessing.GetMetalDyeColor(metalType), DyeTargets.WeaponsAndArmor);
 
             // Get Color32 array

@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -16,10 +16,10 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
     /// <summary>
     /// Some effects in Daggerfall add to the state an existing like-kind effect (the incumbent)
-    /// rather than become intantiated as a new effect on the host entity.
+    /// rather than become instantiated as a new effect on the host entity.
     /// One example is a drain effect which only adds to the magnitude of incumbent drain for same stat.
     /// Another example is an effect which tops up the duration of same effect in progress.
-    /// This classes establishes a base for these incumbent effects to coordinate.
+    /// This class establishes a base for these incumbent effects to coordinate.
     /// NOTES:
     ///  Unflagged incumbent effects (IsIncumbent == false) do not persist beyond AddState() call.
     ///  They will never receive a single MagicRound() call and are never saved/loaded.
@@ -68,18 +68,21 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
         IncumbentEffect FindIncumbent()
         {
-            // Search for any incumbents on this host
-            EntityEffectManager.InstancedBundle[] bundles = manager.EffectBundles;
-            foreach (EntityEffectManager.InstancedBundle bundle in bundles)
+            // Search for any incumbents on this host matching group
+            LiveEffectBundle[] bundles = manager.EffectBundles;
+            foreach (LiveEffectBundle bundle in bundles)
             {
-                foreach (IEntityEffect effect in bundle.liveEffects)
+                if (bundle.bundleType == ParentBundle.bundleType)
                 {
-                    if (effect is IncumbentEffect)
+                    foreach (IEntityEffect effect in bundle.liveEffects)
                     {
-                        // Effect must be flagged incumbent and agree with like-kind test
-                        IncumbentEffect other = effect as IncumbentEffect;
-                        if (other.IsIncumbent && other.IsLikeKind(this))
-                            return other;
+                        if (effect is IncumbentEffect)
+                        {
+                            // Effect must be flagged incumbent and agree with like-kind test
+                            IncumbentEffect other = effect as IncumbentEffect;
+                            if (other.IsIncumbent && other.IsLikeKind(this))
+                                return other;
+                        }
                     }
                 }
             }

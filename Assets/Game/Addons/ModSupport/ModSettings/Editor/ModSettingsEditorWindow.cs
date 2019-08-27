@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,10 @@
 // Notes:
 //
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 using UnityEditor;
 using UnityEditorInternal;
@@ -21,14 +21,26 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 {
     public class ModSettingsEditorWindow : EditorWindow
     {
+        #region Prefs
+
+        private static class Prefs
+        {
+            public const string SaveOnExit      = "ModSettings_SaveOnExit";
+            public const string CurrentTarget   = "ModSettings_CurrentTarget";
+        }
+
+        #endregion
+
         #region Fields
 
         static string rootPath;
+        static bool saveOnExit;
 
         // Data
         string targetPath;
         string modName = "None";
         string localPath;
+        string textPath;
         ModSettingsData data;
 
         // Presets
@@ -48,8 +60,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         List<ReorderableList> keys = new List<ReorderableList>();
         Dictionary<string, float> keysSizes = new Dictionary<string, float>();
         List<List<string>> keyNames = new List<List<string>>();
-        List<string> cachedChoices;
-        //Dictionary<string, ReorderableList> multipleChoices = new Dictionary<string, ReorderableList>();
         bool duplicateKeys = false;
 
         // Layout
@@ -82,10 +92,15 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 
         private void OnEnable()
         {
-            targetPath = rootPath = Path.Combine(Path.Combine(Application.dataPath, "Game"), "Addons");
-
             minSize = new Vector2(1000, 500);
-            Load();
+
+            saveOnExit = EditorPrefs.GetBool(Prefs.SaveOnExit, true);
+            rootPath = Path.Combine(Path.Combine(Application.dataPath, "Game"), "Addons");
+            targetPath = EditorPrefs.GetString(Prefs.CurrentTarget, rootPath);
+            textPath = Path.Combine(Path.Combine(Application.dataPath, "StreamingAssets"), "Text");
+
+            if (!string.IsNullOrEmpty(targetPath) && targetPath != rootPath)
+                Load();
         }
 
         private void OnGUI()
@@ -125,8 +140,14 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                                 Save();
                     });
 
-                    if (modName == "None")
+                    saveOnExit = EditorGUILayout.ToggleLeft(new GUIContent("Save on Exit", "Save automatically when window is closed."), saveOnExit);
+
+                    if (data == null)
+                    {
                         EditorGUILayout.HelpBox("Select a folder to store settings.", MessageType.Info);
+                        return;
+                    }
+
                     if (duplicateSections)
                         EditorGUILayout.HelpBox("Multiple sections with the same name detected!", MessageType.Error);
                     if (duplicateKeys)
@@ -151,7 +172,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                     GUILayout.FlexibleSpace();
 
                     DrawHeader("Tools");
-                    if (GUILayout.Button("Import INI"))
+                    if (GUILayout.Button("Import Legacy INI"))
                     {
                         string iniPath;
                         if (!string.IsNullOrEmpty(iniPath = EditorUtility.OpenFilePanel("Select ini file", rootPath, "ini")))
@@ -163,9 +184,18 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                         if (!string.IsNullOrEmpty(path = EditorUtility.OpenFilePanel("Select preset file", rootPath, "json")))
                             data.LoadPresets(path, true);
                     }
+                    else if (GUILayout.Button("Export localization table"))
+                    {
+                        string path;
+                        if (!string.IsNullOrEmpty(path = EditorUtility.OpenFolderPanel("Select a folder", textPath, "")))
+                            MakeTextDatabase(Path.Combine(path, string.Format("mod_{0}.txt", modName)));
+                    }
 
                     EditorGUILayout.Space();
                 });
+
+                if (data == null)
+                    return;
 
                 float areaWidth = 5 * position.width / 8;
                 GUILayoutHelper.Area(new Rect(position.width - areaWidth, 0, areaWidth, position.height), () =>
@@ -219,7 +249,11 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 
         private void OnDisable()
         {
-            Save();
+            if (saveOnExit && data != null)
+                Save();
+
+            EditorPrefs.SetBool(Prefs.SaveOnExit, saveOnExit);
+            EditorPrefs.SetString(Prefs.CurrentTarget, targetPath);
         }
 
         #endregion
@@ -426,12 +460,15 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             currentPreset = -1;
             LoadPreset(-1);
             data.SyncPresets();
-            modName = GetModName(targetPath);
+            modName = Path.GetFileName(targetPath);
             localPath = GetLocalPath(targetPath);
         }
 
         private void Save()
         {
+            if (IsPreset)
+                data.FillPreset(CurrentPreset, false);
+
             data.Save(SettingsPath);
             data.SavePresets(PresetPath);
         }
@@ -483,6 +520,52 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                 rect.y + line * lineHeight, rect.width / 2, EditorGUIUtility.singleLineHeight);
         }
 
+        private void MakeTextDatabase(string path)
+        {
+            var stringBuilder = new StringBuilder();
+
+            stringBuilder.AppendFormat("- Text database for mod {0}.\n", modName);
+            stringBuilder.AppendLine("- how to use: translate and place this file named mod_filename.txt inside StreamingAssets/Text. Note that an english table is NOT mandatory.");
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("schema: *key, $text");
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("- Mod details");
+            stringBuilder.AppendLine("- Mod.Description, \"description\"");
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("- Settings");
+
+            foreach (Section section in data.Sections)
+            {
+                stringBuilder.AppendFormat("Settings.{0}.Name, \"{1}\"\n", section.Name, section.Name);
+                if (!string.IsNullOrEmpty(section.Description))
+                    stringBuilder.AppendFormat("Settings.{0}.Description, \"{1}\"\n", section.Name, section.Description);
+
+                foreach (Key key in section.Keys)
+                {
+                    stringBuilder.AppendFormat("Settings.{0}.{1}.Name, \"{2}\"\n", section.Name, key.Name, key.Name);
+                    if (!string.IsNullOrEmpty(key.Description))
+                        stringBuilder.AppendFormat("Settings.{0}.{1}.Description, \"{2}\"\n", section.Name, key.Name, key.Description);
+                }
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("- Presets");
+
+            foreach (Preset preset in data.Presets)
+            {
+                stringBuilder.AppendFormat("Presets.{0}.Title, \"{1}\"\n", preset.Title, preset.Title);
+                stringBuilder.AppendFormat("Presets.{0}.Description, \"{1}\"\n", preset.Title, preset.Description);
+            }
+
+            stringBuilder.AppendLine();
+            stringBuilder.AppendLine("- Additional strings which can be accessed from Mod.Localize().");
+            stringBuilder.AppendLine("- Default values can be provided with a table named textdatabase.txt inside the mod bundle.");
+
+            File.WriteAllText(path, stringBuilder.ToString());
+        }
+
         #endregion
 
         #region Static Helpers
@@ -511,21 +594,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                 name = string.Format("{0}({1})", baseName, index++);
 
             return name;
-        }
-
-        private static string GetModName(string path)
-        {
-            int index = path.IndexOf("Addons/");
-            if (index != -1)
-            {
-                string name = path.Substring(index + "Addons/".Length);
-                int endIndex = name.IndexOf('/');
-                if (endIndex != -1)
-                    name = name.Substring(0, endIndex);
-                return name;
-            }
-
-            return "Unknown";
         }
 
         private static string GetLocalPath(string path)

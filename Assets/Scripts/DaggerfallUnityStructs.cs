@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Hazelnut
 // 
 // Notes:
 //
@@ -13,10 +13,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Collections;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
-using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Questing;
 using DaggerfallWorkshop.Game.Items;
@@ -145,6 +145,7 @@ namespace DaggerfallWorkshop
         public int height;                      // Original image height
         public DFBitmap dfBitmap;               // Original indexed bitmap
         public Texture2D texture;               // Generated texture
+        public Texture2D maskTexture;           // Generated mask texture
         public Texture2D[] animatedTextures;    // Array of animation frames if this is an animated texture
         public DFPosition offset;               // Custom Daggerfall offset position for paper doll inventory, etc.
         public DFSize scale;                    // Custom Daggerfall size for scaling sprites
@@ -204,9 +205,23 @@ namespace DaggerfallWorkshop
         public bool ParrySounds;                    // Plays parry sounds when attacks against this enemy miss
         public int MapChance;                       // Chance of having a map
         public string LootTableKey;                 // Key to use when generating loot
-        public int HitFrame;                        // Frame of attack animation at which hit on target is attempted
         public int Weight;                          // Weight of this enemy. Affects chance of being knocked back by a hit.
-        public bool CastsMagic;                      // Whether this enemy casts magic. Only used for enemy classes.
+        public bool CastsMagic;                     // Whether this enemy casts magic. Only used for enemy classes.
+        public bool SeesThroughInvisibility;        // Whether this enemy sees through the shade, chameleon and invisibility effects.
+        public int SoulPts;                         // Number of enchantment points in a trapped soul of this enemy
+        public int[] PrimaryAttackAnimFrames;       // Animation sequence to play when doing primary attack
+        public int ChanceForAttack2;                // Chance to use PrimaryAttackAnimFrames2 for an attack
+        public int[] PrimaryAttackAnimFrames2;      // Alternate animation sequence to play when doing primary attack
+        public int ChanceForAttack3;                // Chance to use PrimaryAttackAnimFrames3 for an attack
+        public int[] PrimaryAttackAnimFrames3;      // Alternate animation sequence to play when doing primary attack
+        public int ChanceForAttack4;                // Chance to use PrimaryAttackAnimFrames3 for an attack
+        public int[] PrimaryAttackAnimFrames4;      // Alternate animation sequence to play when doing primary attack
+        public int ChanceForAttack5;                // Chance to use PrimaryAttackAnimFrames3 for an attack
+        public int[] PrimaryAttackAnimFrames5;      // Alternate animation sequence to play when doing primary attack
+        public int[] RangedAttackAnimFrames;        // Animation sequence to play when doing bow & arrow attack
+        public bool HasSpellAnimation;              // Whether or not this character has specific animations for casting spells
+        public int[] SpellAnimFrames;               // Animation sequence to play when doing a spell cast
+        public MobileTeams Team;                    // Team that this enemy uses if enemy in-fighting is on
     }
 
     /// <summary>
@@ -356,12 +371,27 @@ namespace DaggerfallWorkshop
         public float averageHeight;                 // Average height of terrain for location placement
         public float maxHeight;                     // Max height of terrain for location placement
         public Rect locationRect;                   // Rect of location tiles in sample are
-        
+
         [HideInInspector, NonSerialized]
-        public TilemapSample[,] tilemapSamples;     // Tilemap samples for terrain
+        public byte[,] tilemapSamples;              // Tilemap samples for terrain
 
         [HideInInspector, NonSerialized]
         public float[,] heightmapSamples;           // Heightmap samples for terrain - indexed [y,x] for Terrain.SetHeights
+
+        [HideInInspector, NonSerialized]
+        public NativeArray<float> heightmapData;    // Heightmap data for terrain jobs (unmanaged memory)
+
+        [HideInInspector, NonSerialized]
+        public NativeArray<byte> tilemapData;       // Tilemap data for terrain jobs (unmanaged memory)
+
+        [HideInInspector, NonSerialized]
+        public NativeArray<Color32> tileMap;        // Tilemap color data for shader (unmanaged memory)
+
+        [HideInInspector, NonSerialized]
+        public NativeArray<float> avgMaxHeight;     // Average and max height of terrain for location placement (unmanaged memory)
+
+        [HideInInspector, NonSerialized]
+        public List<IDisposable> nativeArrayList;   // List of temp working native arrays (unmanaged memory) for disposal when jobs complete
     }
 
     /// <summary>
@@ -437,18 +467,6 @@ namespace DaggerfallWorkshop
     }
 
     /// <summary>
-    /// Describes a single tilemap sample.
-    /// </summary>
-    public struct TilemapSample
-    {
-        public int record;                          // Record index into texture atlas
-        public bool flip;                           // Flip texture UVs
-        public bool rotate;                         // Rotate texture UVs
-        public bool location;                       // True if location tile present
-        public int nature;                          // Index of nature flat at this point (0 is nothing)
-    }
-
-    /// <summary>
     /// Used to create matrix of chances by loot table key.
     /// </summary>
     public struct LootChanceMatrix
@@ -486,9 +504,52 @@ namespace DaggerfallWorkshop
     {
         public ulong questUID;
         public Symbol targetPerson;
+        public Symbol targetFoe;
         public Races targetRace;
         public Genders gender;
+        public bool isChild;
         public int faceIndex;
         public int factionFaceIndex;
+    }
+
+    /// <summary>
+    /// List of starting spells for a specific career.
+    /// Custom careers use the same starting spells as Spellsword (CareerIndex=1) if any primary or major skills are a magic skill)
+    /// </summary>
+    [Serializable]
+    public struct CareerStartingSpells
+    {
+        public int CareerIndex;                 // Career index of starting character - referenced by character creation
+        public string CareerName;               // Display name of career - only used to make file more human readable
+        public StartingSpell[] SpellsList;      // List of starting spells for this career
+    }
+
+    /// <summary>
+    /// A single starting spell.
+    /// </summary>
+    [Serializable]
+    public struct StartingSpell
+    {
+        public int SpellID;                     // ID of spell inside SPELLS.STD - used to reference spell itself
+        public string SpellName;                // Display name of spell - only used to make file more human readable
+    }
+
+    public struct Border<T>
+    {
+        public Border(T common)
+        {
+            Fill = Top = Bottom = Left = Right = TopLeft =
+                TopRight = BottomLeft = BottomRight = common;
+        }
+
+        public T Fill;
+        public T Top;
+        public T Bottom;
+        public T Left;
+        public T Right;
+        public T TopLeft;
+        public T TopRight;
+        public T BottomLeft;
+        public T BottomRight;
     }
 }

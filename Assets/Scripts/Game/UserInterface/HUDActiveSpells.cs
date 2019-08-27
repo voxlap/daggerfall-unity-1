@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -53,9 +53,11 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public struct ActiveSpellIcon
         {
             public int iconIndex;
+            public SpellIcon icon;
             public string displayName;
             public bool expiring;
             public int poolIndex;
+            public bool isItem;
         }
 
         #endregion
@@ -130,12 +132,12 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             foreach(ActiveSpellIcon spell in icons)
             {
-                if (spell.expiring)
+                if (spell.expiring && !spell.isItem)
                     iconPool[spell.poolIndex].Enabled = state;
             }
         }
 
-        int GetMaxRoundsRemaining(EntityEffectManager.InstancedBundle bundle)
+        int GetMaxRoundsRemaining(LiveEffectBundle bundle)
         {
             // Get most remaining rounds of all effects
             // A spell can have multiple effects with different round durations
@@ -149,13 +151,16 @@ namespace DaggerfallWorkshop.Game.UserInterface
             return maxRoundsRemaining;
         }
 
-        bool HasEffectWithIcon(EntityEffectManager.InstancedBundle bundle)
+        bool ShowIcon(LiveEffectBundle bundle)
         {
-            // At least one effect with remaining rounds must want to show an icon
+            // At least one effect with remaining rounds must want to show an icon, or be from an equipped item
+            // Never show passive items specials icon, this is an internal system effect only
             foreach (IEntityEffect effect in bundle.liveEffects)
             {
-                if (effect.Properties.ShowSpellIcon && effect.RoundsRemaining > 0)
+                if (effect.Properties.ShowSpellIcon && (effect.RoundsRemaining > 0 || bundle.fromEquippedItem != null))
+                {
                     return true;
+                }
             }
 
             return false;
@@ -197,25 +202,29 @@ namespace DaggerfallWorkshop.Game.UserInterface
             activeOtherList.Clear();
         }
 
-        void UpdateIcons()
+        void UpdateIcons(LiveEffectBundle bundleAdded)
+        {
+            UpdateIcons();
+        }
+
+        public void UpdateIcons()
         {
             ClearIcons();
 
             // Get all effect bundles currently operating on player
             EntityEffectManager playerEffectManager = GameManager.Instance.PlayerEffectManager;
-            EntityEffectManager.InstancedBundle[] effectBundles = playerEffectManager.EffectBundles;
+            LiveEffectBundle[] effectBundles = playerEffectManager.EffectBundles;
             if (effectBundles == null || effectBundles.Length == 0)
                 return;
 
             // Sort icons into active spells in self and other icon lists
+            int poolIndex = 0;
             for (int i = 0;  i < effectBundles.Length; i++)
             {
-                EntityEffectManager.InstancedBundle bundle = effectBundles[i];
+                LiveEffectBundle bundle = effectBundles[i];
 
-                // Don't add effect icon for instant spells, must have at least 1 round remaining
-                bool showIcon = HasEffectWithIcon(bundle);
-                int maxRoundsRemaining = GetMaxRoundsRemaining(bundle);
-                if (!showIcon || maxRoundsRemaining == 0)
+                // Don't add effect icon for instant spells, must have at least 1 round remaining or be from an equipped item
+                if (!ShowIcon(bundle))
                     continue;
 
                 // Setup icon information and sort into self (player is caster) or other (player not caster)
@@ -225,8 +234,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 ActiveSpellIcon item = new ActiveSpellIcon();
                 item.displayName = bundle.name;
                 item.iconIndex = bundle.iconIndex;
-                item.poolIndex = i;
-                item.expiring = (maxRoundsRemaining <= 2) ? true : false;
+                item.icon = bundle.icon;
+                item.poolIndex = poolIndex++;
+                item.expiring = (GetMaxRoundsRemaining(bundle) <= 2) ? true : false;
+                item.isItem = (effectBundles[i].fromEquippedItem != null);
                 if (bundle.caster == null || bundle.caster != GameManager.Instance.PlayerEntityBehaviour)
                     activeOtherList.Add(item);
                 else
@@ -240,18 +251,19 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         void AlignIcons(List<ActiveSpellIcon> icons, float xpos, float ypos, float width, float height, float xspacing, float yspacing = 0)
         {
-            int count = 0;
             foreach (ActiveSpellIcon spell in icons)
             {
-                iconPool[count].Enabled = true;
-                iconPool[count].BackgroundTexture = DaggerfallUI.Instance.SpellIconCollection.GetSpellIcon(spell.iconIndex);
-                iconPool[count].Position = new Vector2(xpos, ypos);
-                iconPool[count].Size = new Vector2(width, height);
-                iconPool[count].ToolTipText = spell.displayName;
-                xpos += xspacing;
-                ypos += yspacing;
-                if (++count > maxIconPool - 1)
-                    break;
+                if(spell.poolIndex < maxIconPool)
+                {
+                    iconPool[spell.poolIndex].Enabled = true;
+                    iconPool[spell.poolIndex].BackgroundTexture = DaggerfallUI.Instance.SpellIconCollection.GetSpellIcon(spell.icon);
+                    iconPool[spell.poolIndex].Position = new Vector2(xpos, ypos);
+                    iconPool[spell.poolIndex].Size = new Vector2(width, height);
+                    iconPool[spell.poolIndex].ToolTipText = spell.displayName;
+                    xpos += xspacing;
+                    ypos += yspacing;
+
+                }
             }
         }
 

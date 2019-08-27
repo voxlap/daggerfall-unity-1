@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    Nystul, Hazelnut
+// Contributors:    Nystul, Hazelnut, Numidium
 // 
 // Notes:
 //
@@ -26,7 +26,6 @@ namespace DaggerfallWorkshop
 {
     public class DaggerfallInterior : MonoBehaviour
     {
-        const int doorModelId = 9800;
         const int ladderModelId = 41409;
         const int propModelType = 3;
 
@@ -202,6 +201,46 @@ namespace DaggerfallWorkshop
             return true;
         }
 
+        public bool FindClosestInteriorDoor(Vector3 playerPos, out Vector3 closestDoorPositionOut, out Vector3 closestDoorNormalOut)
+        {
+            closestDoorPositionOut = closestDoorNormalOut = Vector3.zero;
+            DaggerfallStaticDoors interiorDoors = GetComponent<DaggerfallStaticDoors>();
+            if (!interiorDoors)
+                return false;
+
+            int doorIndex;
+            if (interiorDoors.FindClosestDoorToPlayer(playerPos, -1, out closestDoorPositionOut, out doorIndex))
+            {
+                closestDoorNormalOut = interiorDoors.GetDoorNormal(doorIndex);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Finds the interior door that is closest to ground level.
+        /// </summary>
+        /// <param name="lowestDoorPositionOut">Position of lowest door in scene.</param>
+        /// <param name="lowestDoorNormalOut">Normal vector of lowest door in scene.</param>
+        /// <returns>True if successful.</returns>
+        public bool FindLowestInteriorDoor(out Vector3 lowestDoorPositionOut, out Vector3 lowestDoorNormalOut)
+        {
+            lowestDoorPositionOut = lowestDoorNormalOut = Vector3.zero;
+            DaggerfallStaticDoors interiorDoors = GetComponent<DaggerfallStaticDoors>();
+            if (!interiorDoors)
+                return false;
+
+            int doorIndex;
+            if (interiorDoors.FindLowestDoor(-1, out lowestDoorPositionOut, out doorIndex))
+            {
+                lowestDoorNormalOut = interiorDoors.GetDoorNormal(doorIndex);
+                return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Finds closest entrance marker to door position.
         /// </summary>
@@ -259,6 +298,22 @@ namespace DaggerfallWorkshop
             }
 
             return !(markerOut == Vector3.zero);
+        }
+
+        /// <summary>
+        /// Find all marker positions of a specific type.
+        /// </summary>
+        public Vector3[] FindMarkers(InteriorMarkerTypes type)
+        {
+            List<Vector3> markerResults = new List<Vector3>();
+
+            for (int i = 0; i < markers.Count; i++)
+            {
+                if (markers[i].type == type)
+                    markerResults.Add(markers[i].gameObject.transform.position);
+            }
+
+            return markerResults.ToArray();
         }
 
         /// <summary>
@@ -380,7 +435,8 @@ namespace DaggerfallWorkshop
                 // Make ladder collider convex
                 if (obj.ModelIdNum == ladderModelId)
                 {
-                    go.GetComponent<MeshCollider>().convex = true;
+                    var meshCollider = go.GetComponent<MeshCollider>();
+                    if (meshCollider) meshCollider.convex = true;
                     go.AddComponent<DaggerfallLadder>();
                 }
 
@@ -506,8 +562,11 @@ namespace DaggerfallWorkshop
                     marker.gameObject = go;
                     markers.Add(marker);
 
-                    // Add loot containers for treasure markers (always use pile of clothes icon)
-                    if (marker.type == InteriorMarkerTypes.Treasure)
+                    // Add loot containers for treasure markers for TG, DB & taverns (uses pile of clothes icon)
+                    if (marker.type == InteriorMarkerTypes.Treasure &&
+                        (buildingData.buildingType == DFLocation.BuildingTypes.Tavern ||
+                         buildingData.factionID == ThievesGuild.FactionId ||
+                         buildingData.factionID == DarkBrotherhood.FactionId))
                     {
                         // Create unique LoadID for save system, using 9 lsb and the sign bit from each coord pos int
                         ulong loadID = ((ulong) buildingData.buildingKey) << 30 |
@@ -795,20 +854,21 @@ namespace DaggerfallWorkshop
                 // Calculate position
                 Vector3 billboardPosition = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
 
-                // Import 3D character instead of billboard
-                if (MeshReplacement.ImportCustomFlatGameobject(obj.TextureArchive, obj.TextureRecord, billboardPosition, node.transform) != null)
-                    continue;
+                // Make person gameobject
+                GameObject go = MeshReplacement.ImportCustomFlatGameobject(obj.TextureArchive, obj.TextureRecord, billboardPosition, node.transform);
+                if (!go)
+                {
+                    // Spawn billboard gameobject
+                    go = GameObjectHelper.CreateDaggerfallBillboardGameObject(obj.TextureArchive, obj.TextureRecord, node.transform);
 
-                // Spawn billboard gameobject
-                GameObject go = GameObjectHelper.CreateDaggerfallBillboardGameObject(obj.TextureArchive, obj.TextureRecord, node.transform);
+                    // Set position
+                    DaggerfallBillboard dfBillboard = go.GetComponent<DaggerfallBillboard>();
+                    go.transform.position = billboardPosition;
+                    go.transform.position += new Vector3(0, dfBillboard.Summary.Size.y / 2, 0);
 
-                // Set position
-                DaggerfallBillboard dfBillboard = go.GetComponent<DaggerfallBillboard>();
-                go.transform.position = billboardPosition;
-                go.transform.position += new Vector3(0, dfBillboard.Summary.Size.y / 2, 0);
-
-                // Add RMB data to billboard
-                dfBillboard.SetRMBPeopleData(obj);
+                    // Add RMB data to billboard
+                    dfBillboard.SetRMBPeopleData(obj);
+                }
 
                 // Add StaticNPC behaviour
                 StaticNPC npc = go.AddComponent<StaticNPC>();
@@ -831,12 +891,6 @@ namespace DaggerfallWorkshop
                 {
                     go.SetActive(false);
                 }
-                // Disable people if they are TG spymaster, but not in a legit TG house (TODO: spot any other instances for TG/DB)
-                else if (buildingData.buildingType == DFLocation.BuildingTypes.House2 && buildingData.factionID == 0 &&
-                         npc.Data.factionID == (int)GuildNpcServices.TG_Spymaster)
-                {
-                    go.SetActive(false);
-                }
             }
         }
 
@@ -845,6 +899,10 @@ namespace DaggerfallWorkshop
         /// </summary>
         private void AddActionDoors()
         {
+            // Using 9000-9005 here but identical door models are also found at 900x, 910x, through to 980x
+            // They seem to be duplicate models but can have different model origins so not all ranges are suitable
+            const int doorModelBaseId = 9000;
+
             GameObject actionDoorsNode = new GameObject("Action Doors");
             actionDoorsNode.transform.parent = this.transform;
 
@@ -857,9 +915,10 @@ namespace DaggerfallWorkshop
                 Vector3 modelRotation = new Vector3(0, -obj.YRotation / BlocksFile.RotationDivisor, 0);
                 Vector3 modelPosition = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
 
-                // Instantiate door prefab and add model
+                // Instantiate door prefab and add model - DoorModelIndex is modulo to known-good range just in case
+                uint modelId = (uint)(doorModelBaseId + obj.DoorModelIndex % 5);
                 GameObject go = GameObjectHelper.InstantiatePrefab(dfUnity.Option_InteriorDoorPrefab.gameObject, string.Empty, actionDoorsNode.transform, Vector3.zero);
-                GameObjectHelper.CreateDaggerfallMeshGameObject(doorModelId, actionDoorsNode.transform, false, go, true);
+                GameObjectHelper.CreateDaggerfallMeshGameObject(modelId, actionDoorsNode.transform, false, go, true);
 
                 // Resize box collider to new mesh bounds
                 BoxCollider boxCollider = go.GetComponent<BoxCollider>();
@@ -873,6 +932,10 @@ namespace DaggerfallWorkshop
                 // Apply transforms
                 go.transform.rotation = Quaternion.Euler(modelRotation);
                 go.transform.position = modelPosition;
+
+                // Update climate
+                DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
+                dfMesh.SetClimate(climateBase, climateSeason, WindowStyle.Disabled);
 
                 // Get action door script
                 DaggerfallActionDoor actionDoor = go.GetComponent<DaggerfallActionDoor>();

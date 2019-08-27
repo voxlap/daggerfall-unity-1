@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -26,8 +26,8 @@ namespace DaggerfallConnect.Arena2
 
         const int nameLength = 32;
 
-        FileProxy magicItemsFile = new FileProxy();
-        List<MagicItemTemplate> magicItems = new List<MagicItemTemplate>();
+        readonly FileProxy magicItemsFile = new FileProxy();
+        readonly List<MagicItemTemplate> magicItems = new List<MagicItemTemplate>();
 
         #endregion
 
@@ -76,11 +76,11 @@ namespace DaggerfallConnect.Arena2
             int recordCount = reader.ReadInt32();
             for (int i = 0; i < recordCount; i++)
             {
-                magicItems.Add(ReadNextMagicItem(reader, i));
+                magicItems.Add(ReadNextMagicItem(reader));
             }
         }
 
-        MagicItemTemplate ReadNextMagicItem(BinaryReader reader, int index)
+        MagicItemTemplate ReadNextMagicItem(BinaryReader reader)
         {
             MagicItemTemplate magicItem = new MagicItemTemplate();
             magicItem.index = reader.BaseStream.Position;
@@ -90,16 +90,16 @@ namespace DaggerfallConnect.Arena2
             magicItem.groupIndex = reader.ReadByte();
 
             // Read enchantments
-            magicItem.enchantments = new int[10];
+            magicItem.enchantments = new DaggerfallEnchantment[10];
             for (int i = 0; i < 10; i++)
             {
-                magicItem.enchantments[i] = reader.ReadInt16();
+                magicItem.enchantments[i].type = (EnchantmentTypes)reader.ReadSByte();
+                magicItem.enchantments[i].param = reader.ReadSByte();
             }
 
             magicItem.uses = reader.ReadInt16();
-            magicItem.unknown1 = reader.ReadUInt16();
+            magicItem.value = reader.ReadInt32();
             magicItem.material = reader.ReadByte();
-            magicItem.unknown2 = reader.ReadInt16();
 
             return magicItem;
         }

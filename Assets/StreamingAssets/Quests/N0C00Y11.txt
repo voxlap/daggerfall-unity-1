@@ -7,6 +7,7 @@
 -- Edited for Daggerfall Unity by Jay_H
 Messages: 81
 Quest: N0C00Y11
+DisplayName: Grab an Ingredient
 -- Message panels
 QRC:
 
@@ -201,5 +202,5 @@ variable _map_
 variable _nomap_
 _S.05_ task:
 	when _map_ and _giveingredient_ 
-	reveal _newdung_
-                say 1080 
+	reveal _newdung_ readmap
+    say 1080 

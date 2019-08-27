@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -33,6 +33,7 @@ namespace DaggerfallWorkshop
         internal const string Fade                                  = "_ALPHABLEND_ON";
         internal const string Transparent                           = "_ALPHAPREMULTIPLY_ON";
         internal const string NormalMap                             = "_NORMALMAP";
+        internal const string HeightMap                             = "_PARALLAXMAP";
         internal const string Emission                              = "_EMISSION";
         internal const string MetallicGlossMap                      = "_METALLICGLOSSMAP";
     }
@@ -45,6 +46,7 @@ namespace DaggerfallWorkshop
         internal static readonly int Metallic                       = Shader.PropertyToID("_Metallic");    
         internal static readonly int MetallicGlossMap               = Shader.PropertyToID("_MetallicGlossMap");
         internal static readonly int BumpMap                        = Shader.PropertyToID("_BumpMap");
+        internal static readonly int HeightMap                      = Shader.PropertyToID("_ParallaxMap");
         internal static readonly int EmissionColor                  = Shader.PropertyToID("_EmissionColor");
         internal static readonly int EmissionMap                    = Shader.PropertyToID("_EmissionMap");
         internal static readonly int Mode                           = Shader.PropertyToID("_Mode");
@@ -54,7 +56,7 @@ namespace DaggerfallWorkshop
 
         internal static readonly int[] Textures = new int[]
         {
-            MainTex, EmissionMap, BumpMap, MetallicGlossMap
+            MainTex, EmissionMap, BumpMap, HeightMap, MetallicGlossMap
         };
     }
 
@@ -126,6 +128,8 @@ namespace DaggerfallWorkshop
         public const string _DaggerfallTilemapTextureArrayShaderName = "Daggerfall/TilemapTextureArray";
         public const string _DaggerfallBillboardShaderName = "Daggerfall/Billboard";
         public const string _DaggerfallBillboardBatchShaderName = "Daggerfall/BillboardBatch";
+        public const string _DaggerfallPixelFontShaderName = "Daggerfall/PixelFont";
+        public const string _DaggerfallSDFFontShaderName = "Daggerfall/SDFFont";
 
         DaggerfallUnity dfUnity;
         TextureReader textureReader;
@@ -379,7 +383,7 @@ namespace DaggerfallWorkshop
                 }
 
                 // Get texture
-                results = textureReader.GetTexture2D(settings, AlphaTextureFormat);
+                results = textureReader.GetTexture2D(settings, AlphaTextureFormat, TextureImport.LooseFiles);
 
                 // Create material
                 if (isBillboard)

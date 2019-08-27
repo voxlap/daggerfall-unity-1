@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -15,6 +15,8 @@ using DaggerfallWorkshop.Game.Player;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using UnityEngine;
+using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 
 namespace DaggerfallWorkshop.Utility
 {
@@ -23,9 +25,9 @@ namespace DaggerfallWorkshop.Utility
      * Helper class for context sensitive macros like '%abc' that're used in following Daggerfall files:
      * arena2\text.rsc, fall.exe, arena2\*.qrc, or arena2\bio*.txt
      * </summary>
-     * 
+     *
      * See http://forums.dfworkshop.net/viewtopic.php?f=23&t=673 for details about adding new macro handlers.
-     * 
+     *
      */
     public static class MacroHelper
     {
@@ -49,13 +51,15 @@ namespace DaggerfallWorkshop.Utility
             { "%a", Amount },   // Cost of somthing.
             { "%ach", ChancePlus }, // + Chance plus
             { "%adr", DurationPlus }, // + Duration plus
+            { "%adj", PaintingAdjective }, // Painting adjective
             { "%agi", Agi }, //  Amount of Agility
+            { "%an", ArtistName }, //  Artist name (of a painting)
             { "%ark", AttributeRating }, // What property attribute is considered
             { "%arm", ItemName }, //  Armour
             { "%ba", BookAuthor },  // Book Author
             { "%bch", ChanceBase }, // Base chance
             { "%bdr", DurationBase }, // Base Duration
-            { "%bn", null },  // ?
+            { "%bn", Name }, // Random name in biography text
             { "%bt", ItemName },  // Book title
             { "%cbl", null }, // Cash balance in current region
             { "%clc", ChancePerLevel }, // Per level (Chance)
@@ -67,8 +71,8 @@ namespace DaggerfallWorkshop.Utility
             { "%cri", Crime }, // Accused crime
             { "%crn", CurrentRegion }, // Current Region
             { "%ct", CityType }, // City type? e.g city, town, village?
-            { "%dae", null }, // A daedra
-            { "%dam", DmgMod }, // Damage modifyer
+            { "%dae", Daedra }, // A daedra
+            { "%dam", DmgMod }, // Damage modifier
             { "%dat", Date }, // Date
             { "%di", LocationDirection },  // Direction
             { "%dip", DaysInPrison }, // Days in prison
@@ -78,24 +82,26 @@ namespace DaggerfallWorkshop.Utility
             { "%ef", null },  // Local shop name
             { "%enc", EncumbranceMax }, // Encumbrance
             { "%end", End }, // Amount of Endurance
+            { "%fa", FactionAlly }, // faction which is both PC and NPC ally (used for greetings)
+            { "%fae", FactionAllyEnemy }, // faction which is PC ally and NPC enemy (used for greetings)
             { "%fcn", LocationOfRegionalBuilding }, // Location with regional building asked about
-            { "%fe", null },  // ?
-            { "%fea", null }, // ?
+            { "%fe", FactionEnemy }, // faction which is both PC and NPC enemy (used for greetings)
+            { "%fea", FactionEnemyAlly }, // faction which is PC enemy and NPC ally (used for greetings)
             { "%fl1", LordOfFaction1 }, // Lord of _fx1
             { "%fl2", LordOfFaction2 }, // Lord of _fx2
-            { "%fn", null },  // Random first(?) name (Female?)
-            { "%fn2", null }, // Same as _mn2 (?)
-            { "%fnpc", GuildNPC }, // faction of npc that is dialog partner
+            { "%fn", FemaleName },  // Random first name (Female)
+            { "%fn2", FemaleFullname }, // Random full name (Female)
+            { "%fnpc", FactionNPC }, // faction of npc that is dialog partner
             { "%fon", FactionOrderName }, // Faction order name
             { "%fpa", FactionName }, // faction name? of dialog partner - should return "Kynareth" for npc that are members of "Temple of Kynareth"
-            { "%fpc", FactionPC }, // faction of pc that is from importance to dialog partner (same as his faction)
+            { "%fpc", FactionPC }, // PC faction used for guild related greetings
             { "%fx1", AFactionInNews }, // A faction in news
             { "%fx2", AnotherFactionInNews }, // Another faction in news
             { "%g", Pronoun },   // He/She etc...
             { "%g1", Pronoun },  // He/She ???
             { "%g2", Pronoun2 },  // Him/Her etc...
             { "%g2self", Pronoun2self },// Himself/Herself etc...
-            { "%g3", Pronoun3 },  // His/Hers/Theirs etc...
+            { "%g3", Pronoun3 },  // His/Her
             { "%gii", GoldCarried }, // Amount of gold in hand
             { "%gdd", GodDesc }, // God description i.e. God of Logic
             { "%god", God }, // Some god (listed in TEXT.RSC)
@@ -106,12 +112,12 @@ namespace DaggerfallWorkshop.Utility
             { "%hnt", DialogHint }, // context "Tell Me About": anyInfo message, context place: Direction of location. (comment Nystul: it is either a location direction hint or a map reveal)
             { "%hnt2", DialogHint2 }, // context "Tell Me About": rumors message
             { "%hol", null }, // Holiday
-            { "%hpn", null }, // ?
-            { "%hpw", null }, // ?
+            { "%hpn", HomeProvinceName }, // Home province name
+            { "%hpw", GeographicalFeature }, // Geographical feature of home province
             { "%hrg", null }, // House region
             { "%hs", HeldSoul },  //  Holding Soul type
             { "%htwn", null },// House town
-            { "%imp", null }, // ?
+            { "%imp", MaleFullname }, // Emperor's son's name
             { "%int", Int }, // Amount of Intelligence
             { "%it", ItemName },  //  Item
             { "%jok", Joke }, // A joke
@@ -131,12 +137,12 @@ namespace DaggerfallWorkshop.Utility
             { "%mat", Material }, // Material
             { "%mit", null }, // Item
             { "%ml", MaxLoan },  // Max loan amount
-            { "%mn", null },  // Random First(?) name (Male?)
-            { "%mn2", null }, // Same as _mn (?)
+            { "%mn", MaleName },  // Random First name (Male)
+            { "%mn2", MaleFullname }, // Random Full name (Male)
             { "%mod", ArmourMod }, // Modification
-            { "%n", NameDialogPartner },   // A random female first name (comment Nystul: I think it is just a random name - or maybe this is the reason that in vanilla all male mobile npcs have female names...)
-            { "%nam", null }, // A random full name
-            { "%nrn", null }, // Noble of the current region (used in: O0B00Y01)
+            { "%n", Name },   // A random name (comment Nystul: I think it is just a random name - or maybe this is the reason that in vanilla all male mobile npcs have female names...)
+            { "%nam", Name }, // A random full name
+            { "%nrn", LordOfCurrentRegion }, // Noble of the current region (used in: O0B00Y01)
             { "%nt", NearbyTavern },  // Nearby Tavern
             { "%ol1", OldLordOfFaction1 }, // Old lord of _fx1
             { "%olf", OldLeaderFate }, // What happened to _ol1
@@ -152,48 +158,72 @@ namespace DaggerfallWorkshop.Utility
             { "%plq", null }, // Place of something in log.
             { "%pnq", null }, // Person of something in log
             { "%po", Potion }, //  Potion
-            { "%pp1", null }, // ?
-            { "%pp2", null }, // ?
+            { "%pp1", PaintingPrefix1 }, // ?
+            { "%pp2", PaintingPrefix2 }, // ?
             { "%pqn", PotentialQuestorName }, // Potential Quest Giver
             { "%pqp", PotentialQuestorLocation }, // Potential Quest Giver's Location
             { "%ptm", null }, // An enemy of the current region (?)
-            { "%q1", null },  // q1 to q12 Effects of questions answered in bio.
-            { "%q2", null },
-            { "%q3", null },
-            { "%q4", null },
-            { "%q5", null },
-            { "%q6", null },
-            { "%q7", null },
-            { "%q8", null },
-            { "%q9", null },
-            { "%q10", null },
-            { "%q11", null },
-            { "%q12", null },
+            { "%q1", Q1 },  // q1 to q12 Effects of questions answered in bio.
+            { "%q2", Q2 },
+            { "%q3", Q3 },
+            { "%q4", Q4 },
+            { "%q5", Q5 },
+            { "%q6", Q6 },
+            { "%q7", Q7 },
+            { "%q8", Q8 },
+            { "%q9", Q9 },
+            { "%q10", Q10 },
+            { "%q11", Q11 },
+            { "%q12", Q12 },
+            { "%q1a", Q1a },  // secondary effects of questions answered in bio
+            { "%q2a", Q2a },
+            { "%q3a", Q3a },
+            { "%q4a", Q4a },
+            { "%q5a", Q5a },
+            { "%q6a", Q6a },
+            { "%q7a", Q7a },
+            { "%q8a", Q8a },
+            { "%q9a", Q9a },
+            { "%q10a", Q10a },
+            { "%q11a", Q11a },
+            { "%q12a", Q12a },
+            { "%q1b", Q1b },  // tertiary effects of questions answered in bio
+            { "%q2b", Q2b },
+            { "%q3b", Q3b },
+            { "%q4b", Q4b },
+            { "%q5b", Q5b },
+            { "%q6b", Q6b },
+            { "%q7b", Q7b },
+            { "%q8b", Q8b },
+            { "%q9b", Q9b },
+            { "%q10b", Q10b },
+            { "%q11b", Q11b },
+            { "%q12b", Q12b },
             { "%qdt", QuestDate }, // Quest date of log entry
             { "%qdat", null },// Quest date of log entry [2]
             { "%qot", null }, // The log comment
             { "%qua", Condition }, // Condition
-            { "%r1", null },  // Commoners rep
-            { "%r2", null },  // Merchants rep
-            { "%r3", null },  // Scholers rep
-            { "%r4", null },  // Nobilitys rep
-            { "%r5", null },  // Underworld rep
+            { "%r1", CommonersRep },  // Commoners rep
+            { "%r2", MerchantsRep },  // Merchants rep
+            { "%r3", ScholarsRep },  // Scholers rep
+            { "%r4", NobilityRep },  // Nobilitys rep
+            { "%r5", UnderworldRep },  // Underworld rep
             { "%ra", PlayerRace },  // Player's race
-			{ "%reg", RegionInContext }, // Region in context
-            { "%rn", null },  // Regent's Name
+            { "%reg", RegionInContext }, // Region in context
+            { "%rn", RegentName },  // Regent's Name
             { "%rt", RegentTitle },  // Regent's Title
             { "%spc", Magicka }, // Current Spell Points
             { "%ski", Skill }, // Mastered skill name
             { "%spd", Spd }, // Speed
             { "%spt", MagickaMax }, // Max spell points
             { "%str", Str }, // Amount of strength
-            { "%sub", null }, // ?
+            { "%sub", PaintingSubject }, // Painting subject
             { "%t", RegentTitle },  // Regent's Title
             { "%tcn", null }, // Travel city name
             { "%thd", ToHitMod }, // Combat odds
             { "%tim", Time }, // Time
-            { "%vam", null }, // PC's vampire clan
-            { "%vcn", null }, // Vampire's Clan
+            { "%vam", VampireClan }, // PC's vampire clan
+            { "%vcn", VampireNpcClan }, // Vampire's Clan
             { "%vn", null },  // ?
             { "%wdm", WeaponDamage }, // Weapon damage
             { "%wep", ItemName }, // Weapon
@@ -205,8 +235,8 @@ namespace DaggerfallWorkshop.Utility
             { "%pg1", PlayerPronoun },  // His/Her (player)
             { "%pg2", PlayerPronoun2 }, // Him/Her (player)
             { "%pg2self", PlayerPronoun2self },// Himself/Herself (player)
-            { "%pg3", PlayerPronoun3 },  // His/Hers (player)
-			{ "%hrn", HomeRegion },  // Home region (of person)
+            { "%pg3", PlayerPronoun3 },  // His/Her (player)
+            { "%hrn", HomeRegion },  // Home region (of person)
         };
 
         // Multi-line macro handlers, returns tokens.
@@ -219,20 +249,117 @@ namespace DaggerfallWorkshop.Utility
 
         #region fields (some macros need state (e.g. %fn2 depends on %fn1)
 
-        static int idFaction1InNews = -1;
-        static int idFaction1Ruler = -1;
+        static int idFaction1 = -1;
+        static int idFaction2 = -1;
+        static int idRegion = -1;
 
         #endregion
 
-        #region Public Functions
+        #region Public Utility Functions
 
-        public static void ResetFactionAndRulerIds()
+        public static void SetFactionIdsAndRegionID(int faction1, int faction2, int region)
         {
-            idFaction1InNews = -1;
-            idFaction1Ruler = -1;
+            idFaction1 = faction1;
+            idFaction2 = faction2;
+            idRegion = region;
+        }
+
+        public static string GetFirstname(string name)
+        {
+            string[] parts = name.Split(' ');
+            return (parts != null && parts.Length > 0) ? parts[0] : name;
+        }
+
+        public static NameHelper.BankTypes GetRandomNameBank()
+        {
+            // TODO: How should bank type be randomised? This line results in blank names sometimes, so using race instead.
+            //return (NameHelper.BankTypes) DFRandom.random_range_inclusive(0, 8);
+            Races race = (Races) DFRandom.random_range_inclusive(1, 8);
+            return GetNameBank(race);
+        }
+
+        public static string GetLordNameForFaction(int factionId)
+        {
+            PersistentFactionData factions = GameManager.Instance.PlayerEntity.FactionData;
+            FactionFile.FactionData fd;
+            factions.GetFactionData(factionId, out fd);
+
+            // If the first faction child is an individual, she/he is the ruler: return her/his name
+            if (fd.children != null && fd.children.Count > 0)
+            {
+                FactionFile.FactionData firstChild;
+                factions.GetFactionData(fd.children[0], out firstChild);
+                if (firstChild.type == (int)FactionFile.FactionTypes.Individual)
+                    return firstChild.name;
+            }
+
+            Genders gender = (Genders) ((fd.ruler + 1) % 2); // even entries are female titles/genders, odd entries are male ones
+            Races race = RaceTemplate.GetRaceFromFactionRace((FactionFile.FactionRaces)fd.race);
+            DFRandom.Seed = fd.rulerNameSeed & 0xffff; // Matched to classic: used to retain the same ruler name for each region
+
+            return DaggerfallUnity.Instance.NameHelper.FullName(GetNameBank(race), gender);
+        }
+
+        public static NameHelper.BankTypes GetNameBank(Races race)
+        {
+            switch (race)
+            {
+                case Races.Breton:
+                default:
+                    return NameHelper.BankTypes.Breton;
+                case Races.Redguard:
+                    return NameHelper.BankTypes.Redguard;
+                case Races.Nord:
+                    return NameHelper.BankTypes.Nord;
+                case Races.DarkElf:
+                    return NameHelper.BankTypes.DarkElf;
+                case Races.HighElf:
+                    return NameHelper.BankTypes.HighElf;
+                case Races.WoodElf:
+                    return NameHelper.BankTypes.WoodElf;
+                case Races.Khajiit:
+                    return NameHelper.BankTypes.Khajiit;
+                case Races.Argonian:
+                    return NameHelper.BankTypes.Imperial;
+            }
+        }
+
+        private static string GetRulerTitle(int factionRuler)
+        {
+            switch (factionRuler)
+            {
+                case 1:
+                    return HardStrings.King;
+                case 2:
+                    return HardStrings.Queen;
+                case 3:
+                    return HardStrings.Duke;
+                case 4:
+                    return HardStrings.Duchess;
+                case 5:
+                    return HardStrings.Marquis;
+                case 6:
+                    return HardStrings.Marquise;
+                case 7:
+                    return HardStrings.Count;
+                case 8:
+                    return HardStrings.Countess;
+                case 9:
+                    return HardStrings.Baron;
+                case 10:
+                    return HardStrings.Baroness;
+                case 11:
+                    return HardStrings.Lord;
+                case 12:
+                    return HardStrings.Lady;
+                default:
+                    return HardStrings.Lord;
+            }
         }
 
         #endregion
+
+        #region Macro Expansion Code
 
         // Any punctuation characters that can be on the end of a macro symbol need adding here.
         static char[] PUNCTUATION = { '.', ',', '\'', '?', '!' };
@@ -248,11 +375,9 @@ namespace DaggerfallWorkshop.Utility
             string tokenText;
             int multilineIdx = 0;
             TextFile.Token[] multilineTokens = null;
-
-            // this dictionary is used check for previous resolving of a specific macro in the current call to ExpandMacros before expanding macros
-            // if macro (macro string used as dict key) has been expanded before use previous expanded string (value of this dict) as result
-            // this dict is newly created (and thus empty) for every new call to this function call so macros will be expanded in future calls to ExpandMacros
-            Dictionary<string, string> macrosExpandedAlready = new Dictionary<string, string>();
+            // Initialise macro cache - used to ensure macros are only evaluated once per ExpandMacros() call.
+            // Important since some macros evaluate differently each time. (e.g. macros with random generated names like %fx1 & %fx2)
+            Dictionary<string, string> macroCache = new Dictionary<string, string>();
 
             for (int tokenIdx = 0; tokenIdx < tokens.Length; tokenIdx++)
             {
@@ -274,34 +399,30 @@ namespace DaggerfallWorkshop.Utility
                         for (int wordIdx = 0; wordIdx < words.Length; wordIdx++)
                         {
                             int pos = words[wordIdx].IndexOf('%');
-                            if (pos >= 0)
+                            if (pos >= 0 && words[wordIdx].Length > pos + 1)
                             {
                                 string prefix = words[wordIdx].Substring(0, pos);
                                 string macro = words[wordIdx].Substring(pos);
 
-                                // don't expand macros several times in same expand macro command (when still in one run of this function)
-                                // since some macros produce different results when expanded several times (macros with random generated names, e.g. %fx1, %fx2)
-                                if (macrosExpandedAlready.ContainsKey(macro))
-                                {
-                                    words[wordIdx] = prefix + macrosExpandedAlready[macro];
-                                    continue;
-                                }
-
                                 if (macro.StartsWith("%"))
                                 {
                                     int macroLen;
-                                    if ((macroLen = macro.IndexOfAny(PUNCTUATION)) > 0)
+                                    if (macroCache.ContainsKey(macro))
+                                    {
+                                        words[wordIdx] = prefix + macroCache[macro];
+                                    }
+                                    else if ((macroLen = macro.IndexOfAny(PUNCTUATION)) > 0)
                                     {
                                         string symbolStr = macro.Substring(0, macroLen);
                                         string expandedString = GetValue(symbolStr, mcp);
                                         words[wordIdx] = prefix + expandedString + macro.Substring(macroLen);
-                                        macrosExpandedAlready[macro] = expandedString;
+                                        macroCache[macro] = expandedString;
                                     }
                                     else
                                     {
                                         string expandedString = GetValue(macro, mcp);
                                         words[wordIdx] = prefix + expandedString;
-                                        macrosExpandedAlready[macro] = expandedString;
+                                        macroCache[macro] = expandedString;
                                     }
                                 }
                             }
@@ -344,11 +465,16 @@ namespace DaggerfallWorkshop.Utility
                 if (svp != null)
                 {
                     try {
-                        return svp.Invoke(mcp);
+                        string try1 = svp.Invoke(mcp);
+                        if (try1 != null)
+                            return try1;
+                        return symbolStr + "[nullMCP]";
                     } catch (NotImplementedException) {
-                        if (mcp2 != null) {
-                            try { return svp.Invoke(mcp2); } catch (NotImplementedException) { }
-                        }
+                        try {
+                            string try2 = svp.Invoke(mcp2);
+                            if (try2 != null)
+                                return try2;
+                        } catch (NotImplementedException) { }
                         return symbolStr + "[srcDataUnknown]";
                     }
                 } else {
@@ -387,13 +513,15 @@ namespace DaggerfallWorkshop.Utility
             return new TextFile.Token[] { errorToken };
         }
 
+        #endregion
+
 
         //
         // Global macro handlers - not context sensitive. (mcp will be null, and should not be used)
         //
         #region Global macro handlers
 
-        private static string CityName(IMacroContextProvider mcp)
+        public static string CityName(IMacroContextProvider mcp)
         {   // %cn
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             if (gps.HasCurrentLocation)
@@ -461,7 +589,7 @@ namespace DaggerfallWorkshop.Utility
             if (buildingDirectory && buildingDirectory.BuildingCount > 0)
             {
                 List<BuildingSummary> taverns = buildingDirectory.GetBuildingsOfType(DFLocation.BuildingTypes.Tavern);
-                int i = UnityEngine.Random.Range(0, taverns.Count - 1);
+                int i = UnityEngine.Random.Range(0, taverns.Count);
                 PlayerGPS.DiscoveredBuilding tavern;
                 if (GameManager.Instance.PlayerGPS.GetAnyBuilding(taverns[i].buildingKey, out tavern))
                     return tavern.displayName;
@@ -469,41 +597,29 @@ namespace DaggerfallWorkshop.Utility
             return HardStrings.tavern;
         }
 
-        private static string RegentTitle(IMacroContextProvider mcp)
+        public static string RegentTitle(IMacroContextProvider mcp)
         {   // %rt %t
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             FactionFile.FactionData regionFaction;
-            GameManager.Instance.PlayerEntity.FactionData.FindFactionByTypeAndRegion(7, gps.CurrentRegionIndex + 1, out regionFaction);
+            GameManager.Instance.PlayerEntity.FactionData.FindFactionByTypeAndRegion((int)FactionFile.FactionTypes.Province, gps.CurrentRegionIndex, out regionFaction);
+            return GetRulerTitle(regionFaction.ruler);
+        }
 
-            switch (regionFaction.ruler)
+        public static string RegentName(IMacroContextProvider mcp)
+        {   // %rn
+            // Look for a defined ruler for the region.
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            PersistentFactionData factionData = GameManager.Instance.PlayerEntity.FactionData;
+            FactionFile.FactionData regionFaction;
+            if (factionData.FindFactionByTypeAndRegion((int)FactionFile.FactionTypes.Province, gps.CurrentRegionIndex, out regionFaction))
             {
-                case 1:
-                    return HardStrings.King;
-                case 2:
-                    return HardStrings.Queen;
-                case 3:
-                    return HardStrings.Duke;
-                case 4:
-                    return HardStrings.Duchess;
-                case 5:
-                    return HardStrings.Marquis;
-                case 6:
-                    return HardStrings.Marquise;
-                case 7:
-                    return HardStrings.Count;
-                case 8:
-                    return HardStrings.Countess;
-                case 9:
-                    return HardStrings.Baron;
-                case 10:
-                    return HardStrings.Baroness;
-                case 11:
-                    return HardStrings.Lord;
-                case 12:
-                    return HardStrings.Lady;
-                default:
-                    return HardStrings.Lord;
+                FactionFile.FactionData child;
+                foreach (int childID in regionFaction.children)
+                    if (factionData.GetFactionData(childID, out child) && child.type == (int)FactionFile.FactionTypes.Individual)
+                        return child.name;
             }
+            // Use a random name if no defined individual ruler.
+            return Name(null);
         }
 
         private static string Crime(IMacroContextProvider mcp)
@@ -621,29 +737,28 @@ namespace DaggerfallWorkshop.Utility
 
         private static string PlayerFirstname(IMacroContextProvider mcp)
         {   // %pcf
-            string name = GameManager.Instance.PlayerEntity.Name;
-            string[] parts = name.Split(' ');
-            return (parts != null && parts.Length > 0) ? parts[0] : name;
+            return GetFirstname(GameManager.Instance.PlayerEntity.Name);
         }
-        public static string PlayerPronoun(IMacroContextProvider mcp)
+
+        private static string PlayerPronoun(IMacroContextProvider mcp)
         {   // %pg
             return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounShe : HardStrings.pronounHe;
         }
-        public static string PlayerPronoun1(IMacroContextProvider mcp)
+        private static string PlayerPronoun1(IMacroContextProvider mcp)
         {   // %pg1
             return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounHer : HardStrings.pronounHis;
         }
-        public static string PlayerPronoun2(IMacroContextProvider mcp)
+        private static string PlayerPronoun2(IMacroContextProvider mcp)
         {   // %pg2
             return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounHer : HardStrings.pronounHim;
         }
-        public static string PlayerPronoun2self(IMacroContextProvider mcp)
+        private static string PlayerPronoun2self(IMacroContextProvider mcp)
         {   // %pg2self
             return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounHerself : HardStrings.pronounHimself;
         }
-        public static string PlayerPronoun3(IMacroContextProvider mcp)
+        private static string PlayerPronoun3(IMacroContextProvider mcp)
         {   // %pg3
-            return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounHers : HardStrings.pronounHis;
+            return (GameManager.Instance.PlayerEntity.Gender == Genders.Female) ? HardStrings.pronounHer : HardStrings.pronounHis;
         }
 
         private static string Honorific(IMacroContextProvider mcp)
@@ -663,7 +778,7 @@ namespace DaggerfallWorkshop.Utility
         private static string MagickaMax(IMacroContextProvider mcp)
         {   // %spt
             return GameManager.Instance.PlayerEntity.MaxMagicka.ToString();
-            
+
         }
         private static string Magicka(IMacroContextProvider mcp)
         {   // %spc
@@ -700,7 +815,7 @@ namespace DaggerfallWorkshop.Utility
 
         private static string PlayerRace(IMacroContextProvider mcp)
         {   // %ra
-            return GameManager.Instance.PlayerEntity.RaceTemplate.Name;
+            return GameManager.Instance.PlayerEntity.BirthRaceTemplate.Name;
         }
 
         private static string GoldCarried(IMacroContextProvider mcp)
@@ -725,10 +840,24 @@ namespace DaggerfallWorkshop.Utility
             return ""; // return empty string for now - not known if it does something else in classic
         }
 
-        private static string NameDialogPartner(IMacroContextProvider mcp)
-        {
-            // %n
-            return GameManager.Instance.TalkManager.NameNPC;
+        private static string FactionAlly(IMacroContextProvider mcp)
+        {   // %fa
+            return GameManager.Instance.TalkManager.GetFactionNPCAlly();
+        }
+
+        private static string FactionEnemy(IMacroContextProvider mcp)
+        {   // %fe
+            return GameManager.Instance.TalkManager.GetFactionNPCEnemy();
+        }
+
+        private static string FactionAllyEnemy(IMacroContextProvider mcp)
+        {   // %fae
+            return GameManager.Instance.TalkManager.GetFactionNPCEnemy();
+        }
+
+        private static string FactionEnemyAlly(IMacroContextProvider mcp)
+        {   // %fea
+            return GameManager.Instance.TalkManager.GetFactionNPCAlly();
         }
 
         private static string FactionPC(IMacroContextProvider mcp)
@@ -736,9 +865,9 @@ namespace DaggerfallWorkshop.Utility
             return GameManager.Instance.TalkManager.GetFactionPC();
         }
 
-        private static string GuildNPC(IMacroContextProvider mcp)
+        private static string FactionNPC(IMacroContextProvider mcp)
         {   // %fnpc
-            return GameManager.Instance.TalkManager.GetGuildNPC();
+            return GameManager.Instance.TalkManager.GetFactionNPC();
         }
 
         private static string FactionName(IMacroContextProvider mcp)
@@ -749,30 +878,16 @@ namespace DaggerfallWorkshop.Utility
         public static string AFactionInNews(IMacroContextProvider mcp)
         {   // %fx1
             PersistentFactionData factions = GameManager.Instance.PlayerEntity.FactionData;
-            int id;
-            if (idFaction1Ruler == -1) // no previous %ol1
-            {
-                id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForFactionInNews.Count - 1);
-                idFaction1InNews = id;
-            }
-            else
-            {
-                id = idFaction1Ruler;
-            }
             FactionFile.FactionData fd;
-            factions.GetFactionData((int)TalkManager.factionsUsedForFactionInNews[id], out fd);
+            factions.GetFactionData(idFaction1, out fd);
             return fd.name;
         }
 
         public static string AnotherFactionInNews(IMacroContextProvider mcp)
         {   // %fx2
             PersistentFactionData factions = GameManager.Instance.PlayerEntity.FactionData;
-            // get random number between 0 and factionsUsedForFactionInNews.Count - 2 now since we might add a + 1 for an id >= idFaction1InNews later to prevent same faction as for %fx1
-            int id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForFactionInNews.Count - 1);
             FactionFile.FactionData fd;
-            if (id >= idFaction1InNews) // make sure to create an id != idFaction1InNews
-                id += 1; // by just adding 1 if id >= idFaction1InNews -> so we will end up with an id in ranges [0, idFaction1InNews) union (idFaction1InNews, factionsUsedForFactionInNews.Count]
-            factions.GetFactionData((int)TalkManager.factionsUsedForFactionInNews[id], out fd);
+            factions.GetFactionData(idFaction2, out fd);
             return fd.name;
         }
 
@@ -782,140 +897,40 @@ namespace DaggerfallWorkshop.Utility
             return TalkManager.Instance.GetOldLeaderFateString(index);
         }
 
-        private static string HelperCreateLordNameForFaction(int factionId)
-        {
-            PersistentFactionData factions = GameManager.Instance.PlayerEntity.FactionData;
-            FactionFile.FactionData fd;
-            factions.GetFactionData(factionId, out fd);
-
-            Genders gender = (Genders)((fd.ruler + 1) % 2); // even entries are female titles/genders, odd entries are male ones
-
-            Races race = (Races)fd.race;
-
-            Game.Utility.NameHelper.BankTypes nameBankType;
-            switch (race)
-            {
-                case Races.Argonian:
-                case Races.Breton:
-                case Races.Khajiit:
-                default:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.Breton;
-                    break;
-                case Races.DarkElf:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.DarkElf;
-                    break;
-                case Races.HighElf:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.HighElf;
-                    break;
-                case Races.WoodElf:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.WoodElf;
-                    break;
-                case Races.Nord:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.Nord;
-                    break;
-                case Races.Redguard:
-                    nameBankType = Game.Utility.NameHelper.BankTypes.Redguard;
-                    break;
-            }
-            return DaggerfallUnity.Instance.NameHelper.FullName(nameBankType, gender);
-        }
-
         public static string OldLordOfFaction1(IMacroContextProvider mcp)
-        {   // %ol1                    
-            int id;
-            if (idFaction1Ruler == -1)
-            {
-                id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForRulers.Count - 1);
-                idFaction1Ruler = id;
-            }
-            else
-            {
-                id = idFaction1Ruler;
-            }
-            return HelperCreateLordNameForFaction((int)TalkManager.factionsUsedForRulers[id]);
+        {   // %ol1
+            return GetLordNameForFaction(idFaction1);
         }
 
         public static string LordOfFaction1(IMacroContextProvider mcp)
         {   // %fl1
-            int id;
-            if (idFaction1Ruler == -1)
-            {
-                id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForRulers.Count - 1);
-                idFaction1Ruler = id;
-            }
-            else
-            {
-                id = idFaction1Ruler;
-            }
-            return HelperCreateLordNameForFaction((int)TalkManager.factionsUsedForRulers[id]);
+            return GetLordNameForFaction(idFaction1);
         }
 
         public static string LordOfFaction2(IMacroContextProvider mcp)
         {   // %fl2
-            // get random number between 0 and factionsUsedForRulers.Count - 2 now since we might add a + 1 for an id >= idFaction1Ruler later to prevent same faction as for %fl1
-            int id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForRulers.Count - 2);
-            if (id >= idFaction1Ruler) // make sure to create an id != idFaction1Ruler
-                id += 1; // by just adding 1 if id >= idFaction1InNews -> so we will end up with an id in ranges [0, idFaction1Ruler) union (idFaction1InNews, factionsUsedForFactionRulers.Count]
-            return HelperCreateLordNameForFaction((int)TalkManager.factionsUsedForRulers[id]);
+            return GetLordNameForFaction(idFaction2);
+        }
+
+        public static string LordOfCurrentRegion(IMacroContextProvider mcp)
+        {   // %nrn
+            return GetLordNameForFaction(GameManager.Instance.PlayerGPS.GetCurrentRegionFaction());
         }
 
         public static string TitleOfLordOfFaction1(IMacroContextProvider mcp)
         {   // %lt1
-            int id;
-            if (idFaction1Ruler == -1)
-            {
-                id = UnityEngine.Random.Range(0, TalkManager.factionsUsedForRulers.Count - 1);
-                idFaction1Ruler = id;
-            }
-            else
-            {
-                id = idFaction1Ruler;
-            }
-
             PersistentFactionData factions = GameManager.Instance.PlayerEntity.FactionData;
             FactionFile.FactionData fd;
-            factions.GetFactionData((int)TalkManager.factionsUsedForRulers[id], out fd);
+            factions.GetFactionData(idFaction1, out fd);
 
-            switch (fd.ruler)
-            {
-                case 1:
-                    return HardStrings.King;
-                case 2:
-                    return HardStrings.Queen;
-                case 3:
-                    return HardStrings.Duke;
-                case 4:
-                    return HardStrings.Duchess;
-                case 5:
-                    return HardStrings.Marquis;
-                case 6:
-                    return HardStrings.Marquise;
-                case 7:
-                    return HardStrings.Count;
-                case 8:
-                    return HardStrings.Countess;
-                case 9:
-                    return HardStrings.Baron;
-                case 10:
-                    return HardStrings.Baroness;
-                case 11:
-                    return HardStrings.Lord;
-                case 12:
-                    return HardStrings.Lady;
-                default:
-                    return HardStrings.Lord;
-            }
+            return GetRulerTitle(fd.ruler);
         }
 
         public static string RegionInContext(IMacroContextProvider mcp)
         {   // %reg
-            if (idFaction1Ruler != -1)
+            if (idRegion != -1)
             {
-                //return DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRegionName((int)TalkManager.factionsUsedForRulers[idFaction1Ruler]); // not mapping to same regions for some reason as FactionFile.FactionIDs enum
-                string regionName = Enum.GetName(typeof(FactionFile.FactionIDs), (FactionFile.FactionIDs)TalkManager.factionsUsedForRulers[idFaction1Ruler]);
-                regionName = regionName.Replace('_', ' ');
-                return regionName;
-
+                return MapsFile.RegionNames[idRegion];
             }
             else
                 return CurrentRegion(mcp);
@@ -948,23 +963,47 @@ namespace DaggerfallWorkshop.Utility
         }
 
         private static string MarkLocationOnMap(IMacroContextProvider mcp)
-        {
-            // %loc
+        {   // %loc
             if (GameManager.Instance.TalkManager.MarkLocationOnMap)
                 GameManager.Instance.TalkManager.MarkKeySubjectLocationOnMap();
             return GameManager.Instance.TalkManager.CurrentKeySubject;
         }
 
         private static string LocationRevealedByMapItem(IMacroContextProvider mcp)
-        {
-            // %map
+        {   // %map
             return GameManager.Instance.PlayerGPS.LocationRevealedByMapItem;
         }
 
         private static string LocationOfRegionalBuilding(IMacroContextProvider mcp)
-        {
-            // %fcn
+        {   // %fcn
             return GameManager.Instance.TalkManager.LocationOfRegionalBuilding;
+        }
+
+        private static string FemaleName(IMacroContextProvider mcp)
+        {   // %fn
+            return DaggerfallUnity.Instance.NameHelper.FirstName(GetRandomNameBank(), Genders.Female);
+        }
+        private static string FemaleFullname(IMacroContextProvider mcp)
+        {   // %fn2
+            return DaggerfallUnity.Instance.NameHelper.FullName(GetRandomNameBank(), Genders.Female);
+        }
+
+        private static string MaleName(IMacroContextProvider mcp)
+        {   // %mn
+            return DaggerfallUnity.Instance.NameHelper.FirstName(GetRandomNameBank(), Genders.Male);
+        }
+        private static string MaleFullname(IMacroContextProvider mcp)
+        {   // %mn2
+            return DaggerfallUnity.Instance.NameHelper.FullName(GetRandomNameBank(), Genders.Male);
+        }
+
+        private static string VampireClan(IMacroContextProvider mcp)
+        {   // %vam
+            RacialOverrideEffect racialEffect = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect();
+            if (racialEffect is VampirismEffect)
+                return (racialEffect as VampirismEffect).GetClanName();
+            else
+                return "%vam[ERROR: PC not a vampire]";
         }
 
         #endregion
@@ -974,260 +1013,650 @@ namespace DaggerfallWorkshop.Utility
         //
         #region Contextual macro handlers
 
+        private static string Name(IMacroContextProvider mcp)
+        {   // %n %nam
+            // Call the MCP first for context.
+            if (mcp != null)
+            {
+                try {
+                    string name = mcp.GetMacroDataSource().Name();
+                    if (name != null)
+                        return name;
+                } catch (NotImplementedException) { }
+            }
+            
+            // Get appropriate nameBankType for this region and a random gender
+            NameHelper.BankTypes nameBankType = NameHelper.BankTypes.Breton;
+            if (GameManager.Instance.PlayerGPS.CurrentRegionIndex > -1)
+                nameBankType = (NameHelper.BankTypes)MapsFile.RegionRaces[GameManager.Instance.PlayerGPS.CurrentRegionIndex];
+            Genders gender = (DFRandom.random_range_inclusive(0, 1) == 1) ? Genders.Female : Genders.Male;
+
+            return DaggerfallUnity.Instance.NameHelper.FullName(nameBankType, gender);
+        }
+
+        private static string VampireNpcClan(IMacroContextProvider mcp)
+        {   // %vcn
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().VampireNpcClan();
+        }
+
         private static string GuildTitle(IMacroContextProvider mcp)
         {   // %lev %pct
+            if (mcp == null)
+                return GameManager.Instance.PlayerEntity.Name;
             return mcp.GetMacroDataSource().GuildTitle();
         }
 
         private static string FactionOrderName(IMacroContextProvider mcp)
-        {   // %fon
+        {   // %fon %kno
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().FactionOrderName();
         }
 
         public static string Dungeon(IMacroContextProvider mcp)
         {   // %dng
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Dungeon();
         }
 
         private static string Amount(IMacroContextProvider mcp)
         {   // %a
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Amount();
         }
         private static string ShopName(IMacroContextProvider mcp)
         {   // %cpn
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ShopName();
         }
         private static string MaxLoan(IMacroContextProvider mcp)
         {   // %ml
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MaxLoan();
         }
 
         private static string Str(IMacroContextProvider mcp)
         {   // %str
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Str();
         }
         private static string Int(IMacroContextProvider mcp)
         {   // %int
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Int();
         }
         private static string Wil(IMacroContextProvider mcp)
         {   // %wil
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Wil();
         }
         private static string Agi(IMacroContextProvider mcp)
         {   // %agi
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Agi();
         }
         private static string End(IMacroContextProvider mcp)
         {   // %end
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().End();
         }
         private static string Per(IMacroContextProvider mcp)
         {   // %per
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Per();
         }
         private static string Spd(IMacroContextProvider mcp)
         {   // %spd
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Spd();
         }
         private static string Luck(IMacroContextProvider mcp)
         {   // %luc
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Luck();
         }
 
         private static string AttributeRating(IMacroContextProvider mcp)
         {   // %ark
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().AttributeRating();
         }
 
         public static string ItemName(IMacroContextProvider mcp)
         {   // %wep, %arm, %it
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ItemName();
         }
 
         public static string Worth(IMacroContextProvider mcp)
         {   // %wth
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Worth();
         }
 
         public static string Material(IMacroContextProvider mcp)
         {   // %mat
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Material();
         }
 
         public static string Condition(IMacroContextProvider mcp)
         {   // %qua
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Condition();
         }
 
         public static string Weight(IMacroContextProvider mcp)
         {   // %kg
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Weight();
         }
 
         public static string WeaponDamage(IMacroContextProvider mcp)
         {   // %wdm
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().WeaponDamage();
         }
 
         public static string ArmourMod(IMacroContextProvider mcp)
         {   // %mod
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ArmourMod();
         }
 
         public static string BookAuthor(IMacroContextProvider mcp)
         {   // %ba
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().BookAuthor();
+        }
+
+        public static string PaintingAdjective(IMacroContextProvider mcp)
+        {   // %adj
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().PaintingAdjective();
+        }
+        public static string ArtistName(IMacroContextProvider mcp)
+        {   // %an
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().ArtistName();
+        }
+        public static string PaintingPrefix1(IMacroContextProvider mcp)
+        {   // %pp1
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().PaintingPrefix1();
+        }
+        public static string PaintingPrefix2(IMacroContextProvider mcp)
+        {   // %pp2
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().PaintingPrefix2();
+        }
+        public static string PaintingSubject(IMacroContextProvider mcp)
+        {   // %sub
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().PaintingSubject();
         }
 
         public static string HeldSoul(IMacroContextProvider mcp)
         {   // %hs
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().HeldSoul();
         }
 
         public static string Potion(IMacroContextProvider mcp)
         {   // %po
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Potion();
         }
 
         public static string Pronoun(IMacroContextProvider mcp)
         {   // %g & %g1
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Pronoun();
         }
         public static string Pronoun2(IMacroContextProvider mcp)
         {   // %g2
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Pronoun2();
         }
         public static string Pronoun2self(IMacroContextProvider mcp)
         {   // %g2self
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Pronoun2self();
         }
         public static string Pronoun3(IMacroContextProvider mcp)
         {   // %g3
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Pronoun3();
         }
 
         public static string QuestDate(IMacroContextProvider mcp)
         {   // %qdt
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().QuestDate();
         }
 
         public static string Oath(IMacroContextProvider mcp)
         {   // %oth
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().Oath();
         }
 
         public static string HomeRegion(IMacroContextProvider mcp)
         {   // %hrn
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().HomeRegion();
         }
 
         public static string GodDesc(IMacroContextProvider mcp)
         {   // %gdd
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().GodDesc();
         }
-
         public static string God(IMacroContextProvider mcp)
         {   // %god
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().God();
+        }
+
+        public static string Daedra(IMacroContextProvider mcp)
+        {   // %dae
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Daedra();
         }
 
         public static string LocationDirection(IMacroContextProvider mcp)
         {   // %di
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().LocationDirection();
         }
 
         public static string DialogHint(IMacroContextProvider mcp)
         {   // %hnt
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().DialogHint();
         }
 
         public static string DialogHint2(IMacroContextProvider mcp)
         {   // %hnt2
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().DialogHint2();
         }
 
         public static string RoomHoursLeft(IMacroContextProvider mcp)
         {   // %dwr
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().RoomHoursLeft();
         }
 
         public static string PotentialQuestorName(IMacroContextProvider mcp)
-        {
-            // %pqn
+        {   // %pqn
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().PotentialQuestorName();
         }
 
         public static string PotentialQuestorLocation(IMacroContextProvider mcp)
-        {
-            // %pqp
+        {   // %pqp
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().PotentialQuestorLocation();
         }
 
         public static string DurationBase(IMacroContextProvider mcp)
-        {
-            // %bdr
+        {   // %bdr
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().DurationBase();
         }
-
         public static string DurationPlus(IMacroContextProvider mcp)
-        {
-            // %adr
+        {   // %adr
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().DurationPlus();
         }
-
         public static string DurationPerLevel(IMacroContextProvider mcp)
-        {
-            // %cld
+        {   // %cld
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().DurationPerLevel();
         }
 
         public static string ChanceBase(IMacroContextProvider mcp)
-        {
-            // %bch
+        {   // %bch
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ChanceBase();
         }
-
         public static string ChancePlus(IMacroContextProvider mcp)
-        {
-            // %ach
+        {   // %ach
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ChancePlus();
         }
-
         public static string ChancePerLevel(IMacroContextProvider mcp)
-        {
-            // %clc
+        {   // %clc
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().ChancePerLevel();
         }
 
         public static string MagnitudeBaseMin(IMacroContextProvider mcp)
-        {
-            // %1bm
+        {   // %1bm
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MagnitudeBaseMin();
         }
-
         public static string MagnitudeBaseMax(IMacroContextProvider mcp)
-        {
-            // %2bm
+        {   // %2bm
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MagnitudeBaseMax();
         }
-
         public static string MagnitudePlusMin(IMacroContextProvider mcp)
-        {
-            // %1am
+        {   // %1am
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MagnitudePlusMin();
         }
-
         public static string MagnitudePlusMax(IMacroContextProvider mcp)
-        {
-            // %2am
+        {   // %2am
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MagnitudePlusMax();
         }
-
         public static string MagnitudePerLevel(IMacroContextProvider mcp)
-        {
-            // %clm
+        {   // %clm
+            if (mcp == null) return null;
             return mcp.GetMacroDataSource().MagnitudePerLevel();
+        }
+
+        public static string CommonersRep(IMacroContextProvider mcp)
+        {
+            // %r1
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().CommonersRep();
+        }
+
+        public static string MerchantsRep(IMacroContextProvider mcp)
+        {
+            // %r2
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().MerchantsRep();
+        }
+
+        public static string ScholarsRep(IMacroContextProvider mcp)
+        {
+            // %r3
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().ScholarsRep();
+        }
+
+        public static string NobilityRep(IMacroContextProvider mcp)
+        {
+            // %r4
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().NobilityRep();
+        }
+
+        public static string UnderworldRep(IMacroContextProvider mcp)
+        {
+            // %r5
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().UnderworldRep();
+        }
+
+        private static string HomeProvinceName(IMacroContextProvider mcp)
+        {
+            // %hpn
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().HomeProvinceName();
+        }
+
+        private static string GeographicalFeature(IMacroContextProvider mcp)
+        {
+            // %hpw
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().GeographicalFeature();
+        }
+
+        public static string Q1(IMacroContextProvider mcp)
+        {
+            // %q1
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q1();
+        }
+
+        public static string Q2(IMacroContextProvider mcp)
+        {
+            // %q2
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q2();
+        }
+
+        public static string Q3(IMacroContextProvider mcp)
+        {
+            // %q3
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q3();
+        }
+
+        public static string Q4(IMacroContextProvider mcp)
+        {
+            // %q4
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q4();
+        }
+
+        public static string Q5(IMacroContextProvider mcp)
+        {
+            // %q5
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q5();
+        }
+
+        public static string Q6(IMacroContextProvider mcp)
+        {
+            // %q6
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q6();
+        }
+
+        public static string Q7(IMacroContextProvider mcp)
+        {
+            // %q7
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q7();
+        }
+
+        public static string Q8(IMacroContextProvider mcp)
+        {
+            // %q8
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q8();
+        }
+
+        public static string Q9(IMacroContextProvider mcp)
+        {
+            // %q9
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q9();
+        }
+
+        public static string Q10(IMacroContextProvider mcp)
+        {
+            // %q10
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q10();
+        }
+
+        public static string Q11(IMacroContextProvider mcp)
+        {
+            // %q11
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q11();
+        }
+
+        public static string Q12(IMacroContextProvider mcp)
+        {
+            // %q12
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q12();
+        }
+
+        public static string Q1a(IMacroContextProvider mcp)
+        {
+            // %q1a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q1a();
+        }
+
+        public static string Q2a(IMacroContextProvider mcp)
+        {
+            // %q2a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q2a();
+        }
+
+        public static string Q3a(IMacroContextProvider mcp)
+        {
+            // %q3a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q3a();
+        }
+
+        public static string Q4a(IMacroContextProvider mcp)
+        {
+            // %q4a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q4a();
+        }
+
+        public static string Q5a(IMacroContextProvider mcp)
+        {
+            // %q5a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q5a();
+        }
+
+        public static string Q6a(IMacroContextProvider mcp)
+        {
+            // %q6a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q6a();
+        }
+
+        public static string Q7a(IMacroContextProvider mcp)
+        {
+            // %q7a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q7a();
+        }
+
+        public static string Q8a(IMacroContextProvider mcp)
+        {
+            // %q8a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q8a();
+        }
+
+        public static string Q9a(IMacroContextProvider mcp)
+        {
+            // %q9a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q9a();
+        }
+
+        public static string Q10a(IMacroContextProvider mcp)
+        {
+            // %q10a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q10a();
+        }
+
+        public static string Q11a(IMacroContextProvider mcp)
+        {
+            // %q11a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q11a();
+        }
+
+        public static string Q12a(IMacroContextProvider mcp)
+        {
+            // %q12a
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q12a();
+        }
+
+        public static string Q1b(IMacroContextProvider mcp)
+        {
+            // %q1b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q1b();
+        }
+
+        public static string Q2b(IMacroContextProvider mcp)
+        {
+            // %q2b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q2b();
+        }
+
+        public static string Q3b(IMacroContextProvider mcp)
+        {
+            // %q3b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q3b();
+        }
+
+        public static string Q4b(IMacroContextProvider mcp)
+        {
+            // %q4b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q4b();
+        }
+
+        public static string Q5b(IMacroContextProvider mcp)
+        {
+            // %q5b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q5b();
+        }
+
+        public static string Q6b(IMacroContextProvider mcp)
+        {
+            // %q6b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q6b();
+        }
+
+        public static string Q7b(IMacroContextProvider mcp)
+        {
+            // %q7b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q7b();
+        }
+
+        public static string Q8b(IMacroContextProvider mcp)
+        {
+            // %q8b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q8b();
+        }
+
+        public static string Q9b(IMacroContextProvider mcp)
+        {
+            // %q9b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q9b();
+        }
+
+        public static string Q10b(IMacroContextProvider mcp)
+        {
+            // %q10b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q10b();
+        }
+
+        public static string Q11b(IMacroContextProvider mcp)
+        {
+            // %q11b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q11b();
+        }
+
+        public static string Q12b(IMacroContextProvider mcp)
+        {
+            // %q12b
+            if (mcp == null) return null;
+            return mcp.GetMacroDataSource().Q12b();
         }
 
         #endregion

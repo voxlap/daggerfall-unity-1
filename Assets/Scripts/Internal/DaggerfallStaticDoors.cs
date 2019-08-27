@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Numidium
 // 
 // Notes:
 //
@@ -36,6 +36,7 @@ namespace DaggerfallWorkshop
             //for (int i = 0; i < Doors.Length; i++)
             //{
             //    GameObject go = new GameObject();
+            //    go.name = "DoorTrigger";
             //    go.transform.parent = transform;
             //    go.transform.position = transform.rotation * Doors[i].buildingMatrix.MultiplyPoint3x4(Doors[i].centre);
             //    go.transform.position += transform.position;
@@ -43,8 +44,10 @@ namespace DaggerfallWorkshop
 
             //    BoxCollider c = go.AddComponent<BoxCollider>();
             //    c.size = GameObjectHelper.QuaternionFromMatrix(Doors[i].buildingMatrix) * Doors[i].size;
+            //    c.size = new Vector3(Mathf.Abs(c.size.x), Mathf.Abs(c.size.y), Mathf.Abs(c.size.z)); // Abs size components so not negative for collider
             //    c.isTrigger = true;
             //}
+            //Debug.LogFormat("Added {0} door triggers to scene", Doors.Length);
         }
 
         /// <summary>
@@ -103,10 +106,10 @@ namespace DaggerfallWorkshop
         /// <param name="doorPosOut">Position of closest door in world space.</param>
         /// <param name="doorIndexOut">Door index in Doors array of closest door.</param>
         /// <returns></returns>
-        public bool FindClosestDoorToPlayer(Vector3 playerPos, int record, out Vector3 doorPosOut, out int doorIndexOut)
+        public bool FindClosestDoorToPlayer(Vector3 playerPos, int record, out Vector3 doorPosOut, out int doorIndexOut, DoorTypes requiredDoorType = DoorTypes.None)
         {
             // Init output
-            doorPosOut = playerPos;
+            doorPosOut = Vector3.zero;
             doorIndexOut = -1;
 
             // Must have door array
@@ -115,14 +118,19 @@ namespace DaggerfallWorkshop
 
             // Find closest door to player position
             float minDistance = float.MaxValue;
+            bool found = false;
             for (int i = 0; i < Doors.Length; i++)
             {
-                // Get this door centre in world space
-                Vector3 centre = transform.rotation * Doors[i].buildingMatrix.MultiplyPoint3x4(Doors[i].centre) + transform.position;
+                // Must be of door type if set
+                if (requiredDoorType != DoorTypes.None && Doors[i].doorType != requiredDoorType)
+                    continue;
 
-                // Check if door belongs to same building record
-                if (Doors[i].recordIndex == record)
+                // Check if door belongs to same building record or accept any record
+                if (record == -1 || Doors[i].recordIndex == record)
                 {
+                    // Get this door centre in world space
+                    Vector3 centre = transform.rotation * Doors[i].buildingMatrix.MultiplyPoint3x4(Doors[i].centre) + transform.position;
+
                     // Check distance and save closest
                     float distance = Vector3.Distance(playerPos, centre);
                     if (distance < minDistance)
@@ -130,6 +138,45 @@ namespace DaggerfallWorkshop
                         doorPosOut = centre;
                         doorIndexOut = i;
                         minDistance = distance;
+                        found = true;
+                    }
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// Find lowest door position in world space.
+        /// </summary>
+        /// <param name="record">Door record index.</param>
+        /// <param name="doorPosOut">Position of closest door in world space.</param>
+        /// <param name="doorIndexOut">Door index in Doors array of closest door.</param>
+        /// <returns>Whether or not we found a door</returns>
+        public bool FindLowestDoor(int record, out Vector3 doorPosOut, out int doorIndexOut)
+        {
+            doorPosOut = Vector3.zero;
+            doorIndexOut = -1;
+
+            if (Doors == null)
+                return false;
+
+            // Find lowest door in interior
+            float lowestY = float.MaxValue;
+            for (int i = 0; i < Doors.Length; i++)
+            {
+                // Get this door centre in world space
+                Vector3 centre = transform.rotation * Doors[i].buildingMatrix.MultiplyPoint3x4(Doors[i].centre) + transform.position;
+
+                // Check if door belongs to same building record or accept any record
+                if (Doors[i].recordIndex == record || record == -1)
+                {
+                    float y = centre.y;
+                    if (y < lowestY)
+                    {
+                        doorPosOut = centre;
+                        doorIndexOut = i;
+                        lowestY = y;
                     }
                 }
             }

@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,9 +28,9 @@ namespace DaggerfallConnect.Arena2
     {
         #region Fields
 
-        FileProxy factionFile = new FileProxy();
-        Dictionary<int, FactionData> factionDict = new Dictionary<int, FactionData>();
-        Dictionary<string, int> factionNameToIDDict = new Dictionary<string, int>();
+        readonly FileProxy factionFile = new FileProxy();
+        readonly Dictionary<int, FactionData> factionDict = new Dictionary<int, FactionData>();
+        readonly Dictionary<string, int> factionNameToIDDict = new Dictionary<string, int>();
 
         #endregion
 
@@ -619,6 +619,15 @@ namespace DaggerfallConnect.Arena2
             Fey = 19,           // Only used on #513 "The Fey"
         }
 
+        /// <summary>
+        /// Faction flags bitmask values.
+        /// </summary>
+        public enum Flags
+        {
+            RulerImmune = 0x10,
+            Summoned = 0x40,
+        }
+
         #endregion
 
         #region Structures
@@ -725,7 +734,7 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// Load from FACTION.TXT file.
         /// </summary>
-        /// <param name="path">Absolute path to FACTION.TXT file.</param>
+        /// <param name="filePath">Absolute path to FACTION.TXT file.</param>
         /// <param name="usage">Specify if file will be accessed from disk, or loaded into RAM.</param>
         /// <param name="readOnly">File will be read-only if true, read-write if false.</param>
         public void Load(string filePath, FileUsage usage, bool readOnly)
@@ -764,7 +773,7 @@ namespace DaggerfallConnect.Arena2
 
             // Merge save faction data from savevars
             FactionData[] factions = saveVars.Factions;
-            foreach(var srcFaction in factions)
+            foreach (var srcFaction in factions)
             {
                 if (dict.ContainsKey(srcFaction.id))
                 {
@@ -874,6 +883,30 @@ namespace DaggerfallConnect.Arena2
             }
         }
 
+        /// <summary>
+        /// Check if a faction is another faction ally.
+        /// </summary>
+        /// <param name="firstFaction">The faction to check the allies of.</param>
+        /// <param name="secondFaction">The potential allied faction.</param>
+        /// <returns>True if factions are allied, otherwise false.</returns>
+        public static bool IsAlly(ref FactionData firstFaction, ref FactionData secondFaction)
+        {
+            return firstFaction.ally1 == secondFaction.id || firstFaction.ally2 == secondFaction.id ||
+                   firstFaction.ally3 == secondFaction.id;
+        }
+
+        /// <summary>
+        /// Check if a faction is another faction enemy.
+        /// </summary>
+        /// <param name="firstFaction">The faction to check the enemies of.</param>
+        /// <param name="secondFaction">The potential enemy faction.</param>
+        /// <returns></returns>
+        public static bool IsEnemy(ref FactionData firstFaction, ref FactionData secondFaction)
+        {
+            return firstFaction.enemy1 == secondFaction.id || firstFaction.enemy2 == secondFaction.id ||
+                   firstFaction.enemy3 == secondFaction.id;
+        }
+
         #endregion
 
         #region Private Methods
@@ -882,7 +915,7 @@ namespace DaggerfallConnect.Arena2
         {
             // Unmodded faction.txt contains multiples of same id
             // This resolver counter is used to give a faction a unique id if needed
-            int resolverId = 1000;
+            int resolverId = 980;
 
             // Clear existing dictionary
             factionDict.Clear();
@@ -943,7 +976,7 @@ namespace DaggerfallConnect.Arena2
                 }
                 else if (precedingTabs < lastPrecedingTabs)
                 {
-                    while(parentStack.Count > precedingTabs)
+                    while (parentStack.Count > precedingTabs)
                         parentStack.Pop();
                 }
                 lastPrecedingTabs = precedingTabs;
@@ -1040,6 +1073,10 @@ namespace DaggerfallConnect.Arena2
                         break;
                     case "region":
                         faction.region = ParseInt(value);
+
+                        // Convert from 1-based to 0-based. This is also done in classic.
+                        if (faction.region != -1)
+                            faction.region--;
                         break;
                     case "type":
                         faction.type = ParseInt(value);
@@ -1048,7 +1085,7 @@ namespace DaggerfallConnect.Arena2
                         faction.power = ParseInt(value);
                         break;
                     case "flags":
-                        faction.flags = ParseInt(value);
+                        faction.flags |= ParseInt(value);
                         break;
                     case "ruler":
                         faction.ruler = ParseInt(value);

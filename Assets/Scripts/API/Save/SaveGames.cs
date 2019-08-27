@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,11 +11,12 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect.Utility;
+using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop;
+using DaggerfallWorkshop.Game;
 #endregion
 
 namespace DaggerfallConnect.Save
@@ -28,14 +29,17 @@ namespace DaggerfallConnect.Save
         public const string SaveNameTxt = "SAVENAME.TXT";
 
         string savesPath = string.Empty;
+        string saveName = string.Empty;
+
         bool isPathOpen = false;
         bool isReadOnly = true;
-
-        Dictionary<int, string> saveGameDict = new Dictionary<int, string>();
+        readonly Dictionary<int, string> saveGameDict = new Dictionary<int, string>();
         SaveTree saveTree;
         SaveVars saveVars;
+        BsaFile mapSave;
+        BioFile bioFile;
+        RumorFile rumorFile;
         SaveImage saveImage;
-        string saveName = string.Empty;
 
         #region Properties
 
@@ -77,6 +81,14 @@ namespace DaggerfallConnect.Save
         public SaveVars SaveVars
         {
             get { return saveVars; }
+        }
+
+        /// <summary>
+        /// Gets the bio file from the current save's directory.
+        /// </summary>
+        public BioFile BioFile
+        {
+            get { return bioFile; }
         }
 
         /// <summary>
@@ -173,8 +185,9 @@ namespace DaggerfallConnect.Save
         /// Opens the save game index specified.
         /// </summary>
         /// <param name="save">Save index</param>
+        /// <param name="loadingInGame">True if the save game is being loaded for regular play, false if loading for Save Explorer.</param>
         /// <returns>True if successful.</returns>
-        public bool OpenSave(int save)
+        public bool OpenSave(int save, bool loadingInGame = true)
         {
             if (!HasSave(save))
                 return false;
@@ -192,6 +205,56 @@ namespace DaggerfallConnect.Save
             saveVars = new SaveVars();
             if (!saveVars.Open(Path.Combine(saveGameDict[save], SaveVars.Filename)))
                 throw new Exception("Could not open SaveVars for index " + save);
+
+            mapSave = new BsaFile();
+            if (!mapSave.Load(Path.Combine(saveGameDict[save], "MAPSAVE.SAV"), FileUsage.UseMemory, true))
+                throw new Exception("Could not open MapSave for index " + save);
+
+            if (loadingInGame) // Only check MAPSAVE if loading in-game, not if viewing in Save Explorer. There is a noticeable delay for
+                               // Save Explorer as the classic saves are loaded, and a null exception if the Save Explorer is opened
+                               // without the game running in the editor, due to PlayerGPS.dfUnity not being instantiated.
+                               // Save Explorer currently has no use for MAPSAVE data. This code should be revisited (speed up MAPSAVE processing,
+                               // fix null exception, remove this bool check) if MAPSAVE-related functionality is added to Save Explorer.
+            {
+                PlayerGPS gps = GameManager.Instance.PlayerGPS;
+                gps.ClearDiscoveryData();
+                for (int regionIndex = 0; regionIndex < 62; regionIndex++)
+                {
+                    // Generate name from region index
+                    string name = string.Format("MAPSAVE.{0:000}", regionIndex);
+
+                    // Get record index
+                    int index = mapSave.GetRecordIndex(name);
+                    if (index == -1)
+                        return false;
+
+                    // Read MAPSAVE data
+                    byte[] data = mapSave.GetRecordBytes(index);
+
+                    // Parse MAPSAVE data for discovered locations
+                    DFRegion regionData = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRegion(regionIndex);
+                    for (int i = 0; i < regionData.LocationCount; i++)
+                    {
+                        // If a location is marked as discovered in classic but not DF Unity, discover it for DF Unity
+                        if ((data[i] & 0x40) != 0 && !regionData.MapTable[i].Discovered)
+                        {
+                            DFLocation location = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetLocation(regionIndex, i);
+                            gps.DiscoverLocation(regionData.Name, location.Name);
+                        }
+                    }
+                }
+            }
+
+            rumorFile = new RumorFile();
+            if (!rumorFile.Load(Path.Combine(saveGameDict[save], "RUMOR.DAT"), FileUsage.UseMemory, true))
+                UnityEngine.Debug.Log("Could not open RUMOR.DAT for index " + save);
+
+            for (int i = 0; i < rumorFile.rumors.Count; i++)
+                GameManager.Instance.TalkManager.ImportClassicRumor(rumorFile.rumors[i]);
+
+            bioFile = new BioFile();
+            if (!bioFile.Load(Path.Combine(saveGameDict[save], "BIO.DAT")))
+                UnityEngine.Debug.Log("Could not open BIO.DAT for index " + save);
 
             return true;
         }
@@ -217,10 +280,10 @@ namespace DaggerfallConnect.Save
 
         #region Private Methods
 
-        string GetSaveIndexName(int save)
+        /*string GetSaveIndexName(int save)
         {
             return string.Format("SAVE{0}", save);
-        }
+        }*/
 
         string GetArena2Path()
         {
@@ -247,7 +310,7 @@ namespace DaggerfallConnect.Save
             {
                 if (!File.Exists(Path.Combine(saves[i], SaveTree.Filename)) ||
                     !File.Exists(Path.Combine(saves[i], SaveImage.Filename)))
-                    //!File.Exists(Path.Combine(saves[i], SaveVars.Filename)))      // TODO: Restore this once savevars supported
+                //!File.Exists(Path.Combine(saves[i], SaveVars.Filename)))      // TODO: Restore this once savevars supported
                 {
                     continue;
                 }

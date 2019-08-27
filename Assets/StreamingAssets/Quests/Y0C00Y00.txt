@@ -73,18 +73,6 @@ It's considerably warmer than it has been lately.
 <--->
 The weather isn't as biting as it used to be.
 
-QuestorPostsuccess:  [1008]
-Error: y0c00y00.q tried to display text
-
-QuestorPostsuccess:  [1008]
-<ce>                                   .
-
-QuestorPostfailure:  [1009]
-Error: y0c00y00.q tried to display text
-
-QuestorPostfailure:  [1009]
-<ce>                                   .
-
 Message:  1011
 Mehrunes Dagon is the Lord of Destruction, the most violent of the Daedra.
 <--->
@@ -130,7 +118,7 @@ Dagon's prey returns to Oblivion.
 --          _tavern_ occurs 8 times.
 
 QBN:
-Item _artifact_ artifact Mehrune's_Razor anyInfo 1013
+Item _artifact_ artifact Mehrunes_Razor anyInfo 1013
 
 Person _contact_ face 239 faction The_Cabal anyInfo 1012
 
@@ -168,6 +156,7 @@ _1stparton_ task:
 variable _2ndparton_
 _clearclick_ task:
 	when _qgclicked_ and not _mondead_ 
+	say 1003
 	clear _qgclicked_ _clearclick_ 
 
 _delay_ task:

@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,8 @@
 // Notes:
 //
 
-using UnityEngine;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
-using FullSerializer;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -21,9 +19,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class TransferFatigue : BaseEntityEffect
     {
+        public static readonly string EffectKey = "Transfer-Fatigue";
+
         public override void SetProperties()
         {
-            properties.Key = "Transfer-Fatigue";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(11, 9);
             properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "transfer");
             properties.SubGroupName = TextManager.Instance.GetText("ClassicEffects", "fatigue");
@@ -49,7 +49,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
             // Damage fatigue on target and heal fatigue of caster
             int magnitude = GetMagnitude(caster);
-            entityBehaviour.Entity.DecreaseFatigue(magnitude);
+            entityBehaviour.DamageFatigueFromSource(this, magnitude, true);
             caster.Entity.IncreaseFatigue(magnitude, true);
             PlayerAggro();
         }

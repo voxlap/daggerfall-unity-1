@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,6 +9,7 @@
 using System;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using System.Collections.Generic;
+using DaggerfallWorkshop.Game.UserInterface;
 
 namespace DaggerfallWorkshop.Game.Guilds
 {
@@ -30,6 +31,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         MakePotions,
 
         BuySpells,
+        BuySpellsMages,
         MakeSpells,
 
         BuyMagicItems,
@@ -139,7 +141,7 @@ namespace DaggerfallWorkshop.Game.Guilds
 
     public static class Services
     {
-        public delegate void CustomGuildService();
+        public delegate void CustomGuildService(IUserInterfaceWindow window);
 
         // Store for extra guild NPC services (i.e. from mods)
         private static Dictionary<int, GuildServices> guildNpcServices = new Dictionary<int, GuildServices>();
@@ -233,6 +235,8 @@ namespace DaggerfallWorkshop.Game.Guilds
                     return GuildServices.MakePotions;
 
                 case GuildNpcServices.MG_BuySpells:
+                    return GuildServices.BuySpellsMages;
+
                 case GuildNpcServices.TKy_BuySpells:
                     return GuildServices.BuySpells;
 
@@ -249,7 +253,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                     return GuildServices.MakeMagicItems;
 
                 case GuildNpcServices.TG_SellMagicItems:
-                    return GuildServices.BuyMagicItems;
+                    return GuildServices.SellMagicItems;
 
                 case GuildNpcServices.MG_Teleportation:
                     return GuildServices.Teleport;
@@ -280,10 +284,10 @@ namespace DaggerfallWorkshop.Game.Guilds
             }
 
             GuildServices service;
-            if (guildNpcServices.TryGetValue((int) guildNpcService, out service))
+            if (guildNpcServices.TryGetValue((int)guildNpcService, out service))
                 return service;
             else
-                return (GuildServices) guildNpcService;
+                return (GuildServices)guildNpcService;
         }
 
         public static bool GetCustomGuildService(int npcFactionId, out CustomGuildService customGuildService)
@@ -312,6 +316,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 case GuildServices.MakePotions:
                     return HardStrings.serviceMakePotions;
                 case GuildServices.BuySpells:
+                case GuildServices.BuySpellsMages:
                     return HardStrings.serviceBuySpells;
                 case GuildServices.MakeSpells:
                     return HardStrings.serviceMakeSpells;
@@ -320,7 +325,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 case GuildServices.MakeMagicItems:
                     return HardStrings.serviceMakeMagicItems;
                 case GuildServices.SellMagicItems:
-                    return HardStrings.serviceBuyMagicItems;
+                    return HardStrings.serviceSellMagicItems;
                 case GuildServices.Teleport:
                     return HardStrings.serviceTeleport;
                 case GuildServices.DaedraSummoning:

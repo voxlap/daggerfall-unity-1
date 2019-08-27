@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -46,8 +46,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
         VerticalAlignment verticalAlignment = VerticalAlignment.None;
 
         // restricted render area can be used to force background rendering inside this rect (must be used in conjunction with ui elements that also support restricted render area like textlabel)
-        protected bool useRestrictedRenderArea = false;
         protected Rect rectRestrictedRenderArea;
+        protected Panel restrictedRenderAreaCustomParent;
+        protected RestrictedRenderArea_CoordinateType restrictedRenderAreaCoordinateType = RestrictedRenderArea_CoordinateType.None;
 
         float doubleClickDelay = 0.3f;
         float leftClickTime;
@@ -109,7 +110,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         public delegate void OnRightMouseDownHandler(BaseScreenComponent sender, Vector2 position);
         public event OnRightMouseDownHandler OnRightMouseDown;
-        
+
         public delegate void OnRightMouseUpHandler(BaseScreenComponent sender, Vector2 position);
         public event OnRightMouseUpHandler OnRightMouseUp;
 
@@ -136,6 +137,18 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         public delegate void OnMouseScrollDownEventHandler(BaseScreenComponent sender);
         public event OnMouseScrollDownEventHandler OnMouseScrollDown;
+
+        #endregion
+
+        #region Enums
+
+        public enum RestrictedRenderArea_CoordinateType
+        {
+            None,
+            ScreenCoordinates,
+            ParentCoordinates,
+            CustomParent,
+        };
 
         #endregion
 
@@ -185,7 +198,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public virtual Vector2 Position
         {
             get { return position; }
-            internal set { position = value;}
+            internal set { position = value; }
         }
 
         /// <summary>
@@ -244,16 +257,29 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         /// <summary>
-        /// set a restricted render area for background rendering - the background will only be rendered inside the specified Rect's bounds
+        /// get/set a restricted render area for background rendering - the background will only be rendered inside the specified Rect's bounds
         /// </summary>
         public Rect RectRestrictedRenderArea
         {
             get { return rectRestrictedRenderArea; }
-            set
-            {
-                rectRestrictedRenderArea = value;
-                useRestrictedRenderArea = true;
-            }
+            set { rectRestrictedRenderArea = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets a custom panel for restricted memory area.
+        /// </summary>
+        public Panel RestrictedRenderAreaCustomParent
+        {
+            get { return restrictedRenderAreaCustomParent; }
+            set { restrictedRenderAreaCustomParent = value; }
+        }
+
+        /// <summary>
+        /// Check if restricted rendering area used.
+        /// </summary>
+        public bool UseRestrictedRenderArea
+        {
+            get { return restrictedRenderAreaCoordinateType != RestrictedRenderArea_CoordinateType.None; }
         }
 
         /// <summary>
@@ -346,6 +372,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
             {
                 backgroundTexture = null;
                 animatedBackgroundTextures = value;
+                if (animatedBackgroundTextures != null && animationFrame >= animatedBackgroundTextures.Length)
+                    animationFrame = 0;
             }
         }
 
@@ -532,7 +560,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 if (mouseOverComponent == true)
                 {
                     // Raise mouse leaving event
-                    MouseExit();
+                    MouseLeave(this);
                     mouseOverComponent = false;
                 }
             }
@@ -705,7 +733,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Calculate cutout rect
             Rect myRect = Rectangle;
-            if (useRestrictedRenderArea)
+            if (UseRestrictedRenderArea)
             {
                 Rect rect = new Rect(this.Parent.Position + this.Position, this.Size);
 
@@ -811,6 +839,14 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
         }
 
+        /// <summary>
+        /// Manually trigger an OnMouseClick event for this component.
+        /// </summary>
+        public virtual void TriggerMouseClick()
+        {
+            MouseClick(Vector2.zero);
+        }
+
         #endregion
 
         #region Protected Methods
@@ -894,10 +930,19 @@ namespace DaggerfallWorkshop.Game.UserInterface
         /// <summary>
         /// Mouse exited control area.
         /// </summary>
-        protected virtual void MouseExit()
+        protected virtual void MouseLeave(BaseScreenComponent sender)
         {
             if (OnMouseLeave != null)
                 OnMouseLeave(this);
+        }
+
+        /// <summary>
+        /// Mouse is moving.
+        /// </summary>
+        protected virtual void MouseMove(int x, int y)
+        {
+            if (OnMouseMove != null)
+                OnMouseMove(x, y);
         }
 
         /// <summary>

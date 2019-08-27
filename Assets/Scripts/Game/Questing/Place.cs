@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -14,12 +14,14 @@ using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
+using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using FullSerializer;
 using DaggerfallWorkshop.Game.Banking;
+using DaggerfallWorkshop.Game.Guilds;
 
 namespace DaggerfallWorkshop.Game.Questing
 {
@@ -197,12 +199,12 @@ namespace DaggerfallWorkshop.Game.Questing
                 if (scope == Scopes.Local)
                 {
                     // Get a local site from same town quest was issued
-                    SetupLocalSite();
+                    SetupLocalSite(line);
                 }
                 else if (scope == Scopes.Remote)
                 {
                     // Get a remote site in same region quest was issued
-                    SetupRemoteSite();
+                    SetupRemoteSite(line);
                 }
                 else if (scope == Scopes.Fixed && p1 > 0x4500)
                 {
@@ -285,6 +287,7 @@ namespace DaggerfallWorkshop.Game.Questing
             {
                 case WorldContext.Dungeon:
                     siteType = SiteTypes.Dungeon;
+                    buildingName = GameManager.Instance.PlayerEnterExit.Dungeon.GetSpecialDungeonName();
                     break;
                 case WorldContext.Interior:
                     siteType = SiteTypes.Building;
@@ -433,7 +436,7 @@ namespace DaggerfallWorkshop.Game.Questing
                 }
             }
 
-            // Hot-place item if player already at this Place at time of placement
+            // Hot-place resource if player already at this Place at time of placement
             // This means PlayerEnterExit could not have called placement at time of assignment
             // e.g. M0B30Y08 places zombie only when player already inside building after 7pm
             if (IsPlayerHere())
@@ -451,6 +454,12 @@ namespace DaggerfallWorkshop.Game.Questing
                 {
                     GameObjectHelper.AddQuestResourceObjects(SiteTypes.Dungeon, playerEnterExit.Dungeon.transform);
                 }
+            }
+
+            // Hot-remove resource is player already at this Place and resource was moved elsewhere
+            if (!IsPlayerHere() && resource.QuestResourceBehaviour)
+            {
+                resource.QuestResourceBehaviour.gameObject.SetActive(false);
             }
         }
 
@@ -483,14 +492,14 @@ namespace DaggerfallWorkshop.Game.Questing
         /// Example of how this can happen is issuing a quest to a local palace in a town with no palace.
         /// Use remote palace instead to ensure quest can select from entire region.
         /// </summary>
-        void SetupLocalSite()
+        void SetupLocalSite(string line)
         {
             // Daggerfall has no local dungeons but some quests (e.g. Sx007) can request one
             // This is used to stash a resource somewhere player cannot find it
             // Setup a remote dungeon instead
             if (p1 == 1)
             {
-                SetupRemoteSite();
+                SetupRemoteSite(line);
                 return;
             }
 
@@ -501,10 +510,12 @@ namespace DaggerfallWorkshop.Game.Questing
 
             // Get list of valid sites
             SiteDetails[] foundSites = null;
-            if (p2 == -1)
-                foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AllValid);
+            if (p2 == -1 && p3 == 0)
+                foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AllValid, p3);
+            else if (p2 == -1 && p3 == 1)
+                foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AnyHouse, p3);
             else
-                foundSites = CollectQuestSitesOfBuildingType(location, (DFLocation.BuildingTypes)p2);
+                foundSites = CollectQuestSitesOfBuildingType(location, (DFLocation.BuildingTypes)p2, p3);
 
             // Must have found at least one site
             if (foundSites == null || foundSites.Length == 0)
@@ -522,22 +533,31 @@ namespace DaggerfallWorkshop.Game.Questing
         /// <summary>
         /// Get a remote site in the same region as player.
         /// </summary>
-        void SetupRemoteSite()
+        void SetupRemoteSite(string line)
         {
+            bool result = false;
             switch(p1)
             {
                 case 0:
-                    SelectRemoteTownSite((DFLocation.BuildingTypes)p2);
+                    result = SelectRemoteTownSite((DFLocation.BuildingTypes)p2);
                     break;
                 case 1:
-                    SelectRemoteDungeonSite(p2);
+                    result = SelectRemoteDungeonSite(p2);
                     break;
                 case 2:
-                    SelectRemoteLocationExteriorSite(p2);
+                    result = SelectRemoteLocationExteriorSite(p2);
                     break;
                 default:
                     throw new Exception(string.Format("An unknown P1 value of {0} was encountered for Place {1}", p1, Symbol.Original));
             }
+
+            // If searching for a dungeon and first numbered choice not found, then try again with any random dungeon type
+            if (!result && p1 == 1)
+                result = SelectRemoteDungeonSite(-1);
+
+            // Throw exception when remote place could not be selected, e.g. a dungeon of that type does not exist in this region
+            if (!result)
+                throw new Exception(string.Format("Search failed to locate matching remote site for Place {0} in region {1}. Resource source: '{2}'", Symbol.Original, GameManager.Instance.PlayerGPS.CurrentRegionName, line));
         }
 
         /// <summary>
@@ -549,7 +569,8 @@ namespace DaggerfallWorkshop.Game.Questing
         /// </summary>
         bool SelectRemoteTownSite(DFLocation.BuildingTypes requiredBuildingType)
         {
-            const int maxAttempts = 500;
+            const int maxAttemptsBeforeFallback = 250;
+            const int maxAttemptsBeforeFailure = 500;
 
             // Get player region
             int regionIndex = GameManager.Instance.PlayerGPS.CurrentRegionIndex;
@@ -560,21 +581,20 @@ namespace DaggerfallWorkshop.Game.Questing
             if (regionData.LocationCount == 0)
                 return false;
 
-            // Hack: Convert House4-House5 back to House2 - not sure where these house types even exist?
-            if (requiredBuildingType == DFLocation.BuildingTypes.House4 ||
-                requiredBuildingType == DFLocation.BuildingTypes.House5)
-            {
-                requiredBuildingType = DFLocation.BuildingTypes.House2;
-                p2 = (int)DFLocation.BuildingTypes.House2;
-            }
-
             // Find random town containing building
             int attempts = 0;
             bool found = false;
             while (!found)
             {
-                // Increment attempts
-                if (++attempts >= maxAttempts)
+                // Increment attempts and do some fallback
+                if (++attempts >= maxAttemptsBeforeFallback &&
+                    requiredBuildingType >= DFLocation.BuildingTypes.House1 &&
+                    requiredBuildingType <= DFLocation.BuildingTypes.House6)
+                {
+                    requiredBuildingType = DFLocation.BuildingTypes.AnyHouse;
+                    p2 = -1;
+                }
+                if (attempts >= maxAttemptsBeforeFailure)
                 {
                     Debug.LogErrorFormat("Could not find remote town site with building type {0} within {1} attempts", requiredBuildingType.ToString(), attempts);
                     break;
@@ -594,11 +614,10 @@ namespace DaggerfallWorkshop.Game.Questing
 
                 // Get list of valid sites
                 SiteDetails[] foundSites = null;
-                if (p2 == -1)
-                {
-                    // Collect random building sites
-                    foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AllValid);
-                }
+                if (p2 == -1 && p3 == 0)
+                    foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AllValid, p3);
+                else if (p2 == -1 && p3 == 1)
+                    foundSites = CollectQuestSitesOfBuildingType(location, DFLocation.BuildingTypes.AnyHouse, p3);
                 else
                 {
                     // Check if town contains specified building type in MAPS.BSA directory
@@ -607,7 +626,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
                     // Get an array of potential quest sites with specified building type
                     // This ensures building site actually exists inside town, as MAPS.BSA directory can be incorrect
-                    foundSites = CollectQuestSitesOfBuildingType(location, (DFLocation.BuildingTypes)p2);
+                    foundSites = CollectQuestSitesOfBuildingType(location, (DFLocation.BuildingTypes)p2, p3);
                 }
 
                 // Must have found at least one site
@@ -874,12 +893,26 @@ namespace DaggerfallWorkshop.Game.Questing
         /// This uses actual map layout and block data rather than the (often inaccurate) list of building in map data.
         /// Specify BuildingTypes.AllValid to find all valid building types
         /// </summary>
-        SiteDetails[] CollectQuestSitesOfBuildingType(DFLocation location, DFLocation.BuildingTypes buildingType)
+        SiteDetails[] CollectQuestSitesOfBuildingType(DFLocation location, DFLocation.BuildingTypes buildingType, int guildHallFaction)
         {
             // Valid building types for valid search
             int[] validBuildingTypes = { 0, 2, 3, 5, 6, 8, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20 };
+            int[] validHouseTypes = { 18, 19, 20 };
 
             List<SiteDetails> foundSites = new List<SiteDetails>();
+
+            // Get sites already involved in active quests and this quest so far
+            // Need to check our parent quest resources separately as not loaded to quest machine during compile
+            SiteDetails[] activeQuestSites = QuestMachine.Instance.GetAllActiveQuestSites();
+            QuestResource[] parentQuestPlaceResources = ParentQuest.GetAllResources(typeof(Place));
+
+            // Convert House4-House5 back to House2 - not sure where these house types even exist?
+            if (buildingType == DFLocation.BuildingTypes.House4 ||
+                buildingType == DFLocation.BuildingTypes.House5)
+            {
+                buildingType = DFLocation.BuildingTypes.House2;
+                p2 = (int)DFLocation.BuildingTypes.House2;
+            }
 
             // Iterate through all blocks
             DFBlock[] blocks;
@@ -895,17 +928,28 @@ namespace DaggerfallWorkshop.Game.Questing
                     BuildingSummary[] buildingSummary = RMBLayout.GetBuildingData(blocks[index], x, y);
                     for (int i = 0; i < buildingSummary.Length; i++)
                     {
-                        // When enumAllValid is specified accept all valid building types
                         bool wildcardFound = false;
-                        DFLocation.BuildingTypes wildcardType = DFLocation.BuildingTypes.AllValid;
+                        DFLocation.BuildingTypes wildcardType = DFLocation.BuildingTypes.None;
                         if (buildingType == DFLocation.BuildingTypes.AllValid)
                         {
-                            for(int j = 0; j < validBuildingTypes.Length; j++)
+                            for (int j = 0; j < validBuildingTypes.Length; j++)
                             {
                                 if (validBuildingTypes[j] == (int)buildingSummary[i].BuildingType)
                                 {
                                     wildcardFound = true;
                                     wildcardType = (DFLocation.BuildingTypes)validBuildingTypes[j];
+                                    break;
+                                }
+                            }
+                        }
+                        else if (buildingType == DFLocation.BuildingTypes.AnyHouse)
+                        {
+                            for (int j = 0; j < validHouseTypes.Length; j++)
+                            {
+                                if (validHouseTypes[j] == (int)buildingSummary[i].BuildingType)
+                                {
+                                    wildcardFound = true;
+                                    wildcardType = (DFLocation.BuildingTypes)validHouseTypes[j];
                                     break;
                                 }
                             }
@@ -916,6 +960,20 @@ namespace DaggerfallWorkshop.Game.Questing
                         {
                             // Building must not be a player owned house
                             if (DaggerfallBankManager.IsHouseOwned(buildingSummary[i].buildingKey))
+                                continue;
+
+                            // Guild halls must match specified type (e.g. guildhall/magery/fighters)
+                            if (buildingSummary[i].BuildingType == DFLocation.BuildingTypes.GuildHall &&
+                                !IsGuildFactionMatch(buildingSummary[i].FactionId, guildHallFaction))
+                                continue;
+
+                            // Do not use Thieves Guild or Dark Brotherhood buildings for random quests
+                            if (buildingSummary[i].FactionId == DarkBrotherhood.FactionId ||
+                                buildingSummary[i].FactionId == ThievesGuild.FactionId)
+                                continue;
+
+                            // Building must not be involved in any other quests
+                            if (IsBuildingAssigned(activeQuestSites, parentQuestPlaceResources, location, buildingSummary[i]))
                                 continue;
 
                             // Building must be a valid quest site
@@ -957,6 +1015,46 @@ namespace DaggerfallWorkshop.Game.Questing
             }
 
             return foundSites.ToArray();
+        }
+
+        bool IsBuildingAssigned(SiteDetails[] activeQuestSites, QuestResource[] parentQuestPlaceResources, DFLocation location, BuildingSummary buildingSummary)
+        {
+            // Check quest building Place resources in parent quest so far
+            if (parentQuestPlaceResources != null && parentQuestPlaceResources.Length > 0)
+            {
+                foreach (QuestResource resource in parentQuestPlaceResources)
+                {
+                    Place place = (Place)resource;
+                    if (place.siteDetails.siteType == SiteTypes.Building &&
+                        place.siteDetails.mapId == location.Exterior.ExteriorData.MapId &&
+                        place.siteDetails.buildingKey == buildingSummary.buildingKey)
+                        return true;
+                }
+            }
+
+            // Check quest building sites already active in quest machine
+            if (activeQuestSites != null && activeQuestSites.Length > 0)
+            {
+                foreach (SiteDetails site in activeQuestSites)
+                {
+                    if (site.siteType == SiteTypes.Building &&
+                        site.mapId == location.Exterior.ExteriorData.MapId &&
+                        site.buildingKey == buildingSummary.buildingKey)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool IsGuildFactionMatch(int factionID, int guildHallFaction)
+        {
+            // Allow ANY guild hall to match if guildHallFaction is 0
+            if (guildHallFaction == 0)
+                return true;
+
+            // Otherwise factionID of buildingSummary must be an exact match
+            return factionID == guildHallFaction;
         }
 
         string GetBuildingName(DFLocation.BuildingTypes buildingType, DFLocation location, BuildingSummary[] buildingSummary, int buildingIndex)
@@ -1008,13 +1106,22 @@ namespace DaggerfallWorkshop.Game.Questing
             // Only dungeons 0-16 contain quest and item markers
             // 17-18 are available for exterior questing only
             int upperLimit = (allowFullRange) ? 18 : 16;
-            
+
+            // Get sites already involved in active quests and this quest so far
+            // Need to check our parent quest resources separately as not loaded to quest machine during compile
+            SiteDetails[] activeQuestSites = QuestMachine.Instance.GetAllActiveQuestSites();
+            QuestResource[] parentQuestPlaceResources = ParentQuest.GetAllResources(typeof(Place));
+
             // Collect all dungeon types
             List<int> foundLocationIndices = new List<int>();
             for (int i = 0; i < regionData.LocationCount; i++)
             {
                 // Discard all non-dungeon location types
                 if (!IsDungeonType(regionData.MapTable[i].LocationType))
+                    continue;
+
+                // Dungeon must not be involved in any other quests
+                if (IsDungeonAssigned(activeQuestSites, parentQuestPlaceResources, regionData.MapTable[i].MapId))
                     continue;
 
                 //Debug.LogFormat("Checking dungeon type {0} at location {1}", (int)regionData.MapTable[i].DungeonType, regionData.MapNames[i]);
@@ -1036,6 +1143,34 @@ namespace DaggerfallWorkshop.Game.Questing
             }
 
             return foundLocationIndices.ToArray();
+        }
+
+        bool IsDungeonAssigned(SiteDetails[] activeQuestSites, QuestResource[] parentQuestPlaceResources, int mapId)
+        {
+            // Check quest dungeon Place resources in parent quest so far
+            if (parentQuestPlaceResources != null && parentQuestPlaceResources.Length > 0)
+            {
+                foreach (QuestResource resource in parentQuestPlaceResources)
+                {
+                    Place place = (Place)resource;
+                    if (place.siteDetails.siteType == SiteTypes.Dungeon &&
+                        place.siteDetails.mapId == mapId)
+                        return true;
+                }
+            }
+
+            // Check quest dungeon sites already active in quest machine
+            if (activeQuestSites != null && activeQuestSites.Length > 0)
+            {
+                foreach (SiteDetails site in activeQuestSites)
+                {
+                    if (site.siteType == SiteTypes.Dungeon &&
+                        site.mapId == mapId)
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -1300,6 +1435,11 @@ namespace DaggerfallWorkshop.Game.Questing
             // Check if player inside the building matching this site
             if (playerEnterExit.IsPlayerInside && playerEnterExit.IsPlayerInsideBuilding)
             {
+                // Compare mapId of site and current location
+                DFLocation location = GameManager.Instance.PlayerGPS.CurrentLocation;
+                if (location.MapTableData.MapId != place.SiteDetails.mapId)
+                    return false;
+
                 // Must have at least one exterior door for building check
                 StaticDoor[] exteriorDoors = playerEnterExit.ExteriorDoors;
                 if (exteriorDoors == null || exteriorDoors.Length < 1)

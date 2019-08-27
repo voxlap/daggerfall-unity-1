@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -56,8 +56,8 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         Color cancelButtonColor                     = new Color(0.2f, 0.2f, 0.2f, 0.4f);  // grey with alpha
         Color sectionTitleColor                     = new Color(0.53f, 0.81f, 0.98f, 1);  // light blue
         Color sectionTitleShadow                    = new Color(0.3f, 0.45f, 0.54f, 1);
-        Color backgroundTitleColor                  = new Color(0, 0.8f, 0, 0.1f);        // green
-        Color backgroundTitleAdvColor               = new Color(1, 0, 0, 0.1f);           // red
+        Color sectionTitleAdvColor                  = new Color(1, 0, 0, 1);
+        Color sectionTitleAdvShadow                 = new Color(0.5f, 0, 0, 1);
         Color sectionDescriptionBackgroundColor     = new Color(0.5f, 0.5f, 0.5f, 0.1f);
         Color sectionDescriptionOutlineColor        = new Color(0.7f, 0.7f, 0.7f, 0.1f);
 
@@ -145,8 +145,8 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             presetButton.Size = new Vector2(35, 9);
             presetButton.Position = new Vector2(mainPanel.Size.x - 37, 2);
             presetButton.Label.Text = ModManager.GetText("presets");
-            presetButton.Label.Font = DaggerfallUI.Instance.Font3;
-            presetButton.Label.TextScale = 0.8f;
+            presetButton.Label.Font = DaggerfallUI.Instance.Font1;
+            presetButton.Label.TextScale = 0.4f;
             presetButton.Label.TextColor = sectionTitleColor;
             presetButton.Label.ShadowColor = sectionTitleShadow;
             presetButton.OnMouseClick += PresetButton_OnMouseClick;
@@ -188,13 +188,13 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 
                 // Description
                 if (!string.IsNullOrEmpty(section.Description))
-                    AddSectionDescriptionBox(section.Description);
+                    AddSectionDescriptionBox(mod.TryLocalize("Settings", section.Name, "Description") ?? section.Description);
 
                 // Add keys to window with corrispective controls
                 foreach (Key key in section.Keys)
                 {
                     int height = 6;
-                    TextLabel keyLabel = GetKeyLabel(key, height);
+                    TextLabel keyLabel = GetKeyLabel(section, key, height);
                     BaseScreenComponent control = key.OnWindow(this, x, y, ref height);
                     uiControls.Add(key, control);
                     AddAtNextPosition(height, keyLabel, control);
@@ -294,17 +294,12 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             Panel background = new Panel();
             background.Position = new Vector2(x, y - 0.5f);
             background.Size = new Vector2(columnWidth, 6.5f);
-            background.BackgroundColor = section.IsAdvanced ? backgroundTitleAdvColor : backgroundTitleColor;
-            background.Outline.Enabled = true;
-            background.Outline.Sides = Sides.Bottom;
-            background.Outline.Color = section.IsAdvanced ? resetButtonColor : saveButtonColor;
-            background.Outline.Thickness = 1;
             AddAtNextPosition((int)background.Size.y, background);
 
-            TextLabel textLabel = new TextLabel(DaggerfallUI.Instance.Font5);
-            textLabel.Text = ModSettingsData.FormattedName(section.Name);
-            textLabel.TextColor = sectionTitleColor;
-            textLabel.ShadowColor = sectionTitleShadow;
+            TextLabel textLabel = new TextLabel(DaggerfallUI.Instance.Font4);
+            textLabel.Text = ModSettingsData.FormattedName(mod.TryLocalize("Settings", section.Name, "Name") ?? section.Name);
+            textLabel.TextColor = section.IsAdvanced ? sectionTitleAdvColor : sectionTitleColor;
+            textLabel.ShadowColor = section.IsAdvanced ? sectionTitleAdvShadow : sectionTitleShadow;
             textLabel.TextScale = 0.9f;
             textLabel.Position = new Vector2(0, 0.5f);
             textLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -335,16 +330,16 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             AddAtNextPosition(height, background);
         }
 
-        private TextLabel GetKeyLabel(Key key, int height)
+        private TextLabel GetKeyLabel(Section section, Key key, int height)
         {
             TextLabel textLabel = new TextLabel();
-            textLabel.Text = ModSettingsData.FormattedName(key.Name);
+            textLabel.Text = ModSettingsData.FormattedName(mod.TryLocalize("Settings", section.Name, key.Name, "Name") ?? key.Name);
             textLabel.ShadowColor = Color.clear;
             textLabel.TextScale = textScale;
             textLabel.HorizontalAlignment = HorizontalAlignment.None;
             textLabel.Position = new Vector2(x, y + (float)(height - textLabel.TextHeight) / 2);         
             textLabel.ToolTip = defaultToolTip;
-            textLabel.ToolTipText = key.Description;
+            textLabel.ToolTipText = mod.TryLocalize("Settings", section.Name, key.Name, "Description") ?? key.Description;
             return textLabel;
         }
 
@@ -443,7 +438,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             if (!settings.HasLoadedPresets)
                 settings.LoadPresets();
 
-            presetPicker = new PresetPicker(uiManager, this, settings);
+            presetPicker = new PresetPicker(uiManager, mod, settings);
             presetPicker.ApplyChangesCallback = RefreshControls;
             uiManager.PushWindow(presetPicker);
         }

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -19,13 +19,18 @@ namespace DaggerfallWorkshop.Utility
     public abstract class MacroDataSource   
     // TODO: extract interface when complete set of handlers done? : IMacroDataSource
     {
+        public virtual string Name()
+        {   // %n %nam
+            throw new NotImplementedException();
+        }
+
         public virtual string GuildTitle()
         {   // %lev %pct
             throw new NotImplementedException();
         }
 
         public virtual string FactionOrderName()
-        {   // %fon
+        {   // %fon %kno
             throw new NotImplementedException();
         }
 
@@ -145,6 +150,27 @@ namespace DaggerfallWorkshop.Utility
             throw new NotImplementedException();
         }
 
+        public virtual string PaintingAdjective()
+        {   // %adj
+            throw new NotImplementedException();
+        }
+        public virtual string ArtistName()
+        {   // %an
+            throw new NotImplementedException();
+        }
+        public virtual string PaintingPrefix1()
+        {   // %pp1
+            throw new NotImplementedException();
+        }
+        public virtual string PaintingPrefix2()
+        {   // %pp2
+            throw new NotImplementedException();
+        }
+        public virtual string PaintingSubject()
+        {   // %sub
+            throw new NotImplementedException();
+        }
+
         public virtual string HeldSoul()
         {   // %hs
             throw new NotImplementedException();
@@ -199,6 +225,11 @@ namespace DaggerfallWorkshop.Utility
 
         public virtual string God()
         {   // %god
+            throw new NotImplementedException();
+        }
+
+        public virtual string Daedra()
+        {   // %dae
             throw new NotImplementedException();
         }
 
@@ -346,5 +377,267 @@ namespace DaggerfallWorkshop.Utility
             throw new NotImplementedException();
         }
 
+        public virtual string CommonersRep()
+        {
+            // %r1
+            throw new NotImplementedException();
+        }
+
+        public virtual string MerchantsRep()
+        {
+            // %r2
+            throw new NotImplementedException();
+        }
+
+        public virtual string ScholarsRep()
+        {
+            // %r3
+            throw new NotImplementedException();
+        }
+
+        public virtual string NobilityRep()
+        {
+            // %r4
+            throw new NotImplementedException();
+        }
+
+        public virtual string UnderworldRep()
+        {
+            // %r5
+            throw new NotImplementedException();
+        }
+
+        public virtual string HomeProvinceName()
+        {
+            // %hpn
+            throw new NotImplementedException();
+        }
+
+        public virtual string GeographicalFeature()
+        {
+            // %hpw
+            throw new NotImplementedException();
+        }
+
+        public virtual string VampireNpcClan()
+        {   // %vcn
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q1()
+        {
+            // %q1
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q2()
+        {
+            // %q2
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q3()
+        {
+            // %q3
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q4()
+        {
+            // %q4
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q5()
+        {
+            // %q5
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q6()
+        {
+            // %q6
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q7()
+        {
+            // %q7
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q8()
+        {
+            // %q8
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q9()
+        {
+            // %q9
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q10()
+        {
+            // %q10
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q11()
+        {
+            // %q11
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q12()
+        {
+            // %q12
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q1a()
+        {
+            // %q1a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q2a()
+        {
+            // %q2a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q3a()
+        {
+            // %q3a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q4a()
+        {
+            // %q4a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q5a()
+        {
+            // %q5a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q6a()
+        {
+            // %q6a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q7a()
+        {
+            // %q7a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q8a()
+        {
+            // %q8a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q9a()
+        {
+            // %q9a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q10a()
+        {
+            // %q10a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q11a()
+        {
+            // %q11a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q12a()
+        {
+            // %q12a
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q1b()
+        {
+            // %q1b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q2b()
+        {
+            // %q2b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q3b()
+        {
+            // %q3b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q4b()
+        {
+            // %q4b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q5b()
+        {
+            // %q5b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q6b()
+        {
+            // %q6b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q7b()
+        {
+            // %q7b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q8b()
+        {
+            // %q8b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q9b()
+        {
+            // %q9b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q10b()
+        {
+            // %q10b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q11b()
+        {
+            // %q11b
+            throw new NotImplementedException();
+        }
+
+        public virtual string Q12b()
+        {
+            // %q12b
+            throw new NotImplementedException();
+        }
     }
 }

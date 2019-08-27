@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.IO;
 using DaggerfallConnect.Utility;
 #endregion
@@ -29,7 +28,7 @@ namespace DaggerfallConnect.Arena2
         public const int GlyphDataLength = 32;          // Fixed data length of each glyph
         public const int GlyphFixedDimension = 16;      // Fixed pixel dimension of each glyph (i.e. 16x16 pixels)
 
-        FileProxy managedFile = new FileProxy();
+        readonly FileProxy managedFile = new FileProxy();
         FntFileData fileData = new FntFileData();
 
         #endregion

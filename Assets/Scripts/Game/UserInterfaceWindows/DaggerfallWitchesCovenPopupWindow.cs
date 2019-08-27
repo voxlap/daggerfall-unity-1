@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -71,7 +71,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             mainPanel.VerticalAlignment = VerticalAlignment.Middle;
             mainPanel.BackgroundTexture = baseTexture;
             mainPanel.Position = new Vector2(0, 50);
-            mainPanel.Size = new Vector2(baseTexture.width, baseTexture.height);
+            mainPanel.Size = new Vector2(130, 51);
 
             // Talk button
             talkButton = DaggerfallUI.AddButton(talkButtonRect, mainPanel);
@@ -118,9 +118,10 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Get the faction id for affecting reputation on success/failure, and current rep
             int factionId = witchNPC.Data.factionID;
             int reputation = GameManager.Instance.PlayerEntity.FactionData.GetReputation(factionId);
+            int level = GameManager.Instance.PlayerEntity.Level;     // Not a proper guild so rank = player level
 
             // Select a quest at random from appropriate pool
-            offeredQuest = GameManager.Instance.QuestListsManager.GetGuildQuest(FactionFile.GuildGroups.Witches, MembershipStatus.Nonmember, factionId, reputation);
+            offeredQuest = GameManager.Instance.QuestListsManager.GetGuildQuest(FactionFile.GuildGroups.Witches, MembershipStatus.Nonmember, factionId, reputation, level);
             if (offeredQuest != null)
             {
                 // Log offered quest
@@ -152,7 +153,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         private void SummonButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
-            CloseWindow();
+            DaedraSummoningService(witchNPC.Data.factionID);
         }
 
         private void QuestButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
@@ -166,5 +167,36 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         }
 
         #endregion
+
+        #region Macro handling
+
+        public override MacroDataSource GetMacroDataSource()
+        {
+            return new WitchCovenMacroDataSource(this);
+        }
+
+        /// <summary>
+        /// MacroDataSource context sensitive methods for guild services window.
+        /// </summary>
+        private class WitchCovenMacroDataSource : MacroDataSource
+        {
+            private DaggerfallWitchesCovenPopupWindow parent;
+            public WitchCovenMacroDataSource(DaggerfallWitchesCovenPopupWindow witchCovenWindow)
+            {
+                this.parent = witchCovenWindow;
+            }
+
+            public override string Daedra()
+            {
+                FactionFile.FactionData factionData;
+                if (GameManager.Instance.PlayerEntity.FactionData.GetFactionData(parent.daedraToSummon.factionId, out factionData))
+                    return factionData.name;
+                else
+                    return "%dae[error]";
+            }
+        }
+
+        #endregion
+
     }
 }

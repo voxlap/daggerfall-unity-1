@@ -1,10 +1,11 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    ifkopifko
+// Contributors:    Hazelnut
+//                  ifkopifko
 // 
 // Notes:
 //
@@ -15,8 +16,13 @@ using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Guilds;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 using System.Collections.Generic;
 using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Utility;
+using DaggerfallConnect.Save;
+using DaggerfallWorkshop.Game.Utility;
 
 namespace DaggerfallWorkshop.Game.Formulas
 {
@@ -29,20 +35,24 @@ namespace DaggerfallWorkshop.Game.Formulas
     public static class FormulaHelper
     {
         // Delegate method signatures for overriding default formula
+        public delegate int Formula_NoParams();
         public delegate int Formula_1i(int a);
         public delegate int Formula_2i(int a, int b);
         public delegate int Formula_3i(int a, int b, int c);
         public delegate int Formula_1i_1f(int a, float b);
-        public delegate int Formula_2de(DaggerfallEntity de1, DaggerfallEntity de2);
+        public delegate int Formula_2de_2i(DaggerfallEntity de1, DaggerfallEntity de2 = null, int a = 0, int b = 0, DaggerfallUnityItem item = null);
         public delegate bool Formula_1pe_1sk(PlayerEntity pe, DFCareer.Skills sk);
 
         // Registries for overridden formula
+        public static Dictionary<string, Formula_NoParams>  formula_noparams = new Dictionary<string, Formula_NoParams>();
         public static Dictionary<string, Formula_1i>        formula_1i = new Dictionary<string, Formula_1i>();
         public static Dictionary<string, Formula_2i>        formula_2i = new Dictionary<string, Formula_2i>();
         public static Dictionary<string, Formula_3i>        formula_3i = new Dictionary<string, Formula_3i>();
         public static Dictionary<string, Formula_1i_1f>     formula_1i_1f = new Dictionary<string, Formula_1i_1f>();
-        public static Dictionary<string, Formula_2de>       formula_2de = new Dictionary<string, Formula_2de>();
+        public static Dictionary<string, Formula_2de_2i>    formula_2de_2i = new Dictionary<string, Formula_2de_2i>();
         public static Dictionary<string, Formula_1pe_1sk>   formula_1pe_1sk = new Dictionary<string, Formula_1pe_1sk>();
+
+        public static float specialInfectionChance = 0.6f;
 
         #region Basic Formulas
 
@@ -111,23 +121,46 @@ namespace DaggerfallWorkshop.Game.Formulas
             return (int)Mathf.Floor((float)endurance / 10f) - 5;
         }
 
+        public static int MaxStatValue()
+        {
+            Formula_NoParams del;
+            if (formula_noparams.TryGetValue("MaxStatValue", out del))
+                return del();
+            else
+                return 100;
+        }
+
+        public static int BonusPool()
+        {
+            Formula_NoParams del;
+            if (formula_noparams.TryGetValue("BonusPool", out del))
+                return del();
+
+            const int minBonusPool = 4;        // The minimum number of free points to allocate on level up
+            const int maxBonusPool = 6;        // The maximum number of free points to allocate on level up
+
+            // Roll bonus pool for player to distribute
+            // Using maxBonusPool + 1 for inclusive range
+            return UnityEngine.Random.Range(minBonusPool, maxBonusPool + 1);
+        }
+
         #endregion
 
         #region Player
 
         // Generates player health based on level and career hit points per level
-        public static int RollMaxHealth(int level, int hitPointsPerLevel)
+        public static int RollMaxHealth(PlayerEntity player)
         {
             Formula_2i del;
             if (formula_2i.TryGetValue("RollMaxHealth", out del))
-                return del(level, hitPointsPerLevel);
+                return del(player.Level, player.Career.HitPointsPerLevel);
 
             const int baseHealth = 25;
-            int maxHealth = baseHealth + hitPointsPerLevel;
+            int maxHealth = baseHealth + player.Career.HitPointsPerLevel;
 
-            for (int i = 1; i < level; i++)
+            for (int i = 1; i < player.Level; i++)
             {
-                maxHealth += UnityEngine.Random.Range(1, hitPointsPerLevel + 1);
+                maxHealth += CalculateHitPointsPerLevelUp(player);
             }
 
             return maxHealth;
@@ -136,9 +169,9 @@ namespace DaggerfallWorkshop.Game.Formulas
         // Calculate how much health the player should recover per hour of rest
         public static int CalculateHealthRecoveryRate(PlayerEntity player)
         {
-            Formula_2de del;
-            if (formula_2de.TryGetValue("CalculateHealthRecoveryRate", out del))
-                return del(player, null);
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateHealthRecoveryRate", out del))
+                return del(player);
 
             short medical = player.Skills.GetLiveSkillValue(DFCareer.Skills.Medical);
             int endurance = player.Stats.LiveEndurance;
@@ -175,13 +208,16 @@ namespace DaggerfallWorkshop.Game.Formulas
         }
 
         // Calculate how many spell points the player should recover per hour of rest
-        public static int CalculateSpellPointRecoveryRate(int maxSpellPoints)
+        public static int CalculateSpellPointRecoveryRate(PlayerEntity player)
         {
             Formula_1i del;
             if (formula_1i.TryGetValue("HealingRateModifier", out del))
-                return del(maxSpellPoints);
+                return del(player.MaxMagicka);
 
-            return Mathf.Max((int)Mathf.Floor(maxSpellPoints / 8), 1);
+            if (player.Career.NoRegenSpellPoints)
+                return 0;
+
+            return Mathf.Max((int)Mathf.Floor(player.MaxMagicka / 8), 1);
         }
 
         // Calculate chance of successfully lockpicking a door in an interior (an animating door). If this is higher than a random number between 0 and 100 (inclusive), the lockpicking succeeds.
@@ -209,8 +245,8 @@ namespace DaggerfallWorkshop.Game.Formulas
         // Calculate chance of successfully pickpocketing a target
         public static int CalculatePickpocketingChance(PlayerEntity player, EnemyEntity target)
         {
-            Formula_2de del;
-            if (formula_2de.TryGetValue("CalculatePickpocketingChance", out del))
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculatePickpocketingChance", out del))
                 return del(player, target);
 
             int chance = player.Skills.GetLiveSkillValue(DFCareer.Skills.Pickpocket);
@@ -219,6 +255,18 @@ namespace DaggerfallWorkshop.Game.Formulas
             {
                 chance += 5 * ((player.Level) - (target.Level));
             }
+            return Mathf.Clamp(chance, 5, 95);
+        }
+
+        // Calculate chance of being caught shoplifting items
+        public static int CalculateShopliftingChance(PlayerEntity player, DaggerfallEntity na, int shopQuality, int weightAndNumItems)
+        {
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateShopliftingChance", out del))
+                return del(player, null, shopQuality, weightAndNumItems);
+
+            int chance = 100 - player.Skills.GetLiveSkillValue(DFCareer.Skills.Pickpocket);
+            chance += shopQuality + weightAndNumItems;
             return Mathf.Clamp(chance, 5, 95);
         }
 
@@ -242,14 +290,14 @@ namespace DaggerfallWorkshop.Game.Formulas
         // Calculate hit points player gains per level.
         public static int CalculateHitPointsPerLevelUp(PlayerEntity player)
         {
-            Formula_2de del;
-            if (formula_2de.TryGetValue("CalculateHitPointsPerLevelUp", out del))
-                return del(player, null);
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateHitPointsPerLevelUp", out del))
+                return del(player);
 
             int minRoll = player.Career.HitPointsPerLevel / 2;
-            int maxRoll = player.Career.HitPointsPerLevel + 1; // Adding +1 as Unity Random.Range(int,int) is exclusive of maximum value
-            int addHitPoints = UnityEngine.Random.Range(minRoll, maxRoll);
-            addHitPoints += HitPointsModifier(player.Stats.LiveEndurance);
+            int maxRoll = player.Career.HitPointsPerLevel;
+            int addHitPoints = UnityEngine.Random.Range(minRoll, maxRoll + 1); // Adding +1 as Unity Random.Range(int,int) is exclusive of maximum value
+            addHitPoints += HitPointsModifier(player.Stats.PermanentEndurance);
             if (addHitPoints < 1)
                 addHitPoints = 1;
             return addHitPoints;
@@ -276,12 +324,17 @@ namespace DaggerfallWorkshop.Game.Formulas
             }
             chance += GameManager.Instance.WeaponManager.Sheathed ? 10 : -25;
 
+            // Add chance from Comprehend Languages effect if present
+            ComprehendLanguages languagesEffect = (ComprehendLanguages)GameManager.Instance.PlayerEffectManager.FindIncumbentEffect<ComprehendLanguages>();
+            if (languagesEffect != null)
+                chance += languagesEffect.ChanceValue();
+
             int roll = UnityEngine.Random.Range(0, 200);
             bool success = (roll < chance);
-            if (success)
-                player.TallySkill(languageSkill, 1);
-            else if (languageSkill != DFCareer.Skills.Etiquette && languageSkill != DFCareer.Skills.Streetwise)
-                player.TallySkill(languageSkill, 1);
+            //if (success)
+            //    player.TallySkill(languageSkill, 1);
+            //else if (languageSkill != DFCareer.Skills.Etiquette && languageSkill != DFCareer.Skills.Streetwise)
+            //    player.TallySkill(languageSkill, 1);
 
             Debug.LogFormat("Pacification {3} using {0} skill: chance= {1}  roll= {2}", languageSkill, chance, roll, success ? "success" : "failure");
             return success;
@@ -291,6 +344,37 @@ namespace DaggerfallWorkshop.Game.Formulas
         public static int CalculateTempleBlessing(int donationAmount, int deityRep)
         {
             return 1;   // TODO Amount of stat boost, guessing what this formula might need...
+        }
+
+        // Gets vampire clan based on region
+        public static VampireClans GetVampireClan(int regionIndex)
+        {
+            FactionFile.FactionData factionData;
+            GameManager.Instance.PlayerEntity.FactionData.GetRegionFaction(regionIndex, out factionData);
+            switch ((FactionFile.FactionIDs) factionData.vam)
+            {
+                case FactionFile.FactionIDs.The_Vraseth:
+                    return VampireClans.Vraseth;
+                case FactionFile.FactionIDs.The_Haarvenu:
+                    return VampireClans.Haarvenu;
+                case FactionFile.FactionIDs.The_Thrafey:
+                    return VampireClans.Thrafey;
+                case FactionFile.FactionIDs.The_Lyrezi:
+                    return VampireClans.Lyrezi;
+                case FactionFile.FactionIDs.The_Montalion:
+                    return VampireClans.Montalion;
+                case FactionFile.FactionIDs.The_Khulari:
+                    return VampireClans.Khulari;
+                case FactionFile.FactionIDs.The_Garlythi:
+                    return VampireClans.Garlythi;
+                case FactionFile.FactionIDs.The_Anthotis:
+                    return VampireClans.Anthotis;
+                case FactionFile.FactionIDs.The_Selenu:
+                    return VampireClans.Selenu;
+            }
+
+            // The Lyrezi are the default like in classic
+            return VampireClans.Lyrezi;
         }
 
         #endregion
@@ -318,19 +402,31 @@ namespace DaggerfallWorkshop.Game.Formulas
             return (handToHandSkill / 5) + 1;
         }
 
-        public static int CalculateAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int weaponEquipSlot, int enemyAnimStateRecord)
+        /// <summary>
+        /// Calculate the damage caused by an attack.
+        /// </summary>
+        /// <param name="attacker">Attacking entity</param>
+        /// <param name="target">Target entity</param>
+        /// <param name="enemyAnimStateRecord">Record # of the target, used for backstabbing</param>
+        /// <param name="weaponAnimTime">Time the weapon animation lasted before the attack in ms, used for bow drawing </param>
+        /// <param name="weapon">The weapon item being used</param>
+        /// <returns>Damage inflicted to target, can be 0</returns>
+        public static int CalculateAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int enemyAnimStateRecord, int weaponAnimTime, DaggerfallUnityItem weapon)
         {
             if (attacker == null || target == null)
                 return 0;
+
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateAttackDamage", out del))
+                return del(attacker, target, enemyAnimStateRecord, weaponAnimTime, weapon);
 
             int minBaseDamage = 0;
             int maxBaseDamage = 0;
             int damageModifiers = 0;
             int damage = 0;
             int chanceToHitMod = 0;
-            int backstabbingLevel = 0;
+            int backstabChance = 0;
             PlayerEntity player = GameManager.Instance.PlayerEntity;
-            Items.DaggerfallUnityItem weapon = attacker.ItemEquipTable.GetItem((Items.EquipSlots)weaponEquipSlot);
             short skillID = 0;
 
             // Choose whether weapon-wielding enemies use their weapons or weaponless attacks.
@@ -355,16 +451,14 @@ namespace DaggerfallWorkshop.Game.Formulas
             if (weapon != null)
             {
                 // If the attacker is using a weapon, check if the material is high enough to damage the target
-                if (target.MinMetalToHit > (Items.WeaponMaterialTypes)weapon.NativeMaterialValue)
+                if (target.MinMetalToHit > (WeaponMaterialTypes)weapon.NativeMaterialValue)
                 {
                     if (attacker == player)
                     {
                         DaggerfallUI.Instance.PopupMessage(UserInterfaceWindows.HardStrings.materialIneffective);
                     }
-
                     return 0;
                 }
-
                 // Get weapon skill used
                 skillID = weapon.GetWeaponSkillIDAsShort();
             }
@@ -375,21 +469,15 @@ namespace DaggerfallWorkshop.Game.Formulas
 
             chanceToHitMod = attacker.Skills.GetLiveSkillValue(skillID);
 
-            EnemyEntity AITarget = null;
-            if (target != player)
-            {
-                AITarget = target as EnemyEntity;
-            }
-
             if (attacker == player)
             {
-                // Apply swing modifiers. Not applied to hand-to-hand in classic.
+                // Apply swing modifiers.
                 FPSWeapon onscreenWeapon = GameManager.Instance.WeaponManager.ScreenWeapon;
 
                 if (onscreenWeapon != null)
                 {
                     // The Daggerfall manual groups diagonal slashes to the left and right as if they are the same, but they are different.
-                    // Classic does not apply swing modifiers to hand-to-hand.
+                    // Classic does not apply swing modifiers to unarmed attacks.
                     if (onscreenWeapon.WeaponState == WeaponStates.StrikeUp)
                     {
                         damageModifiers += -4;
@@ -451,25 +539,19 @@ namespace DaggerfallWorkshop.Game.Formulas
                     }
                 }
 
-                // Apply backstabbing
-                if (enemyAnimStateRecord % 5 > 2) // Facing away from player
-                {
-                    chanceToHitMod += attacker.Skills.GetLiveSkillValue(DFCareer.Skills.Backstabbing);
-                    attacker.TallySkill(DFCareer.Skills.Backstabbing, 1); // backstabbing
-                    backstabbingLevel = attacker.Skills.GetLiveSkillValue(DFCareer.Skills.Backstabbing);
-                }
+                backstabChance = CalculateBackstabChance(player, null, enemyAnimStateRecord);
+                chanceToHitMod += backstabChance;
             }
 
             // Choose struck body part
-            int[] bodyParts = { 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6 };
-            int struckBodyPart = bodyParts[UnityEngine.Random.Range(0, bodyParts.Length)];
+            int struckBodyPart = CalculateStruckBodyPart();
 
             // Get damage for weaponless attacks
             if (skillID == (short)DFCareer.Skills.HandToHand)
             {
-                if (attacker == player)
+                if (attacker == player || (AIAttacker != null && AIAttacker.EntityType == EntityTypes.EnemyClass))
                 {
-                    if (CalculateSuccessfulHit(attacker, target, chanceToHitMod, null, struckBodyPart))
+                    if (CalculateSuccessfulHit(attacker, target, chanceToHitMod, struckBodyPart) > 0)
                     {
                         minBaseDamage = CalculateHandToHandMinDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
                         maxBaseDamage = CalculateHandToHandMaxDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
@@ -478,18 +560,13 @@ namespace DaggerfallWorkshop.Game.Formulas
                         // Apply damage modifiers.
                         damage += damageModifiers;
                         // Apply strength modifier. It is not applied in classic despite what the in-game description for the Strength attribute says.
-                        damage += DamageModifier(attacker.Stats.LiveStrength);
-
+                        if (attacker == player)
+                            damage += DamageModifier(attacker.Stats.LiveStrength);
                         // Handle backstabbing
-                        if (backstabbingLevel > 0 && UnityEngine.Random.Range(1, 101) <= backstabbingLevel)
-                        {
-                            damage *= 3;
-                            string backstabMessage = UserInterfaceWindows.HardStrings.successfulBackstab;
-                            DaggerfallUI.Instance.PopupMessage(backstabMessage);
-                        }
+                        damage = CalculateBackstabDamage(damage, backstabChance);
                     }
                 }
-                else // attacker is monster
+                else if (AIAttacker != null) // attacker is monster
                 {
                     // Handle multiple attacks by AI
                     int attackNumber = 0;
@@ -511,87 +588,201 @@ namespace DaggerfallWorkshop.Game.Formulas
                             maxBaseDamage = AIAttacker.MobileEnemy.MaxDamage3;
                         }
 
-                        if (DFRandom.rand() % 100 < 50 && minBaseDamage > 0 && CalculateSuccessfulHit(attacker, target, chanceToHitMod, null, struckBodyPart))
+                        int reflexesChance = 50 - (10 * ((int)player.Reflexes - 2));
+
+                        if (DFRandom.rand() % 100 < reflexesChance && minBaseDamage > 0 && CalculateSuccessfulHit(attacker, target, chanceToHitMod, struckBodyPart) > 0)
                         {
                             int hitDamage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
                             // Apply special monster attack effects
                             if (hitDamage > 0)
                                 OnMonsterHit(AIAttacker, target, hitDamage);
 
-                            // TODO: Apply Ring of Namira effect
-
                             damage += hitDamage;
                         }
-
                         ++attackNumber;
                     }
                 }
             }
             // Handle weapon attacks
-            else
+            else if (weapon != null)
             {
-                if (CalculateSuccessfulHit(attacker, target, chanceToHitMod, weapon, struckBodyPart))
+                // Apply weapon material modifier.
+                if (weapon.GetWeaponMaterialModifier() > 0)
                 {
-                    damage = UnityEngine.Random.Range(weapon.GetBaseDamageMin(), weapon.GetBaseDamageMax() + 1);
-                    damage += damageModifiers;
+                    chanceToHitMod += (weapon.GetWeaponMaterialModifier() * 10);
+                }
+                // Mod hook for adjusting final hit chance mod. (is a no-op in DFU)
+                chanceToHitMod = AdjustWeaponHitChanceMod(attacker, target, chanceToHitMod, weaponAnimTime, weapon);
 
-                    if (AITarget != null && AITarget.CareerIndex == (int)MonsterCareers.SkeletalWarrior)
-                    {
-                        // Apply edged-weapon damage modifier for Skeletal Warrior
-                        if ((weapon.flags & 0x10) == 0)
-                            damage /= 2;
+                if (CalculateSuccessfulHit(attacker, target, chanceToHitMod, struckBodyPart) > 0)
+                {
+                    damage = CalculateWeaponAttackDamage(attacker, target, damageModifiers, weaponAnimTime, weapon);
 
-                        // Apply silver weapon damage modifier for Skeletal Warrior
-                        // Arena applies a silver weapon damage bonus for undead enemies, which
-                        // is probably where this comes from.
-                        if (weapon.NativeMaterialValue == (int)Items.WeaponMaterialTypes.Silver)
-                            damage *= 2;
-                    }
+                    damage = CalculateBackstabDamage(damage, backstabChance);
+                }
 
-                    // TODO: Apply strength bonus from Mace of Molag Bal
-
-                    // Apply strength modifier
-                    damage += DamageModifier(attacker.Stats.LiveStrength);
-
-                    // Apply material modifier.
-                    // The in-game display in Daggerfall of weapon damages with material modifiers is incorrect. The material modifier is half of what the display suggests.
-                    damage += weapon.GetWeaponMaterialModifier();
-
-                    if (damage < 1)
-                        damage = 0;
-
-                    damage += GetBonusOrPenaltyByEnemyType(attacker, AITarget);
-
-                    if (backstabbingLevel > 1 && UnityEngine.Random.Range(1, 100 + 1) <= backstabbingLevel)
-                    {
-                        damage *= 3;
-                        string backstabMessage = UserInterfaceWindows.HardStrings.successfulBackstab;
-                        DaggerfallUI.Instance.PopupMessage(backstabMessage);
-                    }
+                // Handle poisoned weapons
+                if (damage > 0 && weapon.poisonType != Poisons.None)
+                {
+                    InflictPoison(target, weapon.poisonType, false);
+                    weapon.poisonType = Poisons.None;
                 }
             }
 
             damage = Mathf.Max(0, damage);
 
+            DamageEquipment(attacker, target, damage, weapon, struckBodyPart);
+
+            // Apply Ring of Namira effect
+            if (target == player)
+            {
+                DaggerfallUnityItem[] equippedItems = target.ItemEquipTable.EquipTable;
+                DaggerfallUnityItem item = null;
+                if (equippedItems.Length != 0)
+                {
+                    item = IsRingOfNamira(equippedItems[(int)EquipSlots.Ring0]) ? equippedItems[(int)EquipSlots.Ring0] : equippedItems[(int)EquipSlots.Ring1];
+                    item = IsRingOfNamira(item) ? item : null;
+                    if (item != null)
+                    {
+                        IEntityEffect effectTemplate = GameManager.Instance.EntityEffectBroker.GetEffectTemplate(RingOfNamiraEffect.EffectKey);
+                        effectTemplate.EnchantmentPayloadCallback(EnchantmentPayloadFlags.None,
+                            targetEntity: AIAttacker.EntityBehaviour,
+                            sourceItem: item,
+                            sourceDamage: damage);
+                    }
+                }
+            }
+            //Debug.LogFormat("Damage {0} applied, animTime={1}  ({2})", damage, weaponAnimTime, GameManager.Instance.WeaponManager.ScreenWeapon.WeaponState);
+
+            return damage;
+        }
+
+        private static bool IsRingOfNamira(DaggerfallUnityItem item)
+        {
+            return item != null && item.ContainsEnchantment(DaggerfallConnect.FallExe.EnchantmentTypes.SpecialArtifactEffect, (int)ArtifactsSubTypes.Ring_of_Namira);
+        }
+
+        private static int CalculateStruckBodyPart()
+        {
+            Formula_1i del;
+            if (formula_1i.TryGetValue("CalculateStruckBodyPart", out del))
+                return del(0);
+
+            int[] bodyParts = { 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6 };
+            return bodyParts[UnityEngine.Random.Range(0, bodyParts.Length)];
+        }
+
+        private static int CalculateBackstabChance(PlayerEntity player, DaggerfallEntity target, int enemyAnimStateRecord)
+        {
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateBackstabChance", out del))
+                return del(player, null, enemyAnimStateRecord);
+
+            // If enemy is facing away from player
+            if (enemyAnimStateRecord % 5 > 2)
+            {
+                player.TallySkill(DFCareer.Skills.Backstabbing, 1);
+                return player.Skills.GetLiveSkillValue(DFCareer.Skills.Backstabbing);
+            }
+            else
+                return 0;
+        }
+
+        private static int CalculateBackstabDamage(int damage, int backstabbingLevel)
+        {
+            Formula_2i del;
+            if (formula_2i.TryGetValue("CalculateBackstabDamage", out del))
+                return del(damage, backstabbingLevel);
+
+            if (backstabbingLevel > 1 && Dice100.SuccessRoll(backstabbingLevel))
+            {
+                damage *= 3;
+                string backstabMessage = UserInterfaceWindows.HardStrings.successfulBackstab;
+                DaggerfallUI.Instance.PopupMessage(backstabMessage);
+            }
+            return damage;
+        }
+
+        private static int CalculateWeaponAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int damageModifier, int weaponAnimTime, DaggerfallUnityItem weapon)
+        {
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateWeaponAttackDamage", out del))
+                return del(attacker, target, damageModifier, weaponAnimTime, weapon);
+
+            int damage = UnityEngine.Random.Range(weapon.GetBaseDamageMin(), weapon.GetBaseDamageMax() + 1) + damageModifier;
+
+            EnemyEntity AITarget = null;
+            if (target != GameManager.Instance.PlayerEntity)
+            {
+                AITarget = target as EnemyEntity;
+                if (AITarget.CareerIndex == (int)MonsterCareers.SkeletalWarrior)
+                {
+                    // Apply edged-weapon damage modifier for Skeletal Warrior
+                    if ((weapon.flags & 0x10) == 0)
+                        damage /= 2;
+
+                    // Apply silver weapon damage modifier for Skeletal Warrior
+                    // Arena applies a silver weapon damage bonus for undead enemies, which is probably where this comes from.
+                    if (weapon.NativeMaterialValue == (int)WeaponMaterialTypes.Silver)
+                        damage *= 2;
+                }
+            }
+            // TODO: Apply strength bonus from Mace of Molag Bal
+
+            // Apply strength modifier
+            damage += DamageModifier(attacker.Stats.LiveStrength);
+
+            // Apply material modifier.
+            // The in-game display in Daggerfall of weapon damages with material modifiers is incorrect. The material modifier is half of what the display suggests.
+            damage += weapon.GetWeaponMaterialModifier();
+            if (damage < 1)
+                damage = 0;
+
+            damage += GetBonusOrPenaltyByEnemyType(attacker, AITarget);
+
+            // Mod hook for adjusting final damage. (is a no-op in DFU)
+            damage = AdjustWeaponAttackDamage(attacker, target, damage, weaponAnimTime, weapon);
+
+            return damage;
+        }
+
+        private static int AdjustWeaponHitChanceMod(DaggerfallEntity attacker, DaggerfallEntity target, int hitChanceMod, int weaponAnimTime, DaggerfallUnityItem weapon)
+        {
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("AdjustWeaponHitChanceMod", out del))
+                return del(attacker, target, hitChanceMod, weaponAnimTime, weapon);
+
+            return hitChanceMod;
+        }
+
+        private static int AdjustWeaponAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int damage, int weaponAnimTime, DaggerfallUnityItem weapon)
+        {
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("AdjustWeaponAttackDamage", out del))
+                return del(attacker, target, damage, weaponAnimTime, weapon);
+
+            return damage;
+        }
+
+        private static void DamageEquipment(DaggerfallEntity attacker, DaggerfallEntity target, int damage, DaggerfallUnityItem weapon, int struckBodyPart)
+        {
             // If damage was done by a weapon, damage the weapon and armor of the hit body part.
             // In classic, shields are never damaged, only armor specific to the hitbody part is.
             // Here, if an equipped shield covers the hit body part, it takes damage instead.
             if (weapon != null && damage > 0)
             {
-                // TODO: Inflict poison
-                // TODO: Inflict weapon magic effects
                 // TODO: If attacker is AI, apply Ring of Namira effect
                 weapon.DamageThroughPhysicalHit(damage, attacker);
 
-                Items.DaggerfallUnityItem shield = target.ItemEquipTable.GetItem(Items.EquipSlots.LeftHand);
+                DaggerfallUnityItem shield = target.ItemEquipTable.GetItem(EquipSlots.LeftHand);
                 bool shieldTakesDamage = false;
                 if (shield != null)
                 {
-                    Items.BodyParts[] protectedBodyParts = shield.GetShieldProtectedBodyParts();
+                    BodyParts[] protectedBodyParts = shield.GetShieldProtectedBodyParts();
 
                     for (int i = 0; (i < protectedBodyParts.Length) && !shieldTakesDamage; i++)
                     {
-                        if (protectedBodyParts[i] == (Items.BodyParts)struckBodyPart)
+                        if (protectedBodyParts[i] == (BodyParts)struckBodyPart)
                             shieldTakesDamage = true;
                     }
                 }
@@ -600,14 +791,12 @@ namespace DaggerfallWorkshop.Game.Formulas
                     shield.DamageThroughPhysicalHit(damage, target);
                 else
                 {
-                    Items.EquipSlots hitSlot = Items.DaggerfallUnityItem.GetEquipSlotForBodyPart((Items.BodyParts)struckBodyPart);
-                    Items.DaggerfallUnityItem armor = target.ItemEquipTable.GetItem(hitSlot);
+                    EquipSlots hitSlot = DaggerfallUnityItem.GetEquipSlotForBodyPart((BodyParts)struckBodyPart);
+                    DaggerfallUnityItem armor = target.ItemEquipTable.GetItem(hitSlot);
                     if (armor != null)
                         armor.DamageThroughPhysicalHit(damage, target);
                 }
             }
-
-            return damage;
         }
 
         public static void OnMonsterHit(EnemyEntity attacker, DaggerfallEntity target, int damage)
@@ -615,61 +804,81 @@ namespace DaggerfallWorkshop.Game.Formulas
             byte[] diseaseListA = { 1 };
             byte[] diseaseListB = { 1, 3, 5 };
             byte[] diseaseListC = { 1, 2, 3, 4, 5, 6, 8, 9, 11, 13, 14 };
-
+            float random;
             switch (attacker.CareerIndex)
             {
                 case (int)MonsterCareers.Rat:
                     // In classic rat can only give plague (diseaseListA), but DF Chronicles says plague, stomach rot and brain fever (diseaseListB).
                     // Don't know which was intended. Using B since it has more variety.
-                    if (UnityEngine.Random.Range(1, 100 + 1) <= 5)
+                    if (Dice100.SuccessRoll(5))
                         InflictDisease(target, diseaseListB);
                     break;
                 case (int)MonsterCareers.GiantBat:
                     // Classic uses 2% chance, but DF Chronicles says 5% chance. Not sure which was intended.
-                    if (UnityEngine.Random.Range(1, 100 + 1) <= 2)
+                    if (Dice100.SuccessRoll(2))
                         InflictDisease(target, diseaseListB);
                     break;
                 case (int)MonsterCareers.Spider:
-                    // if target does not have paralyze (spell id 66), cast it
+                case (int)MonsterCareers.GiantScorpion:
+                    EntityEffectManager targetEffectManager = target.EntityBehaviour.GetComponent<EntityEffectManager>();
+                    if (targetEffectManager.FindIncumbentEffect<Paralyze>() == null)
+                    {
+                        SpellRecord.SpellRecordData spellData;
+                        GameManager.Instance.EntityEffectBroker.GetClassicSpellRecord(66, out spellData);
+                        EffectBundleSettings bundle;
+                        GameManager.Instance.EntityEffectBroker.ClassicSpellRecordDataToEffectBundleSettings(spellData, BundleTypes.Spell, out bundle);
+                        EntityEffectBundle spell = new EntityEffectBundle(bundle, attacker.EntityBehaviour);
+                        EntityEffectManager attackerEffectManager = attacker.EntityBehaviour.GetComponent<EntityEffectManager>();
+                        attackerEffectManager.SetReadySpell(spell, true);
+                    }
                     break;
                 case (int)MonsterCareers.Werewolf:
-                    //uint random = DFRandom.rand();
-                    //if (random < 400)
-                    //  InflictLycanthropy (werewolf version)
+                    random = UnityEngine.Random.Range(0f, 100f);
+                    if (random <= specialInfectionChance && target.EntityBehaviour.EntityType == EntityTypes.Player)
+                    {
+                        // Werewolf
+                        EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateLycanthropyDisease(LycanthropyTypes.Werewolf);
+                        GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.SpecialInfection);
+                        Debug.Log("Player infected by werewolf.");
+                    }
                     break;
                 case (int)MonsterCareers.Nymph:
                     FatigueDamage(target, damage);
                     break;
                 case (int)MonsterCareers.Wereboar:
-                    //uint random = DFRandom.rand();
-                    //if (random < 400)
-                    //  InflictLycanthropy (wereboar version)
+                    random = UnityEngine.Random.Range(0f, 100f);
+                    if (random <= specialInfectionChance && target.EntityBehaviour.EntityType == EntityTypes.Player)
+                    {
+                        // Wereboar
+                        EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateLycanthropyDisease(LycanthropyTypes.Wereboar);
+                        GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.SpecialInfection);
+                        Debug.Log("Player infected by wereboar.");
+                    }
                     break;
                 case (int)MonsterCareers.Zombie:
                     // Nothing in classic. DF Chronicles says 2% chance of disease, which seems like it was probably intended.
                     // Diseases listed in DF Chronicles match those of mummy (except missing cholera, probably a mistake)
-                    if (UnityEngine.Random.Range(1, 100 + 1) <= 2)
+                    if (Dice100.SuccessRoll(2))
                         InflictDisease(target, diseaseListC);
                     break;
                 case (int)MonsterCareers.Mummy:
-                    if (UnityEngine.Random.Range(1, 100 + 1) <= 5)
+                    if (Dice100.SuccessRoll(5))
                         InflictDisease(target, diseaseListC);
-                    break;
-                case (int)MonsterCareers.GiantScorpion:
-                    // if target does not have paralyze (spell id 66), cast it
                     break;
                 case (int)MonsterCareers.Vampire:
                 case (int)MonsterCareers.VampireAncient:
-                    uint random = DFRandom.rand();
-                    if (random >= 400)
+                    random = UnityEngine.Random.Range(0f, 100f);
+                    if (random <= specialInfectionChance && target.EntityBehaviour.EntityType == EntityTypes.Player)
                     {
-                        if (UnityEngine.Random.Range(1, 100 + 1) <= 2)
-                            InflictDisease(target, diseaseListA);
+                        // Inflict stage one vampirism disease
+                        EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateVampirismDisease();
+                        GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.SpecialInfection);
+                        Debug.Log("Player infected by vampire.");
                     }
-                    // else
-                    //{
-                    //    InflictVampirism
-                    //}
+                    else if (random <= 2.0f)
+                    {
+                        InflictDisease(target, diseaseListA);
+                    }
                     break;
                 case (int)MonsterCareers.Lamia:
                     // Nothing in classic, but DF Chronicles says 2 pts of fatigue damage per health damage
@@ -680,10 +889,18 @@ namespace DaggerfallWorkshop.Game.Formulas
             }
         }
 
-        public static bool CalculateSuccessfulHit(DaggerfallEntity attacker, DaggerfallEntity target, int chanceToHitMod, Items.DaggerfallUnityItem weapon, int struckBodyPart)
+        /// <summary>
+        /// Calculates whether an attack on a target is successful. Returns 1 on success and 0 otherwise.
+        /// (uses an int instead of bool to fit common override signature)
+        /// </summary>
+        public static int CalculateSuccessfulHit(DaggerfallEntity attacker, DaggerfallEntity target, int chanceToHitMod, int struckBodyPart)
         {
             if (attacker == null || target == null)
-                return false;
+                return 0;
+
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("CalculateSuccessfulHit", out del))
+                return del(attacker, target, chanceToHitMod, struckBodyPart);
 
             int chanceToHit = chanceToHitMod;
             PlayerEntity player = GameManager.Instance.PlayerEntity;
@@ -700,21 +917,26 @@ namespace DaggerfallWorkshop.Game.Formulas
             // Get armor value for struck body part
             if (struckBodyPart <= target.ArmorValues.Length)
             {
-                armorValue = target.ArmorValues[struckBodyPart];
+                armorValue = target.ArmorValues[struckBodyPart] + target.IncreasedArmorValueModifier + target.DecreasedArmorValueModifier;
             }
 
             chanceToHit += armorValue;
 
             // Apply adrenaline rush modifiers.
+            const int adrenalineRushModifier = 5;
+            const int improvedAdrenalineRushModifier = 8;
             if (attacker.Career.AdrenalineRush && attacker.CurrentHealth < (attacker.MaxHealth / 8))
             {
-                chanceToHit += 5;
+                chanceToHit += (attacker.ImprovedAdrenalineRush) ? improvedAdrenalineRushModifier : adrenalineRushModifier;
             }
 
             if (target.Career.AdrenalineRush && target.CurrentHealth < (target.MaxHealth / 8))
             {
-                chanceToHit -= 5;
+                chanceToHit -= (target.ImprovedAdrenalineRush) ? improvedAdrenalineRushModifier : adrenalineRushModifier;
             }
+
+            // Apply enchantment modifier
+            chanceToHit += attacker.ChanceToHitModifier;
 
             // Apply luck modifier.
             chanceToHit += ((attacker.Stats.LiveLuck - target.Stats.LiveLuck) / 10);
@@ -722,19 +944,13 @@ namespace DaggerfallWorkshop.Game.Formulas
             // Apply agility modifier.
             chanceToHit += ((attacker.Stats.LiveAgility - target.Stats.LiveAgility) / 10);
 
-            // Apply weapon material modifier.
-            if (weapon != null)
-            {
-                chanceToHit += (weapon.GetWeaponMaterialModifier() * 10);
-            }
-
             // Apply dodging modifier.
             // This modifier is bugged in classic and the attacker's dodging skill is used rather than the target's.
             // DF Chronicles says the dodging calculation is (dodging / 10), but it actually seems to be (dodging / 4).
             chanceToHit -= (target.Skills.GetLiveSkillValue(DFCareer.Skills.Dodging) / 4);
 
             // Apply critical strike modifier.
-            if (UnityEngine.Random.Range(0, 100 + 1) < attacker.Skills.GetLiveSkillValue(DFCareer.Skills.CriticalStrike))
+            if (Dice100.SuccessRoll(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.CriticalStrike)))
             {
                 chanceToHit += (attacker.Skills.GetLiveSkillValue(DFCareer.Skills.CriticalStrike) / 10);
             }
@@ -750,18 +966,16 @@ namespace DaggerfallWorkshop.Game.Formulas
 
             Mathf.Clamp(chanceToHit, 3, 97);
 
-            int roll = UnityEngine.Random.Range(0, 100 + 1);
-
-            if (roll <= chanceToHit)
-                return true;
+            if (Dice100.SuccessRoll(chanceToHit))
+                return 1;
             else
-                return false;
+                return 0;
         }
 
         static int GetBonusOrPenaltyByEnemyType(DaggerfallEntity attacker, EnemyEntity AITarget)
         {
-            Formula_2de del;
-            if (formula_2de.TryGetValue("GetBonusOrPenaltyByEnemyType", out del))
+            Formula_2de_2i del;
+            if (formula_2de_2i.TryGetValue("GetBonusOrPenaltyByEnemyType", out del))
                 return del(attacker, AITarget);
 
             if (attacker == null || AITarget == null)
@@ -818,69 +1032,121 @@ namespace DaggerfallWorkshop.Game.Formulas
             return damage;
         }
 
-        static int SavingThrow(int elementType, DFCareer.EffectFlags effectFlags, DaggerfallEntity target, int modifier)
+        public static void InflictPoison(DaggerfallEntity target, Poisons poisonType, bool bypassResistance)
         {
-            // elementTypes are 0 = fire, 1 = frost, 2 = disease/poison, 3 = shock, 4 = magick
+            // Target must have an entity behaviour and effect manager
+            EntityEffectManager effectManager = null;
+            if (target.EntityBehaviour != null)
+            {
+                effectManager = target.EntityBehaviour.GetComponent<EntityEffectManager>();
+                if (effectManager == null)
+                    return;
+            }
+            else
+            {
+                return;
+            }
 
-            // int[] SavingThrowResistFlags = { 0x02, 0x10000000, 0x20000000, 0x40000000, 0x80000000 }; These map to classic magicEffects 1 through 4 concatenated together as 4 bytes.
-            // if (target.magicEffects & SavingThrowResistTypes[elementType]
-            //{
-            //      int chance = target.ResistanceTo(elementType);
-            //      if (UnityEngine.Random.Range(1, 100 + 1) <= chance)
-            //          return 0;
-            //}
+            // Note: In classic, AI characters' immunity to poison is ignored, although the level 1 check below still gives rats immunity
+            DFCareer.Tolerance toleranceFlags = target.Career.Poison;
+            if (toleranceFlags == DFCareer.Tolerance.Immune)
+                return;
 
+            if (bypassResistance || SavingThrow(DFCareer.Elements.DiseaseOrPoison, DFCareer.EffectFlags.Poison, target, 0) != 0)
+            {
+                if (target.Level != 1)
+                {
+                    // Infect target
+                    EntityEffectBundle bundle = effectManager.CreatePoison(poisonType);
+                    effectManager.AssignBundle(bundle, AssignBundleFlags.BypassSavingThrows);
+                }
+            }
+            else
+            {
+                Debug.LogFormat("Poison resisted by {0}.", target.EntityBehaviour.name);
+            }
+        }
+
+        public static int SavingThrow(DFCareer.Elements elementType, DFCareer.EffectFlags effectFlags, DaggerfallEntity target, int modifier)
+        {
+            // Handle resistances granted by magical effects
+            if (target.HasResistanceFlag(elementType))
+            {
+                int chance = target.GetResistanceChance(elementType);
+                if (Dice100.SuccessRoll(chance))
+                    return 0;
+            }
+
+            // Magic effect resistances did not stop the effect. Try with career flags and biography modifiers
             int savingThrow = 50;
             DFCareer.Tolerance toleranceFlags = 0;
             int biographyMod = 0;
 
             PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            if (effectFlags == DFCareer.EffectFlags.Paralysis)
-                toleranceFlags = target.Career.Paralysis;
-            if (effectFlags == DFCareer.EffectFlags.Magic)
+            if ((effectFlags & DFCareer.EffectFlags.Paralysis) != 0)
             {
-                toleranceFlags = target.Career.Magic;
-                if (target == playerEntity)
-                    biographyMod = playerEntity.BiographyResistMagicMod;
+                toleranceFlags |= target.Career.Paralysis;
+                // Innate immunity if high elf. Start with 100 saving throw, but can be modified by
+                // tolerance flags. Note this differs from classic, where high elves have 100% immunity
+                // regardless of tolerance flags.
+                if (target == playerEntity && playerEntity.Race == Races.HighElf)
+                    savingThrow = 100;
             }
-            else if (effectFlags == DFCareer.EffectFlags.Poison)
+            if ((effectFlags & DFCareer.EffectFlags.Magic) != 0)
             {
-                toleranceFlags = target.Career.Poison;
+                toleranceFlags |= target.Career.Magic;
                 if (target == playerEntity)
-                    biographyMod = playerEntity.BiographyResistPoisonMod;
+                    biographyMod += playerEntity.BiographyResistMagicMod;
             }
-            else if (effectFlags == DFCareer.EffectFlags.Fire)
-                toleranceFlags = target.Career.Fire;
-            else if (effectFlags == DFCareer.EffectFlags.Frost)
-                toleranceFlags = target.Career.Frost;
-            else if (effectFlags == DFCareer.EffectFlags.Shock)
-                toleranceFlags = target.Career.Shock;
-            else if (effectFlags == DFCareer.EffectFlags.Disease)
+            if ((effectFlags & DFCareer.EffectFlags.Poison) != 0)
             {
-                toleranceFlags = target.Career.Disease;
+                toleranceFlags |= target.Career.Poison;
                 if (target == playerEntity)
-                    biographyMod = playerEntity.BiographyResistDiseaseMod;
+                    biographyMod += playerEntity.BiographyResistPoisonMod;
+            }
+            if ((effectFlags & DFCareer.EffectFlags.Fire) != 0)
+                toleranceFlags |= target.Career.Fire;
+            if ((effectFlags & DFCareer.EffectFlags.Frost) != 0)
+                toleranceFlags |= target.Career.Frost;
+            if ((effectFlags & DFCareer.EffectFlags.Shock) != 0)
+                toleranceFlags |= target.Career.Shock;
+            if ((effectFlags & DFCareer.EffectFlags.Disease) != 0)
+            {
+                toleranceFlags |= target.Career.Disease;
+                if (target == playerEntity)
+                    biographyMod += playerEntity.BiographyResistDiseaseMod;
             }
 
-            if (toleranceFlags == DFCareer.Tolerance.Immune)
-                return 0;
-            if (toleranceFlags == DFCareer.Tolerance.CriticalWeakness)
-                return 100;
-            if (toleranceFlags == DFCareer.Tolerance.Resistant)
-                savingThrow = 25;
-            if (toleranceFlags == DFCareer.Tolerance.LowTolerance)
-                savingThrow = 75;
+            // Note: Differing from classic implementation here. In classic
+            // immune grants always 100% resistance and critical weakness is
+            // always 0% resistance if there is no immunity. Here we are using
+            // a method that allows mixing different tolerance flags, getting
+            // rid of related exploits when creating a character class.
+            if ((toleranceFlags & DFCareer.Tolerance.Immune) != 0)
+                savingThrow += 50;
+            if ((toleranceFlags & DFCareer.Tolerance.CriticalWeakness) != 0)
+                savingThrow -= 50;
+            if ((toleranceFlags & DFCareer.Tolerance.LowTolerance) != 0)
+                savingThrow -= 25;
+            if ((toleranceFlags & DFCareer.Tolerance.Resistant) != 0)
+                savingThrow += 25;
 
             savingThrow += biographyMod + modifier;
-            if (elementType == 1 && target == playerEntity && playerEntity.Race == Races.Nord)
+            if (elementType == DFCareer.Elements.Frost && target == playerEntity && playerEntity.Race == Races.Nord)
                 savingThrow += 30;
-            else if (elementType == 4 && target == playerEntity && playerEntity.Race == Races.Breton)
+            else if (elementType == DFCareer.Elements.Magic && target == playerEntity && playerEntity.Race == Races.Breton)
                 savingThrow += 30;
 
-            Mathf.Clamp(savingThrow, 5, 95);
+            // Handle perfect immunity of 100% or greater
+            // Otherwise clamping to 5-95 allows a perfectly immune character to sometimes receive incoming payload
+            // This doesn't seem to match immunity intent or player expectations from classic
+            if (savingThrow >= 100)
+                return 0;
+
+            savingThrow = Mathf.Clamp(savingThrow, 5, 95);
 
             int percentDamageOrDuration = 0;
-            int roll = UnityEngine.Random.Range(1, 100 + 1);
+            int roll = Dice100.Roll();
 
             if (roll <= savingThrow)
             {
@@ -896,6 +1162,117 @@ namespace DaggerfallWorkshop.Game.Formulas
             return percentDamageOrDuration;
         }
 
+        public static int SavingThrow(IEntityEffect sourceEffect, DaggerfallEntity target)
+        {
+            if (sourceEffect == null || sourceEffect.ParentBundle == null)
+                return 100;
+
+            DFCareer.EffectFlags effectFlags = GetEffectFlags(sourceEffect);
+            DFCareer.Elements elementType = GetElementType(sourceEffect);
+            int modifier = GetResistanceModifier(effectFlags, target);
+
+            return SavingThrow(elementType, effectFlags, target, modifier);
+        }
+
+        public static int ModifyEffectAmount(IEntityEffect sourceEffect, DaggerfallEntity target, int amount)
+        {
+            if (sourceEffect == null || sourceEffect.ParentBundle == null)
+                return amount;
+
+            int percentDamageOrDuration = SavingThrow(sourceEffect, target);
+            float percent = percentDamageOrDuration / 100f;
+
+            return (int)(amount * percent);
+        }
+
+        /// <summary>
+        /// Gets DFCareer.EffectFlags from an effect.
+        /// Note: If effect is not instanced by a bundle then it will not have an element type.
+        /// </summary>
+        /// <param name="effect">Source effect.</param>
+        /// <returns>DFCareer.EffectFlags.</returns>
+        public static DFCareer.EffectFlags GetEffectFlags(IEntityEffect effect)
+        {
+            DFCareer.EffectFlags result = DFCareer.EffectFlags.None;
+
+            // Paralysis/Disease
+            if (effect is Paralyze)
+                result |= DFCareer.EffectFlags.Paralysis;
+            if (effect is DiseaseEffect)
+                result |= DFCareer.EffectFlags.Disease;
+
+            // Elemental
+            switch (effect.ParentBundle.elementType)
+            {
+                case ElementTypes.Fire:
+                    result |= DFCareer.EffectFlags.Fire;
+                    break;
+                case ElementTypes.Cold:
+                    result |= DFCareer.EffectFlags.Frost;
+                    break;
+                case ElementTypes.Poison:
+                    result |= DFCareer.EffectFlags.Poison;
+                    break;
+                case ElementTypes.Shock:
+                    result |= DFCareer.EffectFlags.Shock;
+                    break;
+                case ElementTypes.Magic:
+                    result |= DFCareer.EffectFlags.Magic;
+                    break;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Gets a resistance element based on effect element.
+        /// </summary>
+        /// <param name="effect">Source effect.</param>
+        /// <returns>DFCareer.Elements</returns>
+        public static DFCareer.Elements GetElementType(IEntityEffect effect)
+        {
+            // Always return magic for non-elemental (i.e. magic-only) effects
+            if (effect.Properties.AllowedElements == ElementTypes.Magic)
+                return DFCareer.Elements.Magic;
+
+            // Otherwise return element selected by parent spell bundle
+            switch (effect.ParentBundle.elementType)
+            {
+                case ElementTypes.Fire:
+                    return DFCareer.Elements.Fire;
+                case ElementTypes.Cold:
+                    return DFCareer.Elements.Frost;
+                case ElementTypes.Poison:
+                    return DFCareer.Elements.DiseaseOrPoison;
+                case ElementTypes.Shock:
+                    return DFCareer.Elements.Shock;
+                case ElementTypes.Magic:
+                    return DFCareer.Elements.Magic;
+                default:
+                    return DFCareer.Elements.None;
+            }
+        }
+
+        public static int GetResistanceModifier(DFCareer.EffectFlags effectFlags, DaggerfallEntity target)
+        {
+            int result = 0;
+
+            // Will only read best matching resistance modifier from flags - priority is given to disease/poison over elemental
+            // Note disease/poison resistance are both the same here for purposes of saving throw
+            if ((effectFlags & DFCareer.EffectFlags.Disease) == DFCareer.EffectFlags.Disease || (effectFlags & DFCareer.EffectFlags.Poison) == DFCareer.EffectFlags.Poison)
+                result = target.Resistances.LiveDiseaseOrPoison;
+            else if ((effectFlags & DFCareer.EffectFlags.Fire) == DFCareer.EffectFlags.Fire)
+                result = target.Resistances.LiveFire;
+            else if ((effectFlags & DFCareer.EffectFlags.Frost) == DFCareer.EffectFlags.Frost)
+                result = target.Resistances.LiveFrost;
+            else if ((effectFlags & DFCareer.EffectFlags.Shock) == DFCareer.EffectFlags.Shock)
+                result = target.Resistances.LiveShock;
+            else if ((effectFlags & DFCareer.EffectFlags.Magic) == DFCareer.EffectFlags.Magic)
+                result = target.Resistances.LiveMagic;
+
+            return result;
+        }
+
         #endregion
 
         #region Enemies
@@ -908,7 +1285,7 @@ namespace DaggerfallWorkshop.Game.Formulas
         public static void InflictDisease(DaggerfallEntity target, byte[] diseaseList)
         {
             // Must have a valid disease list
-            if (diseaseList == null || diseaseList.Length == 0)
+            if (diseaseList == null || diseaseList.Length == 0 || target.EntityBehaviour.EntityType != EntityTypes.Player)
                 return;
 
             // Only allow player to catch a disease this way
@@ -920,7 +1297,7 @@ namespace DaggerfallWorkshop.Game.Formulas
             if (playerEntity.Level != 1)
             {
                 // Return if disease resisted
-                if (SavingThrow(2, DFCareer.EffectFlags.Disease, target, 0) == 0)
+                if (SavingThrow(DFCareer.Elements.DiseaseOrPoison, DFCareer.EffectFlags.Disease, target, 0) == 0)
                     return;
 
                 // Select a random disease from disease array and validate range
@@ -931,7 +1308,7 @@ namespace DaggerfallWorkshop.Game.Formulas
                 // Infect player
                 Diseases diseaseType = (Diseases)diseaseList[diseaseIndex];
                 EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateDisease(diseaseType);
-                GameManager.Instance.PlayerEffectManager.AssignBundle(bundle);
+                GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.BypassSavingThrows);
 
                 Debug.LogFormat("Infected player with disease {0}", diseaseType.ToString());
             }
@@ -1026,13 +1403,8 @@ namespace DaggerfallWorkshop.Game.Formulas
             else
                 cost = 7 * daysToRent;
 
-            // If player is member of region's knightly order, or rank 4 or higher in any knightly order
-            // DaggerfallUI.MessageBox(UserInterfaceWindows.HardStrings.roomFreeForKnightSuchAsYou);
-            // cost = 0;
             if (cost == 0) // Only renting for Heart's Day
-            {
                 DaggerfallUI.MessageBox(UserInterfaceWindows.HardStrings.roomFreeDueToHeartsDay);
-            }
 
             return cost;
         }
@@ -1060,9 +1432,7 @@ namespace DaggerfallWorkshop.Game.Formulas
             if (condition == max)
                 return 0;
 
-            int cost = baseItemValue;
-
-            cost = 10 * baseItemValue / 100;
+            int cost = 10 * baseItemValue / 100;
 
             if (cost < 1)
                 cost = 1;
@@ -1073,6 +1443,13 @@ namespace DaggerfallWorkshop.Game.Formulas
                 cost = guild.ReducedRepairCost(cost);
 
             return cost;
+        }
+
+        public static int CalculateItemRepairTime(int condition, int max)
+        {
+            int damage = max - condition;
+            int repairTime = (damage * DaggerfallDateTime.SecondsPerDay / 1000);
+            return Mathf.Max(repairTime, DaggerfallDateTime.SecondsPerDay);
         }
 
         public static int CalculateItemIdentifyCost(int baseItemValue, Guild guild)
@@ -1092,6 +1469,25 @@ namespace DaggerfallWorkshop.Game.Formulas
                 cost = guild.ReducedIdentifyCost(cost);
 
             return cost;
+        }
+
+        public static int CalculateDaedraSummoningCost(int npcRep)
+        {
+            Formula_1i del;
+            if (formula_1i.TryGetValue("CalculateDaedraSummoningCost", out del))
+                return del(npcRep);
+
+            return 200000 - (npcRep * 1000);
+        }
+
+        public static int CalculateDaedraSummoningChance(int daedraRep, int bonus)
+        {
+            Formula_2i del;
+            if (formula_2i.TryGetValue("CalculateDaedraSummoningChance", out del))
+                return del(daedraRep, bonus);
+
+            int chance = 30 + daedraRep + bonus;
+            return Mathf.Clamp(chance, 5, 95);
         }
 
         public static int CalculateTradePrice(int cost, int shopQuality, bool selling)
@@ -1148,7 +1544,7 @@ namespace DaggerfallWorkshop.Game.Formulas
         public static void RandomizeInitialRegionalPrices(ref PlayerEntity.RegionDataRecord[] regionData)
         {
             for (int i = 0; i < regionData.Length; i++)
-                regionData[i].PriceAdjustment = (ushort)(UnityEngine.Random.Range(0, 501) + 750);
+                regionData[i].PriceAdjustment = (ushort)(UnityEngine.Random.Range(0, 500 + 1) + 750);
         }
 
         public static void UpdateRegionalPrices(ref PlayerEntity.RegionDataRecord[] regionData, int times)
@@ -1161,13 +1557,13 @@ namespace DaggerfallWorkshop.Game.Formulas
             for (int i = 0; i < regionData.Length; ++i)
             {
                 FactionFile.FactionData regionFaction;
-                if (player.FactionData.FindFactionByTypeAndRegion(7, i + 1, out regionFaction))
+                if (player.FactionData.FindFactionByTypeAndRegion(7, i, out regionFaction))
                 {
                     for (int j = 0; j < times; ++j)
                     {
                         int chanceOfPriceRise = ((merchantsFaction.power) - (regionFaction.power)) / 5
                             + 50 - (regionData[i].PriceAdjustment - 1000) / 25;
-                        if (UnityEngine.Random.Range(0, 101) >= chanceOfPriceRise)
+                        if (Dice100.FailedRoll(chanceOfPriceRise))
                             regionData[i].PriceAdjustment = (ushort)(49 * regionData[i].PriceAdjustment / 50);
                         else
                             regionData[i].PriceAdjustment = (ushort)(51 * regionData[i].PriceAdjustment / 50);
@@ -1190,6 +1586,29 @@ namespace DaggerfallWorkshop.Game.Formulas
             }
         }
 
+        public static float BonusChanceToKnowWhereIs(float bonusPerBlockLess = 0.0078f)
+        {
+            const int maxArea = 64;
+
+            // Must be in a location
+            if (!GameManager.Instance.PlayerGPS.HasCurrentLocation)
+                return 0;
+
+            // Get area of current location
+            DFLocation location = GameManager.Instance.PlayerGPS.CurrentLocation;
+            int locationArea = location.Exterior.ExteriorData.Width * location.Exterior.ExteriorData.Height;
+
+            // The largest possible location has an area of 64 (e.g. Daggerfall/Wayrest/Sentinel)
+            // The smallest possible location has an area of 1 (e.g. a tavern town)
+            // In a big city NPCs could be ignorant of all buildings, but in a small town it's unlikely they don't know the local tavern or smith
+            // So we apply a bonus that INCREASES the more city area size DECREASES
+            // With default inputs, a tiny 1x1 town NPC will get a +0.4914 to the default 0.5 chance for a total of 0.9914 chance to know building
+            // This is a big help as small towns also have less NPCs, and it gets frustrating when multiple NPCs don't knows where something is
+            float bonus = (maxArea - locationArea) * bonusPerBlockLess;
+
+            return bonus;
+        }
+
         #endregion
 
         #region Spell Costs
@@ -1203,8 +1622,11 @@ namespace DaggerfallWorkshop.Game.Formulas
         /// <param name="totalGoldCostOut">Total gold cost out.</param>
         /// <param name="totalSpellPointCostOut">Total spellpoint cost out.</param>
         /// <param name="casterEntity">Caster entity. Assumed to be player if null.</param>
-        public static void CalculateTotalEffectCosts(EffectEntry[] effectEntries, TargetTypes targetType, out int totalGoldCostOut, out int totalSpellPointCostOut, DaggerfallEntity casterEntity = null)
+        /// <param name="minimumCastingCost">Spell point always costs minimum (e.g. from vampirism). Do not set true for reflection/absorption cost calculations.</param>
+        public static void CalculateTotalEffectCosts(EffectEntry[] effectEntries, TargetTypes targetType, out int totalGoldCostOut, out int totalSpellPointCostOut, DaggerfallEntity casterEntity = null, bool minimumCastingCost = false)
         {
+            const int castCostFloor = 5;
+
             totalGoldCostOut = 0;
             totalSpellPointCostOut = 0;
 
@@ -1223,6 +1645,14 @@ namespace DaggerfallWorkshop.Game.Formulas
             // Multipliers for target type
             totalGoldCostOut = ApplyTargetCostMultiplier(totalGoldCostOut, targetType);
             totalSpellPointCostOut = ApplyTargetCostMultiplier(totalSpellPointCostOut, targetType);
+
+            // Set vampire spell cost
+            if (minimumCastingCost)
+                totalSpellPointCostOut = castCostFloor;
+
+            // Enforce minimum
+            if (totalSpellPointCostOut < castCostFloor)
+                totalSpellPointCostOut = castCostFloor;
         }
 
         /// <summary>
@@ -1358,13 +1788,371 @@ namespace DaggerfallWorkshop.Game.Formulas
             int perLevel,
             int skillValue)
         {
-
             //Calculate effect gold cost, spellpoint cost is calculated from gold cost after adding up for duration, chance and magnitude
             goldCost = trunc(costs.OffsetGold + costs.CostA * starting + costs.CostB * trunc(increase / perLevel));
         }
 
+        /// <summary>
+        /// Reversed from classic. Calculates enchantment point/gold value for a spell being attached to an item.
+        /// </summary>
+        /// <param name="spellIndex">Index of spell in SPELLS.STD.</param>
+        public static int GetSpellEnchantPtCost(int spellIndex)
+        {
+            List<SpellRecord.SpellRecordData> spells = DaggerfallSpellReader.ReadSpellsFile();
+            int cost = 0;
+
+            foreach (SpellRecord.SpellRecordData spell in spells)
+            {
+                if (spell.index == spellIndex)
+                {
+                    cost = 10 * CalculateCastingCost(spell);
+                    break;
+                }
+            }
+
+            return cost;
+        }
+
+        /// <summary>
+        /// Reversed from classic. Calculates cost of casting a spell.
+        /// For now this is only being used for enchanted items, because there is other code for entity-cast spells.
+        /// </summary>
+        /// <param name="spell">Spell record read from SPELLS.STD.</param>
+        public static int CalculateCastingCost(SpellRecord.SpellRecordData spell)
+        {
+            // Indices into effect settings array for each effect and its subtypes
+            byte[] effectIndices = {    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Paralysis
+                                        0x01, 0x02, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Continuous Damage
+                                        0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Create Item
+                                        0x05, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Cure
+                                        0x07, 0x07, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Damage
+                                        0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Disintegrate
+                                        0x09, 0x08, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Dispel
+                                        0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x00, // Drain
+                                        0x0B, 0x0B, 0x0B, 0x0B, 0x0B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Elemental Resistance
+                                        0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x0C, 0x00, 0x00, 0x00, 0x00, // Fortify Attribute
+                                        0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x07, 0x0E, 0x00, 0x00, // Heal
+                                        0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x0F, 0x00, 0x00, // Transfer
+                                        0x26, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Soul Trap
+                                        0x10, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Invisibility
+                                        0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Levitate
+                                        0x13, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Light
+                                        0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Lock
+                                        0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Open
+                                        0x15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Regenerate
+                                        0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Silence
+                                        0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Spell Absorption
+                                        0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Spell Reflection
+                                        0x16, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Spell Resistance
+                                        0x18, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Chameleon
+                                        0x18, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Shadow
+                                        0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Slowfall
+                                        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Climbing
+                                        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Jumping
+                                        0x19, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Free Action
+                                        0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x1A, 0x00, 0x00, 0x00, 0x00, 0x00, // Lycanthropy/Polymorph
+                                        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Water Breathing
+                                        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Water Walking
+                                        0x1B, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Dimunition
+                                        0x1A, 0x1C, 0x1C, 0x1D, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Calm
+                                        0x1E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Charm
+                                        0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Shield
+                                        0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Telekinesis
+                                        0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Astral Travel
+                                        0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Etherealness
+                                        0x21, 0x21, 0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Detect
+                                        0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Identify
+                                        0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Wizard Sight
+                                        0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Darkness
+                                        0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Recall
+                                        0x29, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Comprehend Languages
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Intensify Fire
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Diminish Fire
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Wall of Stone?
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Wall of Fire?
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Wall of Frost?
+                                        0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; // Wall of Poison?
+
+            // These are coefficients for each effect type and subtype. They affect casting cost, enchantment point cost and magic item worth.
+            // There are 4 coefficients, used together with duration, chance and magnitude settings.
+            // Which one they are used with depends on which "settings type" the effect is classified as.
+            ushort[] effectCoefficients = {
+                                        0x07, 0x19, 0x07, 0x19, // Paralysis / Cure Magic?
+                                        0x07, 0x02, 0x0A, 0x07, // Continuous Damage - Health
+                                        0x05, 0x02, 0x0A, 0x07, // Continuous Damage - Stamina / Climbing / Jumping / Water Breathing / Water Walking
+                                        0x0A, 0x02, 0x0A, 0x07, // Continuous Damage - Spell Points
+                                        0x0F, 0x1E, 0x00, 0x00, // Create Item
+                                        0x02, 0x19, 0x00, 0x00, // Cure Disease / Cure Poison
+                                        0x05, 0x23, 0x00, 0x00, // Cure Paralysis
+                                        0x05, 0x07, 0x00, 0x00, // Damage Health / Damage Stamina / Damage Spell Points / Heal Health / Darkness
+                                        0x14, 0x23, 0x00, 0x00, // Disintegrate / Dispel Undead
+                                        0x1E, 0x2D, 0x00, 0x00, // Dispel Magic / Dispel Daedra
+                                        0x04, 0x19, 0x02, 0x19, // Drain Attribute
+                                        0x19, 0x19, 0x02, 0x19, // Elemental Resistance
+                                        0x07, 0x19, 0x0A, 0x1E, // Fortify Attribute
+                                        0x0A, 0x07, 0x00, 0x00, // Heal Attribute
+                                        0x02, 0x07, 0x00, 0x00, // Heal Stamina
+                                        0x05, 0x05, 0x0F, 0x19, // Transfer
+                                        0x0A, 0x1E, 0x00, 0x00, // Invisibility
+                                        0x0F, 0x23, 0x00, 0x00, // True Invisibility
+                                        0x0F, 0x19, 0x00, 0x00, // Levitate
+                                        0x02, 0x0A, 0x00, 0x00, // Light
+                                        0x05, 0x19, 0x07, 0x1E, // Lock / Slowfall
+                                        0x19, 0x05, 0x02, 0x02, // Regenerate
+                                        0x05, 0x19, 0x05, 0x19, // Silence / Spell Resistance
+                                        0x07, 0x23, 0x07, 0x23, // Spell Absorption / Spell Reflection
+                                        0x05, 0x14, 0x00, 0x00, // Chameleon / Shadow
+                                        0x05, 0x05, 0x00, 0x00, // Free Action
+                                        0x0F, 0x19, 0x0F, 0x19, // Lycanthropy / Polymorph / Calm Animal
+                                        0x0A, 0x14, 0x14, 0x28, // Diminution
+                                        0x0A, 0x05, 0x14, 0x23, // Calm Undead / Calm Humanoid
+                                        0x07, 0x02, 0x0F, 0x1E, // Calm Daedra? (Unused)
+                                        0x05, 0x02, 0x0A, 0x0F, // Charm
+                                        0x07, 0x02, 0x14, 0x0F, // Shield
+                                        0x23, 0x02, 0x0A, 0x19, // Astral Travel / Etherealness
+                                        0x05, 0x02, 0x14, 0x1E, // Detect Magic / Detect Enemy
+                                        0x05, 0x02, 0x0F, 0x19, // Detect Treasure
+                                        0x05, 0x02, 0x0A, 0x19, // Identify
+                                        0x07, 0x0C, 0x05, 0x05, // Wizard Sight
+                                        0x23, 0x2D, 0x00, 0x00, // Recall
+                                        0x0F, 0x11, 0x0A, 0x11, // Soul Trap
+                                        0x14, 0x11, 0x19, 0x23, // Telekinesis
+                                        0x05, 0x19, 0x00, 0x00, // Open
+                                        0x0F, 0x11, 0x0A, 0x11, // Comprehend Languages
+                                        0x0F, 0x0F, 0x05, 0x05 }; // Intensify Fire / Diminish Fire / Wall of --
+
+            // All effects have one of 6 types for their settings depending on which settings (duration, chance, magnitude)
+            // they use, which determine how the coefficient values are used with their data to determine spell casting
+            // cost /magic item value/enchantment point cost.
+            // There is also a 7th type that is supported in classic (see below) but no effect is defined to use it.
+            byte[] settingsTypes = { 1, 2, 3, 4, 5, 4, 4, 2, 1, 6, 5, 6, 1, 3, 3, 3, 1, 4, 2, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 1, 3, 3, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 3, 4, 1, 2, 2, 2, 2, 2, 2, 2 };
+
+            // Modifiers for casting ranges
+            byte[] rangeTypeModifiers = { 2, 2, 3, 4, 5 };
+
+            int cost = 0;
+            int skill = 50;  // 50 is used for item enchantments, which is all this spell is used for now.
+                             // This function could be used as in classic to get casting costs for spells
+                             // cast by entities by replacing skillUsedForEnchantedItemCost with the skill
+                             // of the caster in the effect's spell school.
+
+            for (int i = 0; i < 3; ++i)
+            {
+                if (spell.effects[i].type != -1)
+                {
+                    // Get the coefficients applied to settings for this effect and copy them into the temporary variable
+                    ushort[] coefficientsForThisEffect = new ushort[4];
+
+                    if (spell.effects[i].subType == -1) // No subtype
+                    {
+                        Array.Copy(effectCoefficients, 4 * effectIndices[12 * spell.effects[i].type], coefficientsForThisEffect, 0, 4);
+                    }
+                    else // Subtype exists
+                    {
+                        Array.Copy(effectCoefficients, 4 * effectIndices[12 * spell.effects[i].type + spell.effects[i].subType], coefficientsForThisEffect, 0, 4);
+                    }
+
+                    // Add to the cost based on this effect's settings
+                    cost += getCostFromSettings(settingsTypes[spell.effects[i].type], i, spell, coefficientsForThisEffect) * (110 - skill) / 100;
+                }
+            }
+
+            cost = cost * rangeTypeModifiers[spell.rangeType] >> 1;
+            if (cost < 5)
+                cost = 5;
+
+            return cost;
+        }
+
+        /// <summary>
+        /// Reversed from classic. Used wih calculating cost of casting a spell.
+        /// This uses the spell's settings for chance, duration and magnitude together with coefficients for that effect
+        /// to get the cost of the effect, before the range type modifier is applied.
+        /// </summary>
+        public static int getCostFromSettings(int settingsType, int effectNumber, SpellRecord.SpellRecordData spellData, ushort[] coefficients)
+        {
+            int cost = 0;
+
+            switch (settingsType)
+            {
+                case 1:
+                    // Coefficients used with:
+                    // 0 = durationBase, 1 = durationMod / durationPerLevel, 2 = chanceBase, 3 = chanceMod / chancePerLevel
+                    cost =    coefficients[0] * spellData.effects[effectNumber].durationBase
+                            + spellData.effects[effectNumber].durationMod / spellData.effects[effectNumber].durationPerLevel * coefficients[1]
+                            + coefficients[2] * spellData.effects[effectNumber].chanceBase
+                            + spellData.effects[effectNumber].chanceMod / spellData.effects[effectNumber].chancePerLevel * coefficients[3];
+                    break;
+                case 2:
+                    // Coefficients used with:
+                    // 0 = durationBase, 1 = durationMod / durationPerLevel, 2 = (magnitudeBaseHigh + magnitudeBaseLow) / 2, 3 = (magnitudeLevelBase + magnitudeLevelHigh) / 2 / magnitudePerLevel
+                    cost =    coefficients[0] * spellData.effects[effectNumber].durationBase
+                            + spellData.effects[effectNumber].durationMod / spellData.effects[effectNumber].durationPerLevel * coefficients[1]
+                            + (spellData.effects[effectNumber].magnitudeBaseHigh + spellData.effects[effectNumber].magnitudeBaseLow) / 2 * coefficients[2]
+                            + (spellData.effects[effectNumber].magnitudeLevelBase + spellData.effects[effectNumber].magnitudeLevelHigh) / 2 / spellData.effects[effectNumber].magnitudePerLevel * coefficients[3];
+                    break;
+                case 3:
+                    // Coefficients used with:
+                    // 0 = durationBase, 1 = durationMod / durationPerLevel
+                    cost =    coefficients[0] * spellData.effects[effectNumber].durationBase
+                            + spellData.effects[effectNumber].durationMod / spellData.effects[effectNumber].durationPerLevel * coefficients[1];
+                    break;
+                case 4:
+                    // Coefficients used with:
+                    // 0 = chanceBase, 1 = chanceMod / chancePerLevel
+                    cost =    coefficients[0] * spellData.effects[effectNumber].chanceBase
+                            + spellData.effects[effectNumber].chanceMod / spellData.effects[effectNumber].chancePerLevel * coefficients[1];
+                    break;
+                case 5:
+                    // Coefficients used with:
+                    // 0 = (magnitudeBaseHigh + magnitudeBaseLow) / 2, 1 = (magnitudeLevelBase + magnitudeLevelHigh) / 2 / magnitudePerLevel
+                    cost =    coefficients[0] * ((spellData.effects[effectNumber].magnitudeBaseHigh + spellData.effects[effectNumber].magnitudeBaseLow) / 2)
+                            + (spellData.effects[effectNumber].magnitudeLevelBase + spellData.effects[effectNumber].magnitudeLevelHigh) / 2 / spellData.effects[effectNumber].magnitudePerLevel * coefficients[1];
+                    break;
+                case 6:
+                    // Coefficients used with:
+                    // 0 = durationBase, 1 = durationMod / durationPerLevel, 2 = (magnitudeBaseHigh + magnitudeBaseLow) / 2, 3 = (magnitudeLevelBase + magnitudeLevelHigh) / 2 / magnitudePerLevel
+                    cost =    coefficients[0] * spellData.effects[effectNumber].durationBase
+                            + coefficients[1] * spellData.effects[effectNumber].durationMod / spellData.effects[effectNumber].durationPerLevel
+                            + ((spellData.effects[effectNumber].magnitudeBaseHigh + spellData.effects[effectNumber].magnitudeBaseLow) / 2) * coefficients[2]
+                            + coefficients[3] / spellData.effects[effectNumber].magnitudePerLevel * ((spellData.effects[effectNumber].magnitudeLevelBase + spellData.effects[effectNumber].magnitudeLevelHigh) / 2);
+                    break;
+                case 7: // Not used
+                    // Coefficients used with:
+                    // 0 = (magnitudeBaseHigh + magnitudeBaseLow) / 2, 1 = (magnitudeLevelBase + magnitudeLevelHigh) / 2 / magnitudePerLevel * durationBase / durationMod
+                    cost =    (spellData.effects[effectNumber].magnitudeBaseHigh + spellData.effects[effectNumber].magnitudeBaseLow) / 2 * coefficients[0]
+                            + coefficients[1] * (spellData.effects[effectNumber].magnitudeLevelBase + spellData.effects[effectNumber].magnitudeLevelHigh) / 2 / spellData.effects[effectNumber].magnitudePerLevel * spellData.effects[effectNumber].durationBase / spellData.effects[effectNumber].durationMod;
+                    break;
+            }
+            return cost;
+        }
+
         // Just makes formulas more readable
         static int trunc(double value) { return (int)Math.Truncate(value); }
+
+        #endregion
+
+        #region Enchanting
+
+        /// <summary>
+        /// Gets the maximum enchantment capacity for any item.
+        /// </summary>
+        /// <param name="item">Source item.</param>
+        /// <returns>Item max enchantment power.</returns>
+        public static int GetItemEnchantmentPower(DaggerfallUnityItem item)
+        {
+            if (item == null)
+                throw new Exception("GetItemEnchantmentPower: item is null");
+
+            if (item.ItemGroup == ItemGroups.Weapons)
+                return GetWeaponEnchantmentPower(item);
+            else if (item.ItemGroup == ItemGroups.Armor)
+                return GetArmorEnchantmentPower(item);
+            else
+                return item.ItemTemplate.enchantmentPoints;
+        }
+
+        public static int GetWeaponEnchantmentPower(DaggerfallUnityItem item)
+        {
+            if (item == null || item.ItemGroup != ItemGroups.Weapons)
+                throw new Exception("GetWeaponEnchantmentPower: item is null or not a weapon type");
+
+            // UESP lists regular material power progression in weapon matrix: https://en.uesp.net/wiki/Daggerfall:Enchantment_Power#Weapons
+            // Enchantment power values for staves are inaccurate in UESP weapon matrix (confirmed in classic)
+            // The below yields correct enchantment power for staves matching classic
+            float multiplier;
+            switch((WeaponMaterialTypes)item.NativeMaterialValue)
+            {
+                default:       
+                case WeaponMaterialTypes.Steel:         // Steel uses base enchantment power
+                    multiplier = 0;
+                    break;
+                case WeaponMaterialTypes.Iron:          // Iron is -25% from base
+                    multiplier = -0.25f;
+                    break;
+                case WeaponMaterialTypes.Silver:        // Silver is +75% from base
+                    multiplier = 0.75f;
+                    break;
+                case WeaponMaterialTypes.Elven:         // Elven is +25% from base
+                    multiplier = 0.25f;
+                    break;
+                case WeaponMaterialTypes.Dwarven:       // Dwarven is +50% from base
+                    multiplier = 0.5f;
+                    break;
+                case WeaponMaterialTypes.Mithril:       // Mithril is +25% from base
+                    multiplier = 0.25f;
+                    break;
+                case WeaponMaterialTypes.Adamantium:    // Adamantium is +75% from base
+                    multiplier = 0.75f;
+                    break;
+                case WeaponMaterialTypes.Ebony:         // Ebony is +100% from base
+                    multiplier = 1.0f;
+                    break;
+                case WeaponMaterialTypes.Orcish:        // Orcish is +150% from base
+                    multiplier = 1.5f;
+                    break;
+                case WeaponMaterialTypes.Daedric:       // Daedric is +200% from base
+                    multiplier = 2.0f;
+                    break;
+            }
+
+            // Final enchantment power is basePower + basePower*multiplier (rounded down)
+            int basePower = item.ItemTemplate.enchantmentPoints;
+            return basePower + Mathf.FloorToInt(basePower * multiplier);
+        }
+
+        public static int GetArmorEnchantmentPower(DaggerfallUnityItem item)
+        {
+            if (item == null || item.ItemGroup != ItemGroups.Armor)
+                throw new Exception("GetArmorEnchantmentPower: item is null or not an armour type");
+
+            // UESP lists highly variable material power progression in armour matrix: https://en.uesp.net/wiki/Daggerfall:Enchantment_Power#Armor
+            // This indicates certain armour types don't follow the same general material progression patterns for enchantment point multipliers
+            // Yet to confirm this in classic - but not entirely confident in accuracy of UESP information here either
+            // For now using consistent progression for enchantment point multipliers and can improve later if required
+            float multiplier;
+            switch ((ArmorMaterialTypes)item.NativeMaterialValue)
+            {
+                default:
+                case ArmorMaterialTypes.Leather:        // Leather/Chain/Steel all use base enchantment power
+                case ArmorMaterialTypes.Chain:
+                case ArmorMaterialTypes.Chain2:
+                case ArmorMaterialTypes.Steel:
+                    multiplier = 0;
+                    break;
+                case ArmorMaterialTypes.Iron:           // Iron is -25% from base
+                    multiplier = -0.25f;
+                    break;
+                case ArmorMaterialTypes.Silver:         // Silver is +75% from base
+                    multiplier = 0.75f;
+                    break;
+                case ArmorMaterialTypes.Elven:          // Elven is +25% from base
+                    multiplier = 0.25f;
+                    break;
+                case ArmorMaterialTypes.Dwarven:        // Dwarven is +50% from base
+                    multiplier = 0.5f;
+                    break;
+                case ArmorMaterialTypes.Mithril:        // Mithril is +25% from base
+                    multiplier = 0.25f;
+                    break;
+                case ArmorMaterialTypes.Adamantium:     // Adamantium is +75% from base
+                    multiplier = 0.75f;
+                    break;
+                case ArmorMaterialTypes.Ebony:          // Ebony is +100% from base
+                    multiplier = 1.0f;
+                    break;
+                case ArmorMaterialTypes.Orcish:         // Orcish is +150% from base
+                    multiplier = 1.5f;
+                    break;
+                case ArmorMaterialTypes.Daedric:        // Daedric is +200% from base
+                    multiplier = 2.0f;
+                    break;
+            }
+
+            // Final enchantment power is basePower + basePower*multiplier (rounded down)
+            int basePower = item.ItemTemplate.enchantmentPoints;
+            return basePower + Mathf.FloorToInt(basePower * multiplier);
+        }
 
         #endregion
     }

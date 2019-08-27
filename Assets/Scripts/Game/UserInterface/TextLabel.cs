@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -13,7 +13,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.IO;
+using TMPro;
 
 namespace DaggerfallWorkshop.Game.UserInterface
 {
@@ -22,24 +22,34 @@ namespace DaggerfallWorkshop.Game.UserInterface
     /// </summary>
     public class TextLabel : BaseScreenComponent
     {
-        public const int limitMinTextureDim = 8; // the smallest possible value for minTextureDim (used to enforce minimum texture dimensions of 8x8 to avoid "degenerate image" error in Unity 5.2)
-        int minTextureDim = limitMinTextureDim; // set this with property MinTextureDim to higher values if you experience scaling issues with small texts (e.g. inventory infopanel)
+        #region Fields
 
+        public const int limitMinTextureDim = 8; // the smallest possible value for minTextureDim (used to enforce minimum texture dimensions of 8x8 to avoid "degenerate image" error in Unity 5.2)
+
+        int minTextureDim = limitMinTextureDim; // set this with property MinTextureDim to higher values if you experience scaling issues with small texts (e.g. inventory infopanel)
         int maxCharacters = -1;
         int startCharacterIndex = 0; // can be used to offset start character of textlabel's text (used by listbox's entry-wise horizontal scroll mode)
-        PixelFont font;
+        DaggerfallFont font;
         string text = string.Empty;
-        byte[] asciiBytes;
-        int totalWidth;
-        int totalHeight;
-        int textureWidth;
-        int textureHeight;
+        float totalWidth;
+        float totalHeight;
         int numTextLines = 1; // 1 in unwrapped, n in wrapped
-        Texture2D labelTexture;
+        Texture2D singleLineLabelTexture;
         Vector2 shadowPosition = DaggerfallUI.DaggerfallDefaultShadowPos;
         Color textColor = DaggerfallUI.DaggerfallDefaultTextColor;
         Color shadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
-        
+        HorizontalTextAlignmentSetting horizontalTextAlignment;
+        int maxWidth = -1;
+        bool wrapText = false; // wrap text - but will tear words that are reaching
+        bool wrapWords = false; // wrap words - no word tearing
+        float textScale = 1.0f; // scale text
+        List<GlyphLayoutData> glyphLayout = new List<GlyphLayoutData>();
+        bool previousSDFState;
+
+        #endregion
+
+        #region Structs & Enums
+
         public enum HorizontalTextAlignmentSetting
         {
             None,
@@ -48,15 +58,18 @@ namespace DaggerfallWorkshop.Game.UserInterface
             Right,
             Justify
         }
-        HorizontalTextAlignmentSetting horizontalTextAlignment;
 
-        int maxWidth = -1;
-        bool wrapText = false; // wrap text - but will tear words that are reaching
-        bool wrapWords = false; // wrap words - no word tearing
+        struct GlyphLayoutData
+        {
+            public float x;                                     // X position of glyph in label layout area
+            public float y;                                     // Y position of glyph in label layout area
+            public int code;                                    // Glyph code for dictionary lookup
+            public float width;                                 // Width of glyph character
+        }
 
-        bool makeTextureNoLongerReadable = true; // in pixel-wise scroll mode with restricted render area this flag is set to false since textures must be readable for this mode to work        
+        #endregion
 
-        float textScale = 1.0f; // scale text 
+        #region Properties
 
         /// <summary>
         /// used to set min texture dims of textlabel to higher values if there would be aspect or scaling issues with small texts otherwise (e.g. some single-lined textlabels in inventory infopanel)
@@ -64,7 +77,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public int MinTextureDim
         {
             get { return minTextureDim; }
-            set { minTextureDim = Math.Max(limitMinTextureDim, value); CreateLabelTexture(); }
+            set { minTextureDim = Math.Max(limitMinTextureDim, value); RefreshLayout(); }
         }
 
         /// <summary>
@@ -86,10 +99,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
             set { startCharacterIndex = Math.Max(0, value); }
         }    
 
-        public PixelFont Font
+        public DaggerfallFont Font
         {
             get { return font; }
-            set { font = value; CreateLabelTexture(); }
+            set { font = value; RefreshLayout(); }
         }
 
         public string Text
@@ -119,12 +132,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public HorizontalTextAlignmentSetting HorizontalTextAlignment
         {
             get { return horizontalTextAlignment; }
-            set { horizontalTextAlignment = value; CreateLabelTexture(); }
-        }
-
-        public Texture2D Texture
-        {
-            get { return labelTexture; }
+            set { horizontalTextAlignment = value; RefreshLayout(); }
         }
 
         public int TextWidth
@@ -143,61 +151,47 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         /// <summary>
-        /// set the maximum allowed width of the textlabel in pixels
+        /// Set the maximum allowed width of the textlabel in pixels
         /// </summary>
         public int MaxWidth
         {
             get { return maxWidth; }
-            set { maxWidth = value; CreateLabelTexture(); }
+            set { maxWidth = value; RefreshLayout(); }
         }
 
         /// <summary>
-        /// enable text wrapping - use MaxWidth property to set maximum allowed width of the textlabel
+        /// Enable text wrapping - use MaxWidth property to set maximum allowed width of the textlabel
         /// </summary>
         public bool WrapText
         {
             get { return wrapText; }
-            set { wrapText = value; CreateLabelTexture(); }
+            set { wrapText = value; RefreshLayout(); }
         }
 
         /// <summary>
-        /// enable word wrapping - words will no longer get tear apart if possible - make sure to enable property WrapText to make this property to have an effect
+        /// Enable word wrapping - words will no longer get tear apart if possible - make sure to enable property WrapText to make this property to have an effect
         /// </summary>
         public bool WrapWords
         {
             get { return wrapWords; }
-            set { wrapWords = value; CreateLabelTexture(); }
+            set { wrapWords = value; RefreshLayout(); }
         }
 
-        /// <summary>
-        /// set a restricted render area for the textlabel - the textlabel's content will only be rendered inside the specified Rect's bounds
-        /// </summary>
-        new public Rect RectRestrictedRenderArea
-        {
-            get { return rectRestrictedRenderArea; }
-            set
-            {
-                ((BaseScreenComponent)this).RectRestrictedRenderArea = value;
-                makeTextureNoLongerReadable = false;
-            }
-        }
+        // Small hack to help horizontal scrolling work with SDF font rendering and pixel-wise list box
+        // Don't want to change how this fundamentally works right now so as not to break classic font layouts
+        public float HorzPixelScrollOffset { get; set; }
 
         /// <summary>
-        /// set text scale factor - 1.0f is default value, 0.5f is half sized text, 2.0f double sized text and so on
+        /// Set text scale factor - 1.0f is default value, 0.5f is half sized text, 2.0f double sized text and so on
         /// </summary>
         public float TextScale
         {
             get { return textScale; }
             set
             {
-                textScale = Math.Max(0.1f, Math.Min(2.0f, value));                            
-                CreateLabelTexture();
+                textScale = Math.Max(0.1f, value); // Math.Min(2.0f, value));
+                RefreshLayout();
             }
-        }
-
-        public void setPosition(Vector2 newPos)
-        {
-            this.Position = newPos;
         }
 
         public TextLabel(DaggerfallFont font = null)
@@ -206,89 +200,102 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 Font = font;
         }
 
+        /// <summary>
+        /// get/set the type of coordinate specification (e.g. absolute) of the restricted render area
+        /// </summary>
+        public RestrictedRenderArea_CoordinateType RestrictedRenderAreaCoordinateType
+        {
+            get { return restrictedRenderAreaCoordinateType; }
+            set { restrictedRenderAreaCoordinateType = value; }
+        }
+
+        #endregion
+
+        #region Overrides
+
+        public override void Update()
+        {
+            base.Update();
+
+            // Need to recalculate layout if SDF state changes
+            if (font != null && font.IsSDFCapable != previousSDFState)
+            {
+                RefreshLayout();
+                previousSDFState = font.IsSDFCapable;
+            }
+        }
+
         public override void Draw()
         {
             base.Draw();
 
-            if (string.IsNullOrEmpty(text) || labelTexture == null)
+            if (font == null || string.IsNullOrEmpty(text))
                 return;
 
-            // Store starting colour
-            Color guiColor = GUI.color;
+            DrawLabel();
+        }
 
-            Rect totalRect;
-            Rect innerRect;
-            Texture2D textureToDraw;
-            if (useRestrictedRenderArea)
+        void DrawLabel()
+        {
+            // Exit if no layout
+            if (glyphLayout.Count == 0)
+                return;
+
+            // Set render area
+            Material material = font.GetMaterial();
+            Vector4 scissorRect = (UseRestrictedRenderArea) ? GetRestrictedRenderScissorRect() : new Vector4(0, 1, 0, 1);
+            material.SetVector("_ScissorRect", scissorRect);
+
+            // Draw glyphs with classic layout
+            if (!font.IsSDFCapable)
             {
-                Rect rectLabel = new Rect(this.Parent.Position + this.Position, this.Size);
-
-                float leftCut = Mathf.Round(Math.Max(0, rectRestrictedRenderArea.xMin - rectLabel.xMin) / textScale);
-                float rightCut = Mathf.Round(Math.Max(0, rectLabel.xMax - rectRestrictedRenderArea.xMax) / textScale);
-                float topCut = Mathf.Round(Math.Max(0, rectRestrictedRenderArea.yMin - rectLabel.yMin) / textScale);
-                float bottomCut = Mathf.Round(Math.Max(0, rectLabel.yMax - rectRestrictedRenderArea.yMax) / textScale);
-
-                if ((leftCut == 0) && (rightCut == 0) && (topCut == 0) && (bottomCut == 0))
+                Rect totalRect = Rectangle;
+                for (int i = 0; i < glyphLayout.Count; i++)
                 {
-                    totalRect = Rectangle;
+                    GlyphLayoutData glyph = glyphLayout[i];
 
-                    innerRect = new Rect(0, 0, (float)totalWidth / (float)textureWidth, (float)totalHeight / (float)textureHeight);
-                    textureToDraw = labelTexture;
-                }
-                else
-                {
-                    int newWidth = (int)(totalWidth - leftCut - rightCut);
-                    int newHeight = (int)(totalHeight - topCut - bottomCut);
+                    Rect targetRect = new Rect(
+                        totalRect.x + glyph.x * LocalScale.x * textScale + HorzPixelScrollOffset * LocalScale.x * textScale,
+                        totalRect.y + glyph.y * LocalScale.y * textScale,
+                        glyph.width * LocalScale.x * textScale,
+                        font.GlyphHeight * LocalScale.y * textScale);
 
-                    if ((newWidth <= 0) || (newHeight <= 0))
-                        return;
-
-                    Color[] subColors = labelTexture.GetPixels((int)leftCut, (int)bottomCut, newWidth, newHeight);
-                    Texture2D subTex = new Texture2D(newWidth, newHeight, labelTexture.format, false);
-                    subTex.SetPixels(subColors, 0);
-                    subTex.Apply(false);
-                    subTex.filterMode = DaggerfallUI.Instance.GlobalFilterMode;
-
-                    float xMinScreen = Rectangle.xMin + (this.Position.x + leftCut * textScale) * LocalScale.x;
-                    float yMinScreen = Rectangle.yMin + (topCut * textScale) * LocalScale.y;
-                    float xMaxScreen = Rectangle.xMax + (this.Position.x - rightCut * textScale) * LocalScale.x;
-                    float yMaxScreen = Rectangle.yMax - (bottomCut * textScale) * LocalScale.y;
-                    totalRect = Rect.MinMaxRect(xMinScreen, yMinScreen, xMaxScreen, yMaxScreen);
-                    innerRect = new Rect(0, 0, 1, 1); //(float)newWidth / (float)textureWidth, (float)newHeight / (float)textureHeight);
-
-                    textureToDraw = subTex;
+                    font.DrawClassicGlyph((byte)glyph.code, targetRect, textColor, shadowPosition * LocalScale, shadowColor);
                 }
             }
             else
             {
-                totalRect = Rectangle;
+                Rect totalRect = Rectangle;
+                for (int i = 0; i < glyphLayout.Count; i++)
+                {
+                    GlyphLayoutData glyph = glyphLayout[i];
 
-                innerRect = new Rect(0, 0, (float)totalWidth / (float)textureWidth, (float)totalHeight / (float)textureHeight);
-                textureToDraw = labelTexture;
+                    Vector2 position = new Vector2(
+                        totalRect.x + glyph.x * LocalScale.x * textScale + HorzPixelScrollOffset * LocalScale.x * textScale,
+                        totalRect.y + glyph.y * LocalScale.y * textScale);
+
+                    font.DrawSDFGlyph(glyph.code, position, LocalScale * textScale, textColor, shadowPosition * LocalScale, shadowColor);
+                }
             }
-
-            // Draw shadow            
-            if (shadowPosition != Vector2.zero)
-            {
-                Rect shadowRect = totalRect;
-                shadowRect.x += shadowPosition.x * LocalScale.x;
-                shadowRect.y += shadowPosition.y * LocalScale.y;
-                GUI.color = shadowColor;
-                GUI.DrawTextureWithTexCoords(shadowRect, textureToDraw, innerRect);
-            }
-
-            // Draw text
-            GUI.color = textColor;
-            GUI.DrawTextureWithTexCoords(totalRect, textureToDraw, innerRect);
-
-            // Restore starting colour
-            GUI.color = guiColor;
         }
 
-        public virtual void UpdateLabelTexture()
+        #endregion
+
+        #region Public Methods
+
+        public virtual void RefreshLayout()
         {
-            CreateLabelTexture();
+            // Use default UI font if none set
+            if (font == null)
+                font = DaggerfallUI.DefaultFont;
+
+            if (!wrapText)
+                CreateNewLabelLayoutSingleLine();
+            else
+                CreateNewLabelLayoutWrapped();
         }
+
+        #endregion
 
         #region Protected Methods
 
@@ -299,54 +306,112 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 value = value.Substring(0, Math.Min(value.Length, maxCharacters));
 
             this.text = value;
-            CreateLabelTexture();
+            RefreshLayout();
         }
 
-        protected virtual void CreateLabelTexture()
+        protected Vector4 GetRestrictedRenderScissorRect()
         {
-            if (!wrapText)
-                CreateLabelTextureSingleLine();
-            else
-                CreateLabelTextureWrapped();
-        }
-
-        void CreateLabelTextureSingleLine()
-        {
-            if (font == null)
-                font = DaggerfallUI.DefaultFont;
-
-            // set a local maxWidth that compensates for textScale
-            int maxWidth = (int)(this.maxWidth / textScale);
-
-            // First pass encodes ASCII and calculates final dimensions
-            int width = 0;
-            asciiBytes = Encoding.Convert(Encoding.UTF8, Encoding.GetEncoding("ISO-8859-1"), Encoding.Default.GetBytes(text));
-            for (int i = startCharacterIndex; i < asciiBytes.Length; i++)
+            float xMinScreen = 0.0f, xMaxScreen = 0.0f, yMinScreen = 0.0f, yMaxScreen = 0.0f;
+            if (restrictedRenderAreaCoordinateType == RestrictedRenderArea_CoordinateType.ScreenCoordinates)
             {
-                // Invalid ASCII bytes are cast to a space character
-                if (!font.HasGlyph(asciiBytes[i]))
-                    asciiBytes[i] = PixelFont.SpaceASCII;
-
-                // Calculate total width
-                PixelFont.GlyphInfo glyph = font.GetGlyph(asciiBytes[i]);
-                width += glyph.width + font.GlyphSpacing;
+                xMinScreen = rectRestrictedRenderArea.xMin;
+                xMaxScreen = rectRestrictedRenderArea.xMax;
+                yMinScreen = rectRestrictedRenderArea.yMin;
+                yMaxScreen = rectRestrictedRenderArea.yMax;
+            }
+            else if (restrictedRenderAreaCoordinateType == RestrictedRenderArea_CoordinateType.ParentCoordinates && Parent != null)
+            {
+                Rect parentRect = Parent.Rectangle;
+                xMinScreen = parentRect.xMin;
+                xMaxScreen = parentRect.xMax;
+                yMinScreen = parentRect.yMin;
+                yMaxScreen = parentRect.yMax;
+            }
+            else if (restrictedRenderAreaCoordinateType == RestrictedRenderArea_CoordinateType.CustomParent && restrictedRenderAreaCustomParent != null)
+            {
+                Rect customParentRect = restrictedRenderAreaCustomParent.Rectangle;
+                xMinScreen = customParentRect.xMin;
+                xMaxScreen = customParentRect.xMax;
+                yMinScreen = customParentRect.yMin;
+                yMaxScreen = customParentRect.yMax;
             }
 
+            Vector4 scissorRect;
+            Rect myRect = this.Rectangle;
+            Rect screenRect = new Rect(0, 0, Screen.width, Screen.height);
+            scissorRect.x = xMinScreen / screenRect.width;
+            scissorRect.y = xMaxScreen / screenRect.width;
+            scissorRect.z = 1.0f - yMaxScreen / screenRect.height;
+            scissorRect.w = 1.0f - yMinScreen / screenRect.height;
+
+            return scissorRect;
+        }
+
+        #endregion
+
+        #region Label Layout Methods
+
+        int[] GetCodes(int startCharacterIndex)
+        {
+            int[] codes = new int[text.Length];
+
+            if (!font.IsSDFCapable)
+            {
+                byte[] asciiBytes = Encoding.Convert(Encoding.UTF8, Encoding.GetEncoding("ISO-8859-1"), Encoding.Default.GetBytes(text));
+                for (int i = startCharacterIndex; i < asciiBytes.Length; i++)
+                {
+                    int code = asciiBytes[i];
+                    codes[i] = font.HasGlyph(code) ? code : DaggerfallFont.ErrorCode;
+                }
+            }
+            else
+            {
+                byte[] utf32Bytes = Encoding.UTF32.GetBytes(text);
+                for (int i = startCharacterIndex * sizeof(int); i < utf32Bytes.Length; i += sizeof(int))
+                {
+                    int code = BitConverter.ToInt32(utf32Bytes, i);
+                    codes[i / sizeof(int)] = font.HasSDFGlyph(code) ? code : DaggerfallFont.ErrorCode;
+                }
+            }
+
+            return codes;
+        }
+
+        void CreateNewLabelLayoutSingleLine()
+        {
+            //
+            // Stage 1 - Encode glyphs and calculate final dimensions
+            //
+
+            // Start a new layout
+            glyphLayout.Clear();
+
+            // Set a local maxWidth that compensates for textScale
+            int maxWidth = (int)(this.maxWidth / textScale);
+
+            // First pass calculates final dimensions
+            float width = 0;
+            float spacing = font.GlyphSpacing;
+            int[] codes = GetCodes(startCharacterIndex);
+            for (int i = 0; i < codes.Length; i++)
+            {
+                width += font.GetGlyphWidth(codes[i], LocalScale, spacing);
+            }
+
+            // Trim width
             if (maxWidth > 0 && width > maxWidth)
                 width = maxWidth;
 
-            // Destroy old texture
-            if (labelTexture)
-                UnityEngine.Object.Destroy(labelTexture);
-
-            // Create target label texture
+            // Create virtual layout area
             totalWidth = width;
-            totalHeight = (int)(font.GlyphHeight);
+            totalHeight = font.GlyphHeight;
             numTextLines = 1;
-            labelTexture = CreateLabelTexture(totalWidth, totalHeight);
-            if (labelTexture == null)
-                throw new Exception("TextLabel failed to create labelTexture.");
 
+            //
+            // Stage 2 - Add glyphs to layout
+            //
+
+            // Determine horizontal alignment offset
             float alignmentOffset;
             switch (horizontalTextAlignment)
             {
@@ -364,51 +429,59 @@ namespace DaggerfallWorkshop.Game.UserInterface
                     break;
             }
 
-            // Second pass adds glyphs to label texture
-            int xpos = (int)alignmentOffset;
-            for (int i = startCharacterIndex; i < asciiBytes.Length; i++)
+            // Second pass adds glyphs to layout
+            float xpos = (int)alignmentOffset;
+            for (int i = 0; i < codes.Length; i++)
             {
-                PixelFont.GlyphInfo glyph = font.GetGlyph(asciiBytes[i]);
-                if (xpos + glyph.width >= totalWidth)
+                float glyphWidth = font.GetGlyphWidth(codes[i], LocalScale);
+                if (xpos + glyphWidth >= totalWidth)
                     break;
 
-                labelTexture.SetPixels32(xpos, 0, glyph.width, totalHeight, glyph.colors);
-                xpos += glyph.width + font.GlyphSpacing;
+                GlyphLayoutData glyphPos = new GlyphLayoutData()
+                {
+                    x = xpos,
+                    y = 0,
+                    code = codes[i],
+                    width = glyphWidth,
+                };
+
+                glyphLayout.Add(glyphPos);
+                xpos += glyphWidth + spacing;
             }
-            labelTexture.Apply(false, makeTextureNoLongerReadable);
-            labelTexture.filterMode = font.FilterMode;
-            this.Size = new Vector2(totalWidth * textScale, totalHeight * textScale);
+
+            Size = new Vector2(totalWidth * textScale, totalHeight * textScale);
         }
 
-        void CreateLabelTextureWrapped()
+        void CreateNewLabelLayoutWrapped()
         {
-            if (font == null)
-                font = DaggerfallUI.DefaultFont;
+            //
+            // Stage 1 - Encode glyphs and calculate final dimensions
+            //
 
-            // set a local maxWidth that compensates for textScale
+            // Start a new layout
+            glyphLayout.Clear();
+
+            // Set a local maxWidth that compensates for textScale
             int maxWidth = (int)(this.maxWidth / textScale);
 
             // First pass encodes ASCII and calculates final dimensions
-            int width = 0;
-            int greatestWidthFound = 0;
+            float width = 0;
+            float greatestWidthFound = 0;
             int lastEndOfRowByte = 0;
-            asciiBytes = Encoding.ASCII.GetBytes(text);
-            List<byte[]> rows = new List<byte[]>();
-            List<int> rowWidth = new List<int>();
+            float spacing = font.GlyphSpacing;
+            int[] codes = GetCodes(startCharacterIndex);
+            List<int[]> rows = new List<int[]>();
+            List<float> rowWidth = new List<float>();
 
-            for (int i = 0; i < asciiBytes.Length; i++)
+            for (int i = 0; i < codes.Length; i++)
             {
-                // Invalid ASCII bytes are cast to a space character
-                if (!font.HasGlyph(asciiBytes[i]))
-                    asciiBytes[i] = PixelFont.SpaceASCII;
-
                 // Calculate total width
-                PixelFont.GlyphInfo glyph = font.GetGlyph(asciiBytes[i]);                
+                float glyphWidth = font.GetGlyphWidth(codes[i], LocalScale, spacing);
 
                 // If maxWidth is set, don't allow the label texture to exceed it
-                if ((maxWidth <= 0) || ((width + glyph.width + font.GlyphSpacing) <= maxWidth))
-                {                    
-                    width += glyph.width + font.GlyphSpacing;
+                if ((maxWidth <= 0) || ((width + glyphWidth + font.GlyphSpacing) <= maxWidth))
+                {
+                    width += glyphWidth;
                 }
                 else
                 {
@@ -418,14 +491,12 @@ namespace DaggerfallWorkshop.Game.UserInterface
                         int j;
                         for (j = i; j >= lastEndOfRowByte; j--)
                         {
-                            glyph = font.GetGlyph(asciiBytes[j]);
+                            glyphWidth = font.GetGlyphWidth(codes[j], LocalScale, spacing);
                             if (j < i) // glyph i has not been added to width
                             {
-                                width -= glyph.width + font.GlyphSpacing;
-                                if (width <= maxWidth && asciiBytes[j] == PixelFont.SpaceASCII)
-                                {
+                                width -= glyphWidth;
+                                if (width <= maxWidth && codes[j] == DaggerfallFont.SpaceCode)
                                     break;
-                                }
                             }
                         }
 
@@ -443,10 +514,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
                         width = 0;
                         for (int k = lastEndOfRowByte; k < j; k++)
                         {
-                            if (k < j - 1 || (k == j - 1 && asciiBytes[k] != PixelFont.SpaceASCII)) // all expect last character if it is a space
+                            if (k < j - 1 || (k == j - 1 && codes[k] != DaggerfallFont.SpaceCode)) // all expect last character if it is a space
                             {
-                                glyph = font.GetGlyph(asciiBytes[k]);
-                                width += glyph.width + font.GlyphSpacing;
+                                glyphWidth = font.GetGlyphWidth(codes[k], LocalScale, spacing);
+                                width += glyphWidth;
                             }
                         }
                     }
@@ -456,10 +527,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
                     }
                     // The row of glyphs exceeded maxWidth. Add it to the list of rows and start
                     // counting width again with the remainder of the ASCII bytes.
-                    List<byte> content = new List<byte>(asciiBytes).GetRange(lastEndOfRowByte, rowLength);
-                    if (content[content.Count - 1] == PixelFont.SpaceASCII)
+                    List<int> content = new List<int>(codes).GetRange(lastEndOfRowByte, rowLength);
+                    if (content[content.Count - 1] == DaggerfallFont.SpaceCode)
                         content.RemoveAt(content.Count - 1);
-                    byte[] trimmed = content.ToArray();
+                    int[] trimmed = content.ToArray();
 
                     rows.Add(trimmed);
                     rowWidth.Add(width);
@@ -467,58 +538,49 @@ namespace DaggerfallWorkshop.Game.UserInterface
                     // update greatest width found so far
                     if (greatestWidthFound < width)
                         greatestWidthFound = width;
-                    
+
                     // reset width for next line
                     width = 0;
-
-                    // Resume interation over remainder of ASCII bytes
-                    //asciiBytes = new List<byte>(asciiBytes).GetRange(i, asciiBytes.Length - i).ToArray();
-                    //i = 0;
 
                     lastEndOfRowByte = i + 1; // position after space for next line, note: i will be increased on next loop iteration anyway - so no need to increase i
                 }
             }
 
             if (lastEndOfRowByte > 0)
-                asciiBytes = new List<byte>(asciiBytes).GetRange(lastEndOfRowByte, asciiBytes.Length - lastEndOfRowByte).ToArray();
+                codes = new List<int>(codes).GetRange(lastEndOfRowByte, codes.Length - lastEndOfRowByte).ToArray();
 
             // also get width of last line
             width = 0;
-            for (int i=0; i < asciiBytes.Length; i++)
+            for (int i = 0; i < codes.Length; i++)
             {
-                PixelFont.GlyphInfo glyph = font.GetGlyph(asciiBytes[i]);
-                width += glyph.width + font.GlyphSpacing;
+                float glyphWidth = font.GetGlyphWidth(codes[i], LocalScale, spacing);
+                width += glyphWidth;
             }
 
             // update greatest width found so far
             if (width <= maxWidth && greatestWidthFound < width) // width should always be <= maxWidth here
                 greatestWidthFound = width;
 
-            rows.Add(asciiBytes);
+            rows.Add(codes);
             rowWidth.Add(width);
 
-            //width = greatestWidthFound;
-
-            // Destroy old texture
-            if (labelTexture)
-                UnityEngine.Object.Destroy(labelTexture);
-
-            // Create target label texture
+            // Create virtual layout area
             totalWidth = maxWidth;
             totalHeight = (int)(rows.Count * font.GlyphHeight);
             numTextLines = rows.Count;
-            labelTexture = CreateLabelTexture(totalWidth, totalHeight);
-            if (labelTexture == null)
-                throw new Exception("TextLabel failed to create labelTexture.");
+
+            //
+            // Stage 2 - Add glyphs to layout
+            //
 
             // Second pass adds glyphs to label texture
-            int xpos = 0;
-            int ypos = totalHeight - font.GlyphHeight;
+            float xpos = 0;
+            float ypos = totalHeight - font.GlyphHeight;
 
             //foreach (byte[] row in rows)
-            for(int r = 0; r < rows.Count; r++)
+            for (int r = 0; r < rows.Count; r++)
             {
-                byte[] row = rows[r];
+                int[] row = rows[r];
                 float alignmentOffset;
                 switch (horizontalTextAlignment)
                 {
@@ -537,29 +599,26 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 }
 
                 int numSpaces = 0; // needed to compute extra offset between words for HorizontalTextAlignmentSetting.Justify
-                //int widthTextCharacters = 0; // needed to compute extra offset between words for HorizontalTextAlignmentSetting.Justify
-                int extraSpaceToDistribute = 0;  // needed to compute extra offset between words for HorizontalTextAlignmentSetting.Justify
+                float extraSpaceToDistribute = 0;  // needed to compute extra offset between words for HorizontalTextAlignmentSetting.Justify
                 if (horizontalTextAlignment == HorizontalTextAlignmentSetting.Justify)
-                { 
+                {
                     for (int i = 0; i < row.Length; i++)
                     {
-                        if (row[i] == PixelFont.SpaceASCII)
+                        if (row[i] == DaggerfallFont.SpaceCode)
                             numSpaces++;
-                        //else
-                            //widthTextCharacters += font.GetGlyph(row[i]).width + font.GlyphSpacing;
                     }
 
-                    extraSpaceToDistribute = maxWidth - rowWidth[r]; // +numSpaces * font.GetGlyph(PixelFont.SpaceASCII).width + font.GlyphSpacing;
+                    extraSpaceToDistribute = maxWidth - rowWidth[r];
                 }
 
                 xpos = (int)alignmentOffset;
                 for (int i = 0; i < row.Length; i++)
                 {
-                    PixelFont.GlyphInfo glyph = font.GetGlyph(row[i]);
-                    if (xpos + glyph.width > totalWidth)
+                    float glyphWidth = font.GetGlyphWidth(row[i], LocalScale);
+                    if (xpos + glyphWidth > totalWidth)
                         break;
 
-                    if (row[i] == PixelFont.SpaceASCII)
+                    if (row[i] == DaggerfallFont.SpaceCode)
                     {
                         if (numSpaces > 1)
                         {
@@ -574,34 +633,21 @@ namespace DaggerfallWorkshop.Game.UserInterface
                         }
                     }
 
-                    labelTexture.SetPixels32(xpos, ypos, glyph.width, font.GlyphHeight, glyph.colors);
-                    xpos += glyph.width + font.GlyphSpacing;
+                    GlyphLayoutData glyphPos = new GlyphLayoutData()
+                    {
+                        x = xpos,
+                        y = totalHeight - font.GlyphHeight - ypos,
+                        code = row[i],
+                        width = glyphWidth,
+                    };
+
+                    glyphLayout.Add(glyphPos);
+                    xpos += glyphWidth + font.GlyphSpacing;
                 }
                 ypos -= font.GlyphHeight;
             }
 
-            labelTexture.Apply(false, makeTextureNoLongerReadable);
-            labelTexture.filterMode = font.FilterMode;
-            this.Size = new Vector2(totalWidth * textScale, totalHeight * textScale);
-        }
-
-        protected virtual Texture2D CreateLabelTexture(int width, int height)
-        {
-            // Enforce minimum texture dimensions of 8x8 to avoid "degenerate image" error in Unity 5.2
-            textureWidth = (width < minTextureDim) ? minTextureDim : width;
-            textureHeight = (height < minTextureDim) ? minTextureDim : height;
-
-            // Create target texture and init to clear
-            Texture2D texture = new Texture2D(textureWidth, textureHeight, TextureFormat.ARGB32, false);
-            Color32[] colors = texture.GetPixels32();
-            for (int i = 0; i < colors.Length; i++)
-            {
-                colors[i] = Color.clear;
-            }
-            texture.SetPixels32(colors);
-            texture.Apply(false);
-
-            return texture;
+            Size = new Vector2(totalWidth * textScale, totalHeight * textScale);
         }
 
         #endregion

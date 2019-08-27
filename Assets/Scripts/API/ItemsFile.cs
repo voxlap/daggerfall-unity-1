@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,7 +12,6 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect.Utility;
 
@@ -27,7 +26,7 @@ namespace DaggerfallConnect.FallExe
         public long position;                       // Position record was read from FALL.EXE
         public Byte[] name;                         // Display name
         public Int32 baseWeightUnits;               // Base weight in 0.25kg units
-        public Int16 hitPoints;                     // Hit points
+        public UInt16 hitPoints;                    // Hit points
         public Int32 capacityOrTarget;              // Capacity of container or target of effect
         public Int32 basePrice;                     // Base price before material, mercantile, etc. modify value
         public Int16 enchantmentPoints;             // Base enchantment points before material
@@ -77,11 +76,19 @@ namespace DaggerfallConnect.FallExe
         public MagicItemTypes type;                 // Type of magic item
         public byte group;                          // Group in item templates
         public byte groupIndex;                     // Group index (subgroup) in item templates
-        public int[] enchantments;                  // Array of legacy enchantments on this item
-        public short uses;                          // Number of uses
-        public ushort unknown1;                     // Unknown
-        public byte material;                       // Material?
-        public short unknown2;                      // Unknown
+        public DaggerfallEnchantment[] enchantments;// Array of legacy enchantments on this item
+        public short uses;                          // Number of uses/Item condition
+        public int value;                           // Only used for artifacts
+        public byte material;                       // Material
+    }
+
+    /// <summary>
+    /// Daggerfall enchantment data.
+    /// </summary>
+    public struct DaggerfallEnchantment
+    {
+        public EnchantmentTypes type;
+        public short param;                           // A SPELLS.STD spell ID, an identifier for a unique artifact effect, enemy group affected by bonus to hit, social group affected by reputation modifier
     }
 
     /// <summary>
@@ -92,6 +99,41 @@ namespace DaggerfallConnect.FallExe
         RegularMagicItem,
         ArtifactClass1,
         ArtifactClass2,
+    }
+
+    /// <summary>
+    /// Enchantment types
+    /// </summary>
+    public enum EnchantmentTypes
+    {
+        None = -1,
+        CastWhenUsed = 0,
+        CastWhenHeld = 1,
+        CastWhenStrikes = 2,
+        ExtraSpellPts = 3,
+        PotentVs = 4,
+        RegensHealth = 5,
+        VampiricEffect = 6,
+        IncreasedWeightAllowance = 7,
+        RepairsObjects = 8,
+        AbsorbsSpells = 9,
+        EnhancesSkill = 10,
+        FeatherWeight = 11,
+        StrengthensArmor = 12,
+        ImprovesTalents = 13,
+        GoodRepWith = 14,
+        SoulBound = 15,
+        ItemDeteriorates = 16,
+        UserTakesDamage = 17,
+        VisionProblems = 18,
+        WalkingProblems = 19,
+        LowDamageVs = 20,
+        HealthLeech = 21,
+        BadReactionsFrom = 22,
+        ExtraWeight = 23,
+        WeakensArmor = 24,
+        BadRepWith = 25,
+        SpecialArtifactEffect = 26,
     }
 
     public struct BookMappingTemplate
@@ -108,7 +150,7 @@ namespace DaggerfallConnect.FallExe
 
     public struct Recipe
     {
-       public Ingredient[] ingredients;
+        public Ingredient[] ingredients;
     }
 
     public struct Ingredient
@@ -130,13 +172,13 @@ namespace DaggerfallConnect.FallExe
         const string fallExeFilename = "FALL.EXE";
         const int defaultItemsOffset = 1776954;
         const int nameLength = 24;
-        const int recordLength = 48;
+        //const int recordLength = 48;
         const int totalItems = 288;
 
         bool isOpen = false;
         int itemsOffset = defaultItemsOffset;
-        FileProxy fallExeFile = new FileProxy();
-        List<DFItem> items = new List<DFItem>();
+        readonly FileProxy fallExeFile = new FileProxy();
+        readonly List<DFItem> items = new List<DFItem>();
         Exception lastException = new Exception();
 
         #endregion
@@ -291,10 +333,10 @@ namespace DaggerfallConnect.FallExe
                 desc.rarity = item.rarity;
                 desc.variants = item.variants;
                 desc.drawOrderOrEffect = item.drawOrderOrEffect;
-                desc.isBluntWeapon = (((item.propertiesBitfield >> 4) & 1) == 1) ? true : false;
-                desc.isLiquid = (((item.propertiesBitfield >> 3) & 1) == 1) ? true : false;
-                desc.isOneHanded = (((item.propertiesBitfield >> 2) & 1) == 1) ? true : false;
-                desc.isIngredient = ((item.propertiesBitfield & 1) == 1) ? true : false;
+                desc.isBluntWeapon = (((item.propertiesBitfield >> 4) & 1) == 1);
+                desc.isLiquid = (((item.propertiesBitfield >> 3) & 1) == 1);
+                desc.isOneHanded = (((item.propertiesBitfield >> 2) & 1) == 1);
+                desc.isIngredient = ((item.propertiesBitfield & 1) == 1);
                 desc.worldTextureArchive = item.worldTextureBitfield >> 7;
                 desc.worldTextureRecord = item.worldTextureBitfield & 0x7f;
                 desc.playerTextureArchive = item.playerTextureBitfield >> 7;
@@ -315,7 +357,7 @@ namespace DaggerfallConnect.FallExe
         /// <param name="item">Item to rewrite.</param>
         public void RewriteItem(DFItem item)
         {
-            if (isOpen && fallExeFile.Usage == FileUsage.UseDisk && fallExeFile.ReadOnly == false)
+            if (isOpen && fallExeFile.Usage == FileUsage.UseDisk && !fallExeFile.ReadOnly)
             {
                 BinaryWriter writer = fallExeFile.GetWriter();
                 writer.BaseStream.Position = item.position;
@@ -392,7 +434,7 @@ namespace DaggerfallConnect.FallExe
             item.position = reader.BaseStream.Position;
             item.name = reader.ReadBytes(nameLength);
             item.baseWeightUnits = reader.ReadInt32();
-            item.hitPoints = reader.ReadInt16();
+            item.hitPoints = reader.ReadUInt16();
             item.capacityOrTarget = reader.ReadInt32();
             item.basePrice = reader.ReadInt32();
             item.enchantmentPoints = reader.ReadInt16();

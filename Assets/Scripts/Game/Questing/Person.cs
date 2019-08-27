@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -48,6 +48,8 @@ namespace DaggerfallWorkshop.Game.Questing
         FactionFile.FactionData factionData;
         StaticNPC.NPCData questorData;
         bool discoveredThroughTalkManager = false;
+        bool isMuted = false;
+        bool isDestroyed = false;
 
         #endregion
 
@@ -114,6 +116,11 @@ namespace DaggerfallWorkshop.Game.Questing
             get { return GetHomePlaceRegionName(); }
         }
 
+        public int HomeRegionIndex
+        {
+            get { return GetHomePlaceRegionIndex(); }
+        }
+
         public string HomeBuildingName
         {
             get { return GetHomeBuildingName(); }
@@ -133,6 +140,17 @@ namespace DaggerfallWorkshop.Game.Questing
         {
             get { return discoveredThroughTalkManager; }
             set { discoveredThroughTalkManager = value; }
+        }
+
+        public bool IsMuted
+        {
+            get { return isMuted; }
+            set { isMuted = value; }
+        }
+
+        public bool IsDestroyed
+        {
+            get { return isDestroyed; }
         }
 
         #endregion
@@ -275,6 +293,9 @@ namespace DaggerfallWorkshop.Game.Questing
             // Store this person in quest as last Person encountered
             // This will be used for subsequent pronoun macros, etc.
             ParentQuest.LastResourceReferenced = this;
+            Place homePlace = GetHomePlace();
+            if (homePlace != null)
+                ParentQuest.LastPlaceReferenced = homePlace;
 
             textOut = string.Empty;
             bool result = true;
@@ -296,8 +317,8 @@ namespace DaggerfallWorkshop.Game.Questing
                     textOut = GetHomePlaceRegionName();
                     break;
 
-                case MacroTypes.DetailsMacro:           // Race
-                    textOut = RaceTemplate.GetRaceDictionary()[(int)race].Name;
+                case MacroTypes.DetailsMacro:           // Details macro
+                    textOut = GetFlatDetailsString();
                     break;
 
                 case MacroTypes.FactionMacro:           // Faction macro
@@ -315,6 +336,37 @@ namespace DaggerfallWorkshop.Game.Questing
             }
 
             return result;
+        }
+
+        string GetFlatDetailsString()
+        {
+            // Get billboard texture data
+            FactionFile.FlatData flatData;
+            if (IsIndividualNPC)
+            {
+                // Individuals are always flat1 no matter gender
+                flatData = FactionFile.GetFlatData(FactionData.flat1);
+            }
+            if (Gender == Genders.Male)
+            {
+                // Male has flat1
+                flatData = FactionFile.GetFlatData(FactionData.flat1);
+            }
+            else
+            {
+                // Female has flat2
+                flatData = FactionFile.GetFlatData(FactionData.flat2);
+            }
+
+            // Get flat ID for this person
+            int flatID = FlatsFile.GetFlatID(flatData.archive, flatData.record);
+
+            // Get flat caption for this ID, e.g. "young lady in green", or fallback to race
+            FlatsFile.FlatData flatCFG;
+            if (DaggerfallUnity.Instance.ContentReader.FlatsFileReader.GetFlatData(flatID, out flatCFG))
+                return flatCFG.caption;
+            else
+                return RaceTemplate.GetRaceDictionary()[(int)race].Name;
         }
 
         public override void Tick(Quest caller)
@@ -347,9 +399,10 @@ namespace DaggerfallWorkshop.Game.Questing
         /// </summary>
         public bool PlaceAtHome()
         {
-            // Does not attempt to place a questor as they should be statically place or moved manually
+            // Does not attempt to place a questor as they should be statically placed or moved manually
+            // Individual NPCs are also excluded as they are either automatically at home or moved elsewhere by quest
             Place homePlace = ParentQuest.GetPlace(homePlaceSymbol);
-            if (homePlace == null || isQuestor)
+            if (homePlace == null || isQuestor || isIndividualNPC)
                 return false;
 
             // Create SiteLink if not already present
@@ -422,6 +475,15 @@ namespace DaggerfallWorkshop.Game.Questing
             return false;
         }
 
+        /// <summary>
+        /// Set Person.IsDestroyed=true.
+        /// Person can no longer be placed or clicked.
+        /// </summary>
+        public void DestroyNPC()
+        {
+            isDestroyed = true;
+        }
+
         #endregion
 
         #region Private Methods
@@ -437,6 +499,19 @@ namespace DaggerfallWorkshop.Game.Questing
                 return BLANK;
 
             return place.SiteDetails.regionName;
+        }
+
+        /// <summary>
+        /// Gets region index of home Place (if any).
+        /// </summary>
+        /// <returns>Region index of home Place or -1 if none set or not resolved.</returns>
+        int GetHomePlaceRegionIndex()
+        {
+            Place place = GetHomePlace();
+            if (place == null)
+                return -1;
+
+            return DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRegionIndex(place.SiteDetails.regionName);
         }
 
         /// <summary>
@@ -470,28 +545,10 @@ namespace DaggerfallWorkshop.Game.Questing
             // Use faction race only for individuals
             if (isIndividualNPC)
             {
-                FactionFile.FactionRaces factionRace = (FactionFile.FactionRaces)factionData.race;
-                if (factionRace != FactionFile.FactionRaces.None)
+                race = RaceTemplate.GetRaceFromFactionRace((FactionFile.FactionRaces)factionData.race);
+                if (race != Races.None)
                 {
-                    switch (factionRace)
-                    {
-                        case FactionFile.FactionRaces.Redguard:
-                            race = Races.Redguard;
-                            return;
-                        case FactionFile.FactionRaces.Nord:
-                            race = Races.Nord;
-                            return;
-                        case FactionFile.FactionRaces.DarkElf:
-                            race = Races.DarkElf;
-                            return;
-                        case FactionFile.FactionRaces.WoodElf:
-                            race = Races.WoodElf;
-                            return;
-                        case FactionFile.FactionRaces.Breton:
-                        default:
-                            race = Races.Breton;
-                            return;
-                    }
+                    return;
                 }
             }
 
@@ -502,8 +559,9 @@ namespace DaggerfallWorkshop.Game.Questing
 
         void AssignGender(string genderName)
         {
-            // Set gender
-            npcGender = GetGender(genderName);
+            // Set gender if not already assigned by questor injection
+            if (!isQuestor)
+                npcGender = GetGender(genderName);
         }
 
         void AssignHUDFace(int faceIndex = -1)
@@ -571,7 +629,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
             // For other NPCs use default scope and building type
             Place.Scopes scope = Place.Scopes.Remote;
-            string buildingTypeString = "house2";
+            string buildingTypeString = "house";
 
             // Adjust scope and building type based on faction hints
             int p1 = 0, p2 = 0, p3 = 0;
@@ -896,6 +954,7 @@ namespace DaggerfallWorkshop.Game.Questing
             FactionFile.FactionData factionData = GetFactionData(questorData.factionID);
             this.factionData = factionData;
             nameSeed = questorData.nameSeed;
+            npcGender = questorData.gender;
 
             return true;
         }
@@ -1010,7 +1069,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
                 // Assign an NPC from current player region
                 case FactionFile.FactionTypes.Province:
-                    return GetCurrentRegionFaction();
+                    return GameManager.Instance.PlayerGPS.GetCurrentRegionFaction();
 
                 // Not all regions have a witches coven associated
                 // Just select a random coven for now
@@ -1039,7 +1098,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
                 // Get "court of" current region
                 case FactionFile.FactionTypes.Courts:
-                    return GetCourtOfCurrentRegion();
+                    return GameManager.Instance.PlayerGPS.GetCourtOfCurrentRegion();
 
                 // Get "people of" current region
                 case FactionFile.FactionTypes.People:
@@ -1055,6 +1114,7 @@ namespace DaggerfallWorkshop.Game.Questing
         int GetCareerFactionID(string careerAllianceName)
         {
             const int magesGuild = 40;
+            const int nobles = 242;
             const int genericTemple = 450;
             const int merchants = 510;
 
@@ -1093,7 +1153,7 @@ namespace DaggerfallWorkshop.Game.Questing
                 case 14:
                     return genericTemple;                   // Generic Temple seems to link all the temples together
                 case 16:
-                    return GetCourtOfCurrentRegion();       // Not sure if "Noble" career maps to regional "court of" in classic
+                    return nobles;                          // Random Noble
                 case 17:
                 case 18:
                 case 19:
@@ -1103,37 +1163,6 @@ namespace DaggerfallWorkshop.Game.Questing
                 default:                                    // Not sure if "Resident1-4" career really maps to regional "people of" in classic
                     return GameManager.Instance.PlayerGPS.GetPeopleOfCurrentRegion();
             }
-        }
-
-        int GetCurrentRegionFaction()
-        {
-            int oneBasedPlayerRegion = GameManager.Instance.PlayerGPS.CurrentOneBasedRegionIndex;
-            FactionFile.FactionData[] factions = GameManager.Instance.PlayerEntity.FactionData.FindFactions(
-                (int)FactionFile.FactionTypes.Province, -1, -1, oneBasedPlayerRegion);
-
-            // Should always find a single region
-            if (factions == null || factions.Length != 1)
-                throw new Exception("GetCurrentRegionFaction() did not find exactly 1 match.");
-
-            return factions[0].id;
-        }
-
-        // Gets the noble court faction in current region
-        int GetCourtOfCurrentRegion()
-        {
-            // Find court in current region
-            int oneBasedPlayerRegion = GameManager.Instance.PlayerGPS.CurrentOneBasedRegionIndex;
-            FactionFile.FactionData[] factions = GameManager.Instance.PlayerEntity.FactionData.FindFactions(
-                (int)FactionFile.FactionTypes.Courts,
-                (int)FactionFile.SocialGroups.Nobility,
-                (int)FactionFile.GuildGroups.Region,
-                oneBasedPlayerRegion);
-
-            // Should always find a single court
-            if (factions == null || factions.Length != 1)
-                throw new Exception("GetCourtOfCurrentRegion() did not find exactly 1 match.");
-
-            return factions[0].id;
         }
 
         int GetRandomFactionOfType(int factionType)
@@ -1172,6 +1201,8 @@ namespace DaggerfallWorkshop.Game.Questing
             public string factionTableKey;
             public StaticNPC.NPCData questorData;
             public bool discoveredThroughTalkManager;
+            public bool isMuted;
+            public bool isDestroyed;
         }
 
         public override object GetSaveData()
@@ -1194,6 +1225,8 @@ namespace DaggerfallWorkshop.Game.Questing
             data.factionTableKey = factionTableKey;
             data.questorData = questorData;
             data.discoveredThroughTalkManager = discoveredThroughTalkManager;
+            data.isMuted = isMuted;
+            data.isDestroyed = isDestroyed;
 
             return data;
         }
@@ -1226,6 +1259,8 @@ namespace DaggerfallWorkshop.Game.Questing
             factionTableKey = data.factionTableKey;
             questorData = data.questorData;
             discoveredThroughTalkManager = data.discoveredThroughTalkManager;
+            isMuted = data.isMuted;
+            isDestroyed = data.isDestroyed;
         }
 
         #endregion

@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,17 +10,12 @@
 //
 
 #region Using Statements
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.IO;
-using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 #endregion
 
 namespace DaggerfallConnect.Utility
 {
-
     /// <summary>
     /// Static methods to validate ARENA2 folder.
     /// Does not verify contents, just that critical files exist in minimum quantities.
@@ -208,5 +203,4 @@ namespace DaggerfallConnect.Utility
         #endregion
 
     }
-
 }

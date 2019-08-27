@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -52,15 +52,18 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         public void QuestMachine_OnQuestEnded(Quest quest)
         {
-            if (quest.QuestName == ThievesGuild.InitiationQuestName)
+            if (quest.QuestSuccess)
             {
-                Guild tg = CreateGuildObj(FactionFile.GuildGroups.GeneralPopulace);
-                AddMembership(FactionFile.GuildGroups.GeneralPopulace, tg);
-            }
-            if (quest.QuestName == DarkBrotherhood.InitiationQuestName)
-            {
-                Guild db = CreateGuildObj(FactionFile.GuildGroups.DarkBrotherHood);
-                AddMembership(FactionFile.GuildGroups.DarkBrotherHood, db);
+                if (quest.QuestName == ThievesGuild.InitiationQuestName)
+                {
+                    Guild tg = CreateGuildObj(FactionFile.GuildGroups.GeneralPopulace);
+                    AddMembership(FactionFile.GuildGroups.GeneralPopulace, tg);
+                }
+                if (quest.QuestName == DarkBrotherhood.InitiationQuestName)
+                {
+                    Guild db = CreateGuildObj(FactionFile.GuildGroups.DarkBrotherHood);
+                    AddMembership(FactionFile.GuildGroups.DarkBrotherHood, db);
+                }
             }
         }
 
@@ -91,7 +94,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 default:
                     Type guildType;
                     if (customGuilds.TryGetValue(guildGroup, out guildType))
-                        return (int) guildType.GetProperty("FactionId").GetValue(null, null);
+                        return (int)guildType.GetProperty("FactionId").GetValue(null, null);
                     else
                         return 0;
             }
@@ -99,7 +102,7 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         #region Guild membership handling
 
-        private Dictionary<FactionFile.GuildGroups, Guild> memberships = new Dictionary<FactionFile.GuildGroups, Guild>();
+        private readonly Dictionary<FactionFile.GuildGroups, Guild> memberships = new Dictionary<FactionFile.GuildGroups, Guild>();
 
         public List<Guild> GetMemberships()
         {
@@ -115,9 +118,32 @@ namespace DaggerfallWorkshop.Game.Guilds
             memberships[guildGroup] = guild;
         }
 
+        public void RemoveMembership(Guild guild)
+        {
+            FactionFile.GuildGroups guildGroup = FactionFile.GuildGroups.None;
+            foreach (FactionFile.GuildGroups group in memberships.Keys)
+            {
+                if (memberships[group] == guild)
+                {
+                    guildGroup = group;
+                    break;
+                }
+            }
+            if (guildGroup != FactionFile.GuildGroups.None)
+                memberships.Remove(guildGroup);
+        }
+
         public bool HasJoined(FactionFile.GuildGroups guildGroup)
         {
             return memberships.ContainsKey(guildGroup);
+        }
+
+        public bool GetJoinedGuildOfGuildGroup(FactionFile.GuildGroups guildGroup, out Guild value)
+        {
+            if (memberships.TryGetValue(guildGroup, out value))
+                return true;
+
+            return false;
         }
 
         public Guild JoinGuild(FactionFile.GuildGroups guildGroup, int buildingFactionId = 0)
@@ -153,7 +179,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 default:
                     Type guildType;
                     if (customGuilds.TryGetValue(guildGroup, out guildType))
-                        return (Guild) Activator.CreateInstance(guildType);
+                        return (Guild)Activator.CreateInstance(guildType);
                     else
                         return null;
             }
@@ -200,11 +226,17 @@ namespace DaggerfallWorkshop.Game.Guilds
         /// </summary>
         public Guild GetGuild(int factionId)
         {
-            FactionFile.GuildGroups guildGroup = GetGuildGroup(factionId);
-            if (guildGroup == FactionFile.GuildGroups.None)
+            try {
+                FactionFile.GuildGroups guildGroup = GetGuildGroup(factionId);
+                if (guildGroup == FactionFile.GuildGroups.None)
+                    return guildNotMember;
+                else
+                    return GetGuild(guildGroup, factionId);
+            // Catch erroneous faction data entries. (e.g. #91)
+            } catch (ArgumentOutOfRangeException e) {
+                DaggerfallUnity.LogMessage(e.Message, true);
                 return guildNotMember;
-            else
-                return GetGuild(guildGroup, factionId);
+            }
         }
 
         private FactionFile.GuildGroups GetGuildGroup(int factionId)
@@ -214,15 +246,15 @@ namespace DaggerfallWorkshop.Game.Guilds
             FactionFile.FactionData factionData;
             if (persistentFactionData.GetFactionData(factionId, out factionData))
             {
-                guildGroup = (FactionFile.GuildGroups) factionData.ggroup;
+                guildGroup = (FactionFile.GuildGroups)factionData.ggroup;
 
                 // Handle temples nested under deity
-                if (guildGroup == FactionFile.GuildGroups.None && factionData.children.Count > 0)
+                if (factionData.children != null && (guildGroup == FactionFile.GuildGroups.None && factionData.children.Count > 0))
                 {
                     FactionFile.FactionData firstChild;
                     if (persistentFactionData.GetFactionData(factionData.children[0], out firstChild))
                     {
-                        guildGroup = (FactionFile.GuildGroups) firstChild.ggroup;
+                        guildGroup = (FactionFile.GuildGroups)firstChild.ggroup;
                     }
                 }
             }

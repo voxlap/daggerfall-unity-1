@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Allofich
 // 
 // Notes:
 //
@@ -32,14 +32,19 @@ namespace DaggerfallWorkshop.Game
 
         System.Random random;
         DaggerfallAudioSource dfAudioSource;
+        AudioSource loopAudioSource;
+        float loopVolumeScale;
+        AudioSource ambientAudioSource;
+        //private Coroutine relativePositionCoroutine = null;
+
         SoundClips[] ambientSounds;
         AudioClip rainLoop;
         AudioClip cricketsLoop;
         float waitTime;
         float waitCounter;
-        float waterSoundWaitTime = 0.0625f; // Approximation of classic's main update loop. About 1/16 of a second (varies in classic by frame rate). TODO: Unify with runningTallyInterval in PlayerEntity. Where should this value go?
         float waterWaitCounter;
         AmbientSoundPresets lastPresets;
+        Entity.DaggerfallEntityBehaviour playerBehaviour;
         PlayerEnterExit playerEnterExit;
 
         public enum AmbientSoundPresets
@@ -56,9 +61,13 @@ namespace DaggerfallWorkshop.Game
         {
             random = new System.Random(System.DateTime.Now.Millisecond);
             dfAudioSource = GetComponent<DaggerfallAudioSource>();
-            dfAudioSource.Preset = AudioPresets.OnDemand;
+            loopAudioSource = GetNewAudioSource();
+            ambientAudioSource = GetNewAudioSource();
+
             ApplyPresets();
             StartWaiting();
+            playerBehaviour = GameManager.Instance.PlayerEntityBehaviour;
+            playerEnterExit = GameManager.Instance.PlayerEnterExit;
         }
 
         void OnDisable()
@@ -84,11 +93,11 @@ namespace DaggerfallWorkshop.Game
                 cricketsLoop = null;
 
                 // Stop playing any loops
-                if (dfAudioSource.AudioSource.isPlaying)
+                if (loopAudioSource.isPlaying)
                 {
-                    dfAudioSource.AudioSource.Stop();
-                    dfAudioSource.AudioSource.clip = null;
-                    dfAudioSource.AudioSource.loop = false;
+                    loopAudioSource.Stop();
+                    loopAudioSource.clip = null;
+                    loopAudioSource.loop = false;
                 }
 
                 ApplyPresets();
@@ -98,21 +107,13 @@ namespace DaggerfallWorkshop.Game
             // Start rain loop if not running
             if ((Presets == AmbientSoundPresets.Rain || Presets == AmbientSoundPresets.Storm) && rainLoop == null)
             {
-                rainLoop = dfAudioSource.GetAudioClip((int)SoundClips.AmbientRaining);
-                dfAudioSource.AudioSource.clip = rainLoop;
-                dfAudioSource.AudioSource.loop = true;
-                dfAudioSource.AudioSource.spatialBlend = 0;
-                dfAudioSource.AudioSource.Play();
+                rainLoop = PlayLoop(SoundClips.AmbientRaining, 1f);
             }
 
             // Start crickets loop if not running
             if ((Presets == AmbientSoundPresets.ClearNight) && cricketsLoop == null)
             {
-                cricketsLoop = dfAudioSource.GetAudioClip((int)SoundClips.AmbientCrickets);
-                dfAudioSource.AudioSource.clip = cricketsLoop;
-                dfAudioSource.AudioSource.loop = true;
-                dfAudioSource.AudioSource.spatialBlend = 0;
-                dfAudioSource.AudioSource.Play();
+                cricketsLoop = PlayLoop(SoundClips.AmbientCrickets, 1f);
             }
 
             // Tick counters
@@ -124,54 +125,129 @@ namespace DaggerfallWorkshop.Game
                 StartWaiting();
             }
 
-            // Play water sound effects. Timing and position based on classic behavior.
-            // TODO: Make sound follow player's X and Z movement but play from Y coordinate of dungeon water, for a more dynamically 3d sound.
-            // Currently the sound is a volume adjustment based on vertical distance from the water.
-            if (waterWaitCounter > waterSoundWaitTime)
+            // Play water sound effects. Timing based on classic.
+            if (waterWaitCounter > GameManager.classicUpdateInterval)
             {
-                if (playerEnterExit == null)
-                    playerEnterExit = GameManager.Instance.PlayerEnterExit;
-                if (playerEnterExit)
+                if (playerEnterExit && playerEnterExit.blockWaterLevel != 10000)
                 {
-                    if (playerEnterExit.blockWaterLevel != 10000)
+                    // Chance to play gentle water sound at water surface
+                    if (DFRandom.rand() < 50)
                     {
-                        Entity.DaggerfallEntityBehaviour player = GameManager.Instance.PlayerEntityBehaviour;
-                        // Chance to play gentle water sound based on vertical distance between player and water surface
-                        if (DFRandom.rand() < 50)
-                        {
-                            float waterHeightInDFUnityUnits = (playerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale);
-                            float volumeScale = Mathf.Clamp(1 - (Mathf.Abs(player.transform.position.y - waterHeightInDFUnityUnits) / 9), 0, 1);
-                            dfAudioSource.PlayOneShot((int)SoundClips.WaterGentle, 0, volumeScale);
-                        }
+                        Vector3 waterSoundPosition = playerBehaviour.transform.position;
+                        waterSoundPosition.y = playerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale;
+                        waterSoundPosition.x += Random.Range(-3f, 3f);
+                        waterSoundPosition.z += Random.Range(-3f, 3f);
+                        SpatializedPlayOneShot(SoundClips.WaterGentle, waterSoundPosition, 1f);
+                    }
 
-                        // Chance to play underwater bubbling noise if player is underwater
-                        if (playerEnterExit.IsPlayerSubmerged)
-                        {
-                            if (DFRandom.rand() < 100)
-                                dfAudioSource.PlayOneShot((int)SoundClips.AmbientWaterBubbles, 0);
-                        }
+                    // Chance to play water bubbles sound if player is underwater
+                    if (playerEnterExit.IsPlayerSubmerged && DFRandom.rand() < 100)
+                    {
+                        AmbientPlayOneShot(SoundClips.AmbientWaterBubbles, 1f);
                     }
                 }
                 waterWaitCounter = 0;
             }
+
+            // Update sound volume
+            if (loopAudioSource.isPlaying)
+                loopAudioSource.volume = loopVolumeScale * DaggerfallUnity.Settings.SoundVolume;
         }
 
         #region Private Methods
 
+        private AudioSource GetNewAudioSource()
+        {
+            AudioSource audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.hideFlags = HideFlags.HideInInspector;
+            audioSource.playOnAwake = false;
+            audioSource.loop = false;
+            audioSource.dopplerLevel = 0f;
+            audioSource.spatialBlend = 0f;
+            audioSource.volume = DaggerfallUnity.Settings.SoundVolume;
+            return audioSource;
+        }
+
+        private AudioClip PlayLoop(SoundClips clip, float volumeScale)
+        {
+            AudioClip loopClip = dfAudioSource.GetAudioClip((int)clip);
+            loopVolumeScale = volumeScale;
+            loopAudioSource.loop = true;
+            loopAudioSource.spatialBlend = 0;
+            loopAudioSource.PlayWhenReady(loopClip, volumeScale);
+            return loopClip;
+        }
+
+        private void AmbientPlayOneShot(SoundClips clip, float volumeScale)
+        {
+            if (!ambientAudioSource.isPlaying)
+            {
+                AudioClip audioClip = dfAudioSource.GetAudioClip((int)clip);
+                ambientAudioSource.spatialBlend = 0;
+                ambientAudioSource.PlayOneShotWhenReady(audioClip, volumeScale);
+            }
+        }
+
+
+        private void SpatializedPlayOneShot(SoundClips clip, Vector3 position, float volumeScale, float minDistance = 8f)
+        {
+            if (!ambientAudioSource.isPlaying)
+            {
+                AudioClip audioClip = dfAudioSource.GetAudioClip((int)clip);
+                ambientAudioSource.transform.position = position;
+                ambientAudioSource.spatialBlend = 1f;
+                ambientAudioSource.minDistance = minDistance;
+                ambientAudioSource.maxDistance = minDistance * 8;
+                ambientAudioSource.PlayOneShotWhenReady(audioClip, volumeScale);
+            }
+        }
+
+        private float sqr(float x) 
+        {
+            return x * x;
+        }
+
+        private void PlaySomewhereAround(SoundClips clip, float volumeScale)
+        {
+            Vector3 randomPos = playerBehaviour.transform.position +
+                Random.onUnitSphere * Mathf.Sqrt(Random.Range(sqr(10f), sqr(20f)));
+            SpatializedPlayOneShot(clip, randomPos, volumeScale, 13f);
+        }
+
+        private void PlaySomewhereOnHorizon(SoundClips clip, float volumeScale)
+        {
+            // Somewhere around, 20° above horizon
+            Vector3 randomPos = playerBehaviour.transform.position + 
+                Quaternion.AngleAxis(Mathf.Sqrt(Random.Range(0f, sqr(10000f))), Vector3.up) * new Vector3(0.94f, 0.34f, 0f);
+            SpatializedPlayOneShot(clip, randomPos, volumeScale, 3000f);
+        }
+
         private void PlayEffects()
         {
             // Do nothing if audio not setup
-            if (dfAudioSource == null || ambientSounds == null)
+            if (ambientAudioSource == null || ambientSounds == null)
                 return;
 
             // Get next sound index
             int index = random.Next(0, ambientSounds.Length);
 
             // Play effect
-            if (Presets == AmbientSoundPresets.Storm && PlayLightningEffect)
+            if (Presets == AmbientSoundPresets.Storm)
             {
-                // Play lightning effects together with appropriate sounds
-                StartCoroutine(PlayLightningEffects(index));
+                if (PlayLightningEffect)
+                {
+                    // Play lightning effects together with appropriate sounds
+                    StartCoroutine(PlayLightningEffects(index));
+                }
+                else
+                {
+                    // Play ambient sound as a one-shot 3D sound
+                    SoundClips clip = ambientSounds[index];
+                    PlaySomewhereOnHorizon(clip, 1f);
+
+                    // AmbientPlayOneShot(clip, 5f);
+                    RaiseOnPlayEffectEvent(clip);
+                }
             }
             else
             {
@@ -180,16 +256,15 @@ namespace DaggerfallWorkshop.Game
                 {
                     if (playerEnterExit == null)
                         playerEnterExit = GameManager.Instance.PlayerEnterExit;
-                    if (playerEnterExit)
+                    if (playerEnterExit && playerEnterExit.IsPlayerInsideDungeonCastle)
                     {
-                        if (playerEnterExit.IsPlayerInsideDungeonCastle)
-                            return;
+                        return;
                     }
                 }
 
-                // Play ambient sound as a one-shot 2D sound
+                // Play ambient sound as a one-shot 3D sound
                 SoundClips clip = ambientSounds[index];
-                dfAudioSource.PlayOneShot((int)clip, 0);
+                PlaySomewhereAround(clip, 1f);
                 RaiseOnPlayEffectEvent(clip);
             }
         }
@@ -198,10 +273,10 @@ namespace DaggerfallWorkshop.Game
         {
             //Debug.Log(string.Format("Playing index {0}", index));
 
-            int minFlashes = 5;
-            int maxFlashes = 10;
+            int minFlashes;
+            int maxFlashes;
             float soundDelay = 0f;
-            float randomSkip = 0.6f;
+            const float randomSkip = 0.6f;
 
             // Store starting values
             //float startSkyScale = 1f;
@@ -232,7 +307,7 @@ namespace DaggerfallWorkshop.Game
             else
             {
                 // Unknown clip, just play as one-shot and exit
-                dfAudioSource.PlayOneShot((int)clip, 0);
+                AmbientPlayOneShot(clip, 1f);
                 RaiseOnPlayEffectEvent(clip);
                 yield break;
             }
@@ -262,15 +337,13 @@ namespace DaggerfallWorkshop.Game
 
             // Delay for sound effect
             if (soundDelay > 0)
-                yield return new WaitForSeconds(1f / soundDelay);
+                yield return new WaitForSeconds(soundDelay);
 
             // Play sound effect
-            dfAudioSource.PlayOneShot((int)clip, 0);
+            PlaySomewhereOnHorizon(clip, 1f);
 
             // Raise event
             RaiseOnPlayEffectEvent(clip);
-
-            yield break;
         }
 
         private void StartWaiting()
@@ -301,6 +374,7 @@ namespace DaggerfallWorkshop.Game
                     SoundClips.AmbientBirdCall,
                     SoundClips.AmbientDoorClose,
                 };
+                AmbientInteriorPresets();
             }
             else if (Presets == AmbientSoundPresets.Storm)
             {
@@ -310,6 +384,7 @@ namespace DaggerfallWorkshop.Game
                     SoundClips.StormLightningThunder,
                     SoundClips.StormThunderRoll,
                 };
+                AmbientExteriorPresets();
             }
             else if (Presets == AmbientSoundPresets.SunnyDay)
             {
@@ -318,6 +393,7 @@ namespace DaggerfallWorkshop.Game
                     SoundClips.BirdCall1,
                     SoundClips.BirdCall2,
                 };
+                AmbientExteriorPresets();
             }
             else
             {
@@ -325,7 +401,18 @@ namespace DaggerfallWorkshop.Game
             }
 
             lastPresets = Presets;
-            dfAudioSource.SetSound(-1, AudioPresets.OnDemand, 0);
+        }
+
+        private void AmbientInteriorPresets()
+        {
+            // Wider spread angle because of environment reverberation
+            ambientAudioSource.spread = 45f;
+        }
+
+        private void AmbientExteriorPresets()
+        {
+            // Narroer spread angle because of lesser environment reverberation
+            ambientAudioSource.spread = 15f;
         }
 
         #endregion
@@ -348,7 +435,6 @@ namespace DaggerfallWorkshop.Game
 
             /// <summary>Constructor helper.</summary>
             public AmbientEffectsEventArgs(SoundClips clip)
-                : base()
             {
                 this.Clip = clip;
             }

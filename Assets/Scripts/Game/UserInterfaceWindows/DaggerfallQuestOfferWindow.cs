@@ -7,6 +7,7 @@ using UnityEngine;
 using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.Questing;
 using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -63,9 +64,10 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Get the faction id for affecting reputation on success/failure, and current rep
             int factionId = questorNPC.factionID;
             int reputation = GameManager.Instance.PlayerEntity.FactionData.GetReputation(factionId);
+            int level = GameManager.Instance.PlayerEntity.Level;
 
             // Select a quest at random from appropriate pool
-            offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, reputation);
+            offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, reputation, level);
             if (offeredQuest != null)
             {
                 // Log offered quest
@@ -91,6 +93,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (menu) {
                 CloseWindow();
             }
+        }
+
+        // Not required for this class.
+        public override MacroDataSource GetMacroDataSource()
+        {
+            throw new System.NotImplementedException();
         }
 
         #endregion

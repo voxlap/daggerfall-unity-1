@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -14,7 +14,6 @@ using UnityEngine;
 using System;
 using System.Text;
 using System.IO;
-using DaggerfallConnect;
 #endregion
 
 namespace DaggerfallConnect
@@ -104,9 +103,7 @@ namespace DaggerfallConnect.Utility
         /// <param name="name">Name, filename, or path  to describe memory buffer.</param>
         public FileProxy(byte[] data, string name)
         {
-            fileBuffer = data;
-            managedFilePath = name;
-            fileUsage = FileUsage.UseMemory;
+            Load(data, name);
         }
 
         #endregion
@@ -237,6 +234,18 @@ namespace DaggerfallConnect.Utility
         }
 
         /// <summary>
+        /// Load a binary array.
+        /// </summary>
+        /// <param name="data">Byte array to assign (usage will be set to FileUsage.useMemory).</param>
+        /// <param name="name">Name, filename, or path  to describe memory buffer.</param>
+        public void Load(byte[] data, string name)
+        {
+            fileBuffer = data;
+            managedFilePath = name;
+            fileUsage = FileUsage.UseMemory;
+        }
+
+        /// <summary>
         /// Close open file and free memory used for buffer.
         /// </summary>
         public void Close()
@@ -295,7 +304,7 @@ namespace DaggerfallConnect.Utility
             BinaryReader reader = GetReader(position);
             if (reader == null)
                 return null;
-            
+
             return reader.ReadBytes(length);
         }
 
@@ -389,7 +398,7 @@ namespace DaggerfallConnect.Utility
         /// <param name="readLength">Number of bytes to read (0 for null-terminated).</param>
         /// <param name="skipLength">Number of bytes to skip from start position after read.</param>
         /// <returns>String composed from bytes read (all NULLs are discarded).</returns>
-        public string ReadCStringSkip(BinaryReader reader, int readLength, int skipLength)
+        public static string ReadCStringSkip(BinaryReader reader, int readLength, int skipLength)
         {
             long pos = reader.BaseStream.Position;
             string str = ReadCString(reader, readLength);
@@ -410,10 +419,9 @@ namespace DaggerfallConnect.Utility
 
             for (int i = position; i < Buffer.Length; i++)
             {
-                if (Buffer[i] == bytes[0])
+                if (Buffer[i] == bytes[0] && ReadCString(i, pattern.Length) == pattern)
                 {
-                    if (ReadCString(i, pattern.Length) == pattern)
-                        return i;
+                    return i;
                 }
             }
 

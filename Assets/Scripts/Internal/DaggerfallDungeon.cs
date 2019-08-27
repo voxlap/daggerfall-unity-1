@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -136,17 +136,15 @@ namespace DaggerfallWorkshop
             ApplyDungeonTextureTable();
         }
 
-        public void UseLocationDungeonTextureTable()
+        /// <summary>
+        /// Helper to check if dungeon is a main story dungeon.
+        /// </summary>
+        /// <param name="id">ID of dungeon.</param>
+        /// <returns>True if dungeon is a main story dungeon.</returns>
+        public static bool IsMainStoryDungeon(int id)
         {
-            // Generates dungeon texture table from random seed
-            // RandomDungeonTextures are read from settings.ini. Values are
-            // 0 : Classic textures (swamp and woodland texture sets unused)
-            // 1 : Textures by climate + classic textures for main story dungeons
-            // 2 : Textures by climate for all dungeons
-            // 3 : Randomized + classic textures for main story dungeons (method used in earlier DF Unity builds)
-            // 4 : Randomized for all dungeons
             bool mainStoryDungeon = false;
-            switch (Summary.ID)
+            switch (id)
             {
                 case 187853213:         // Daggerfall/Privateer's Hold
                 case 630439035:         // Wayrest/Wayrest
@@ -161,12 +159,26 @@ namespace DaggerfallWorkshop
                 case 9570447:           // Daggerfall/Castle Necromoghan
                 case 2352284:           // Betony/Tristore Laboratory
                 case 336619236:         // Ykalon/Castle Llugwych
-                     mainStoryDungeon = true;
-                     break;
-                  default:
-                     break;
+                case 43196334:          // Isle of Balfiera/Direnni Tower
+                    mainStoryDungeon = true;
+                    break;
+                default:
+                    break;
             }
 
+            return mainStoryDungeon;
+        }
+
+        public void UseLocationDungeonTextureTable()
+        {
+            // Generates dungeon texture table from random seed
+            // RandomDungeonTextures are read from settings.ini. Values are
+            // 0 : Classic textures (swamp and woodland texture sets unused)
+            // 1 : Textures by climate + classic textures for main story dungeons
+            // 2 : Textures by climate for all dungeons
+            // 3 : Randomized + classic textures for main story dungeons (method used in earlier DF Unity builds)
+            // 4 : Randomized for all dungeons
+            bool mainStoryDungeon = IsMainStoryDungeon(Summary.ID);
             int randomDungeonTextures = DaggerfallUnity.Settings.RandomDungeonTextures;
             // If not overriding with other textures (modes 2 and 4), use classic algorithm for main story dungeons
             if (mainStoryDungeon && randomDungeonTextures != 2 && randomDungeonTextures != 4)
@@ -234,6 +246,25 @@ namespace DaggerfallWorkshop
             return true;
         }
 
+        /// <summary>
+        /// Gets special dungeon name (e.g. Castle Daggerfall).
+        /// Fallback to current location name if not in a special named dungeon.
+        /// </summary>
+        public string GetSpecialDungeonName()
+        {
+            string dungeonName = string.Empty;
+            if (summary.RegionName == "Daggerfall" && summary.LocationName == "Daggerfall")
+                dungeonName = DaggerfallUnity.Instance.TextProvider.GetText(475);
+            else if (summary.RegionName == "Wayrest" && summary.LocationName == "Wayrest")
+                dungeonName = DaggerfallUnity.Instance.TextProvider.GetText(476);
+            else if (summary.RegionName == "Sentinel" && summary.LocationName == "Sentinel")
+                dungeonName = DaggerfallUnity.Instance.TextProvider.GetText(477);
+            else
+                dungeonName = summary.LocationName;
+
+            return dungeonName.TrimEnd('.');
+        }
+
         #region Private Methods
 
         private void LayoutDungeon(ref DFLocation location, bool importEnemies = true)
@@ -282,6 +313,8 @@ namespace DaggerfallWorkshop
                 RDBLayout.AddWater(go, go.transform.position, block.WaterLevel);
             }
 
+            RemoveOverlappingDoors();
+
 #if SHOW_LAYOUT_TIMES
             // Show timer
             long totalTime = stopwatch.ElapsedMilliseconds - startTime;
@@ -326,6 +359,62 @@ namespace DaggerfallWorkshop
 
                 // Add water blocks
                 RDBLayout.AddWater(go, go.transform.position, block.WaterLevel);
+            }
+
+            RemoveOverlappingDoors();
+        }
+
+        // Remove duplicate/overlapping action doors in dungeons
+        // Action doors that are intentionally placed flush next to each other (e.g. entrance in Daggerfall Castle) have ~2.25 units between origins
+        // Using a tolerance of <1.4 and culling a door found within this limit - any doors this close together are definitely overlapping
+        // Note some doors appear sunken in doorframe - not trying to select "best" door based on placement height at this time
+        // This process adds approx. 7ms layout time per 100 doors processed - hardly noticeable above layout times of ~1250ms for large dungeons (e.g. Scourg, 206 doors)
+        // TODO:
+        //  * Try to identify the "best" aligned door
+        private void RemoveOverlappingDoors()
+        {
+            const float tolerance = 1.4f;
+
+            List<Vector3> doorPosRegistry = new List<Vector3>();
+            DaggerfallStaticDoors[] staticDoorCollections = EnumerateStaticDoorCollections();
+            DaggerfallActionDoor[] actionDoors = GetComponentsInChildren<DaggerfallActionDoor>();
+
+            // Add static exit door to registry - should be just the one
+            foreach (DaggerfallStaticDoors collection in staticDoorCollections)
+            {
+                if (collection.Doors != null && collection.Doors.Length > 0)
+                {
+                    foreach (StaticDoor staticDoor in collection.Doors)
+                    {
+                        if (staticDoor.doorType == DoorTypes.DungeonExit)
+                        {
+                            // Get static door centre in world space and add to registry
+                            Vector3 centre = transform.rotation * staticDoor.buildingMatrix.MultiplyPoint3x4(staticDoor.centre) + transform.position;
+                            doorPosRegistry.Add(centre);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Check all action doors against registry and reject if close enough to overlap another door
+            foreach (DaggerfallActionDoor actionDoor in actionDoors)
+            {
+                bool duplicateFound = false;
+                foreach (Vector3 pos in doorPosRegistry)
+                {
+                    if (Vector3.Distance(actionDoor.transform.position, pos) < tolerance)
+                    {
+                        actionDoor.gameObject.SetActive(false);
+                        duplicateFound = true;
+                        Debug.Log(">Disabled overlapping action door");
+                        break;
+                    }
+                }
+                if (!duplicateFound)
+                {
+                    doorPosRegistry.Add(actionDoor.transform.position);
+                }
             }
         }
 

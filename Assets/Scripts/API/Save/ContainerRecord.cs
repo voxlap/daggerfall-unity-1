@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,12 +9,7 @@
 // Notes:
 //
 
-using System;
-using System.Text;
 using System.IO;
-using System.Collections;
-using System.Collections.Generic;
-using DaggerfallConnect.Utility;
 
 namespace DaggerfallConnect.Save
 {
@@ -38,13 +33,13 @@ namespace DaggerfallConnect.Save
             set { parsedData = value; }
         }
 
-         /// <summary>
-         /// Returns true if this is a wagon.
-         /// </summary>
-         public bool IsWagon
-         {
+        /// <summary>
+        /// Returns true if this is a wagon.
+        /// </summary>
+        public bool IsWagon
+        {
             get { return WagonCheck(); }
-         }
+        }
 
         #endregion
 

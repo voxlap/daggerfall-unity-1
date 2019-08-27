@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -92,6 +92,12 @@ namespace DaggerfallWorkshop.Game.Questing.Actions
                 // Otherwise add quest Item to Entity item collection
                 // It will be transferred to corpse marker loot container when dropped
                 entityBehaviour.Entity.Items.AddItem(item.DaggerfallUnityItem);
+            }
+
+            // Remove item from player inventory if they are holding it
+            if (GameManager.Instance.PlayerEntity.Items.Contains(item.DaggerfallUnityItem))
+            {
+                GameManager.Instance.PlayerEntity.Items.RemoveItem(item.DaggerfallUnityItem);
             }
 
             SetComplete();

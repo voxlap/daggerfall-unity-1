@@ -6,6 +6,7 @@
 -- QuestId: 4
 Messages: 81
 Quest: M0B30Y04
+DisplayName: Fighters Lich
 -- Message panels
 QRC:
 
@@ -147,14 +148,16 @@ _1stparton_ task:
 	end quest 
 
 _clearclick_ task:
-	when _qgclicked_ and not _mondead_ 
+	when _qgclicked_ and not _mondead_
+	say 1003 
 	clear _qgclicked_ _clearclick_ 
 
 variable _map_
 variable _nomap_
 _S.07_ task:
 	when _map_ and _pcgetsgold_ 
-	reveal _newdung_ saying 1080 
+	reveal _newdung_ readmap
+    say 1080 
 	end quest
 
 _S.08_ task:

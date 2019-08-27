@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,11 @@
 // Notes:
 //
 
-using System.Collections;
 using System.IO;
 using UnityEngine;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
+using UnityEngine.Video;
+using DaggerfallWorkshop.Game.UserInterface;
 
 namespace DaggerfallWorkshop.Utility.AssetInjection
 {
@@ -36,42 +37,36 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         /// Seek movie from mods.
         /// </summary>
         /// <param name="name">Name of movie to seek including .VID extension.</param>
-        /// <param name="movieTexture">Movietexture with imported video and sound data.</param>
+        /// <param name="videoPlayerDrawer">Video player with imported video and sound data.</param>
         /// <returns>True if movie is found.</returns>
-        public static bool TryImportMovie(string name, out MovieTexture movieTexture)
+        public static bool TryImportMovie(string name, out VideoPlayerDrawer videoPlayerDrawer)
         {
-            if (DaggerfallUnity.Settings.MeshAndTextureReplacement)
+            if (DaggerfallUnity.Settings.AssetInjection)
             {
+                // Remove VID extension
+                int index = name.LastIndexOf(".VID");
+                if (index > 0)
+                    name = name.Substring(0, index);
+
                 // Seek from loose files
-                string path = Path.Combine(moviePath, name + ".ogv");
+                string path = Path.Combine(moviePath, name + ".mp4");
                 if (File.Exists(path))
                 {
-                    WWW www = new WWW("file://" + path);
-                    movieTexture = www.GetMovieTexture();
-                    DaggerfallUnity.Instance.StartCoroutine(LoadMovieTexture(www, movieTexture));
+                    videoPlayerDrawer = new VideoPlayerDrawer(path);
                     return true;
                 }
 
                 // Seek from mods
-                if (ModManager.Instance != null)
-                    return ModManager.Instance.TryGetAsset(name, false, out movieTexture);
+                VideoClip videoClip;
+                if (ModManager.Instance != null && ModManager.Instance.TryGetAsset(name, false, out videoClip))
+                {
+                    videoPlayerDrawer = new VideoPlayerDrawer(videoClip);
+                    return true;
+                }
             }
 
-            movieTexture = null;
+            videoPlayerDrawer = null;
             return false;
-        }
-
-        /// <summary>
-        /// Load movietexture from WWW in background.
-        /// </summary>
-        private static IEnumerator LoadMovieTexture(WWW www, MovieTexture movieTexture)
-        {
-            yield return www;
-
-            if (!movieTexture.isReadyToPlay)
-                Debug.LogErrorFormat("Failed to load movie: {0}", www.error);
-
-            www.Dispose();
         }
     }
 }

@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -53,6 +53,7 @@ namespace DaggerfallWorkshop.Game
         private int personOutfitVariant;                        // which basic outfit does the person wear
         private int personFaceRecordId;                         // used for portrait in talk window
         private bool pickpocketByPlayerAttempted = false;       // player can only attempt pickpocket on a mobile NPC once
+        private bool isGuard = false;                           // is a city watch guard
 
         private MobilePersonBillboard billboard;    // billboard for npc
         private MobilePersonMotor motor;            // motor for npc
@@ -125,17 +126,24 @@ namespace DaggerfallWorkshop.Game
         /// <param name="race">Entity race of NPC in current location.</param>
         public void RandomiseNPC(Races race)
         {
-            // randomize gender
-            Genders gender = (Random.Range(0f, 1f) > 0.5f) ? gender = Genders.Female : gender = Genders.Male;
-            this.gender = gender;
-
-            // set race (set current race before calling this function with property Race)
+            // Randomly set guards
+            if (Random.Range(0, 32) == 0)
+            {
+                gender = Genders.Male;
+                personOutfitVariant = 0;
+                isGuard = true;
+            }
+            else
+            {
+                // Randomize gender
+                gender = (Random.Range(0, 2) == 1) ? Genders.Female : Genders.Male;
+                // Set outfit variant for npc
+                personOutfitVariant = Random.Range(0, numPersonOutfitVariants);
+                isGuard = false;
+            }
+            // Set race (set current race before calling this function with property Race)
             SetRace(race);
-
-            // set outfit variant for npc
-            this.personOutfitVariant = Random.Range(0, numPersonOutfitVariants);
-
-            // set remaining fields and update billboards
+            // Set remaining fields and update billboards
             SetPerson();
         }
 
@@ -170,43 +178,27 @@ namespace DaggerfallWorkshop.Game
         /// </summary>
         void SetPerson()
         {
-            // do several things in switch statement:
             // get person's face texture record index for this race and gender and outfit variant
-            // get correct nameBankType for this race
             int[] recordIndices = null;
-            NameHelper.BankTypes nameBankType;
             switch (race)
             {
                 case Races.Redguard:
                     recordIndices = (gender == Genders.Male) ? maleRedguardFaceRecordIndex : femaleRedguardFaceRecordIndex;
-                    //nameBankType = NameHelper.BankTypes.Redguard;
                     break;
                 case Races.Nord:
                     recordIndices = (gender == Genders.Male) ? maleNordFaceRecordIndex : femaleNordFaceRecordIndex;
-                    //nameBankType = NameHelper.BankTypes.Nord;
                     break;
                 case Races.Breton:
                 default:
                     recordIndices = (gender == Genders.Male) ? maleBretonFaceRecordIndex : femaleBretonFaceRecordIndex;
-                    //nameBankType = NameHelper.BankTypes.Breton;
                     break;
             }
 
-            // create name for npc
-            DFLocation.ClimateSettings climateSettings = MapsFile.GetWorldClimateSettings(GameManager.Instance.PlayerGPS.ClimateSettings.WorldClimate);
-            switch (climateSettings.Names)
-            {                
-                case FactionFile.FactionRaces.Breton:
-                default:
-                    nameBankType = NameHelper.BankTypes.Breton;
-                    break;
-                case FactionFile.FactionRaces.Nord:
-                    nameBankType = NameHelper.BankTypes.Nord;
-                    break;
-                case FactionFile.FactionRaces.Redguard:
-                    nameBankType = NameHelper.BankTypes.Redguard;
-                    break;
-            }
+            // get correct nameBankType for this race and create name for npc
+            NameHelper.BankTypes nameBankType = NameHelper.BankTypes.Breton;
+            if (GameManager.Instance.PlayerGPS.CurrentRegionIndex > -1)
+                nameBankType = (NameHelper.BankTypes) MapsFile.RegionRaces[GameManager.Instance.PlayerGPS.CurrentRegionIndex];
+
             this.nameNPC = DaggerfallUnity.Instance.NameHelper.FullName(nameBankType, gender);
 
             // get face record id to use (randomize portrait for current person outfit variant)
@@ -215,7 +207,7 @@ namespace DaggerfallWorkshop.Game
 
             // set billboard to correct race, gender and outfit variant
             billboard = GetComponentInChildren<MobilePersonBillboard>();
-            billboard.SetPerson(race, gender, personOutfitVariant);
+            billboard.SetPerson(race, gender, personOutfitVariant, isGuard);
         }
 
         /// <summary>

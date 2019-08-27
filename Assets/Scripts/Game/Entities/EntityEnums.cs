@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,7 @@
 // Notes:
 //
 
-using UnityEngine;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 
 namespace DaggerfallWorkshop.Game.Entity
 {
@@ -178,5 +175,20 @@ namespace DaggerfallWorkshop.Game.Entity
         Average = 2,
         Low = 3,
         VeryLow = 4,
+    }
+
+    /// <summary>
+    /// Varying visibility type for entities.
+    /// </summary>
+    [Flags]
+    public enum MagicalConcealmentFlags
+    {
+        None = 0,
+        InvisibleNormal = 1,
+        InvisibleTrue = 2,
+        BlendingNormal = 4,
+        BlendingTrue = 8,
+        ShadeNormal = 16,
+        ShadeTrue = 32,
     }
 }

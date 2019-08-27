@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,13 +10,12 @@
 //
 
 using System;
-using System.Text;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Banking;
 
 namespace DaggerfallConnect.Save
 {
@@ -39,16 +38,17 @@ namespace DaggerfallConnect.Save
         const int crimeCommittedOffset = 0x3A3;
         const int inDungeonWaterOffset = 0x3A6;
         const int breathRemainingOffset = 0x3AB;
-        const int climateWeathersOffset = 0x3B7;
+        //const int climateWeathersOffset = 0x3B7;
         const int weaponDrawnOffset = 0x3BF;
         const int gameTimeOffset = 0x3C9;
-        const int maleOrFemaleClothingOffset = 0x3D1; // 6 for male clothing or 12 for female clothing, matching player gender. Not bothering to read right now.
+        //const int maleOrFemaleClothingOffset = 0x3D1; // 6 for male clothing or 12 for female clothing, matching player gender.
         const int usingLeftHandWeaponOffset = 0x3D9;
-        const int currentRegionIdOffset = 0x173A; // Not bothering to read right now.
+        //const int currentRegionIdOffset = 0x173A;
         const int cheatFlagsOffset = 0x173B;
+        const int shipOwnershipOffset = 0x1750;
         const int lastSkillCheckTimeOffset = 0x179A;
         const int climateWeathersDuplicateOffset = 0x17A2; // Same data as other climateWeathers
-        const int dungeonWaterLevelOffset = 0x17A8; // Not bothering to read right now.
+        //const int dungeonWaterLevelOffset = 0x17A8;
 
         const int regionDataOffset = 0x3DA;
         const int regionDataLength = 80;
@@ -59,7 +59,7 @@ namespace DaggerfallConnect.Save
 
         // Private fields
 
-        FileProxy saveVarsFile = new FileProxy();
+        readonly FileProxy saveVarsFile = new FileProxy();
 
         int biographyResistDiseaseMod = 0;
         int biographyResistMagicMod = 0;
@@ -90,14 +90,15 @@ namespace DaggerfallConnect.Save
         bool weaponDrawn = false;
         uint gameTime = 0;
         bool usingLeftHandWeapon = false;
+        ShipType playerOwnedShip = ShipType.None;
 
         bool allMapLocationsRevealedMode = false;
         bool godMode = false;
 
         uint lastSkillCheckTime = 0;
 
-        List<PlayerEntity.RegionDataRecord> regionDataList = new List<PlayerEntity.RegionDataRecord>();
-        List<FactionFile.FactionData> factions = new List<FactionFile.FactionData>();
+        readonly List<PlayerEntity.RegionDataRecord> regionDataList = new List<PlayerEntity.RegionDataRecord>();
+        readonly List<FactionFile.FactionData> factions = new List<FactionFile.FactionData>();
 
         #endregion
 
@@ -106,7 +107,7 @@ namespace DaggerfallConnect.Save
         /// <summary>
         /// Emperor's son's name.
         /// </summary>
-        string[] emperorSonNames = { "Pelagius", "Cephorus", "Uriel", "Cassynder", "Voragiel", "Trabbatus" };
+        readonly string[] emperorSonNames = { "Pelagius", "Cephorus", "Uriel", "Cassynder", "Voragiel", "Trabbatus" };
 
         /// <summary>
         /// Travel flags.
@@ -320,6 +321,14 @@ namespace DaggerfallConnect.Save
         }
 
         /// <summary>
+        /// The type of ship owned by the player.
+        /// </summary>
+        public ShipType PlayerOwnedShip
+        {
+            get { return playerOwnedShip; }
+        }
+
+        /// <summary>
         /// Gets whether invulnerability cheat is on from savevars.
         /// </summary>
         public bool GodMode
@@ -418,10 +427,12 @@ namespace DaggerfallConnect.Save
             ReadIsDay(reader);
             ReadCrimeCommitted(reader);
             ReadInDungeonWater(reader);
+            ReadBreathRemaining(reader);
             ReadClimateWeathers(reader);
             ReadWeaponDrawn(reader);
             ReadGameTime(reader);
             ReadUsingLeftHandWeapon(reader);
+            ReadPlayerOwnedShip(reader);
             ReadCheatFlags(reader);
             ReadLastSkillCheckTime(reader);
             ReadRegionData(reader);
@@ -539,6 +550,16 @@ namespace DaggerfallConnect.Save
             reader.BaseStream.Position = usingLeftHandWeaponOffset;
             if (reader.ReadByte() == 1)
                 usingLeftHandWeapon = true;
+        }
+
+        void ReadPlayerOwnedShip(BinaryReader reader)
+        {
+            reader.BaseStream.Position = shipOwnershipOffset;
+            int shipOwned = reader.ReadInt32();
+            if (shipOwned == 25600000)
+                playerOwnedShip = ShipType.Small;
+            if (shipOwned == 51200000)
+                playerOwnedShip = ShipType.Large;
         }
 
         void ReadCheatFlags(BinaryReader reader)

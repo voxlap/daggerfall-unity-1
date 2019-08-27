@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,7 +28,7 @@ namespace DaggerfallWorkshop.Utility
         const int SPELLRECORDSIZE               = 0x59;          //byte size of an individual spell record
         const int EFFECT_DESCR_TEXTINDEX        = 1200;
         const int SPELLMAKER_DESCR_TEXTINDEX    = 1500;
-        const string DEFAULT_FILENAME           = "SPELLS.STD";
+        public const string DEFAULT_FILENAME    = "SPELLS.STD";
 
 
         /// <summary>
@@ -146,8 +146,8 @@ namespace DaggerfallWorkshop.Utility
                 if (!SetSpellMagnitudes(ref spellRecord, reader))
                     return false;
 
-                spellRecord.spellName   = DaggerfallConnect.Utility.FileProxy.ReadCString(reader, 25);
-                spellRecord.spellName   = spellRecord.spellName.TrimEnd(new char[] { '\0' });
+                spellRecord.spellName   = DaggerfallConnect.Utility.FileProxy.ReadCStringSkip(reader, 0, 25);
+                //spellRecord.spellName   = spellRecord.spellName.TrimEnd(new char[] { '\0' });
                 spellRecord.icon        = reader.ReadByte();
                 spellRecord.index       = reader.ReadByte();
                 reader.BaseStream.Seek(15, SeekOrigin.Current);

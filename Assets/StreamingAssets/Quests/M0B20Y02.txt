@@ -6,6 +6,7 @@
 -- QuestId: 2
 Messages: 81
 Quest: M0B20Y02
+DisplayName: Pack of Giants
 -- Message panels
 QRC:
 
@@ -154,4 +155,5 @@ variable _map_
 variable _nomap_
 _S.09_ task:
 	when _map_ and _pcgetsgold_ 
-	reveal _newdung_ saying 1080 
+	reveal _newdung_ readmap
+    say 1080 

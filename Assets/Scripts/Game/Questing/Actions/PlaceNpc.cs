@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -69,6 +69,13 @@ namespace DaggerfallWorkshop.Game.Questing.Actions
                 throw new Exception(string.Format("Could not find Person resource symbol {0}", npcSymbol));
             }
 
+            // Do nothing if Person is destroyed
+            if (person.IsDestroyed)
+            {
+                SetComplete();
+                return;
+            }
+
             // Attempt to get Place resource
             Place place = ParentQuest.GetPlace(placeSymbol);
             if (place == null)
@@ -91,6 +98,9 @@ namespace DaggerfallWorkshop.Game.Questing.Actions
             // Assign Person to Place
             place.AssignQuestResource(person.Symbol);
             person.SetAssignedPlaceSymbol(placeSymbol);
+
+            // Person is also unhidden when placed
+            person.IsHidden = false;
 
             TalkManager.Instance.ForceTopicListsUpdate();
 

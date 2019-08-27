@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Numidium
 // 
 // Notes:
 //
@@ -20,6 +20,7 @@ using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Player;
+using DaggerfallWorkshop.Game.Formulas;
 
 namespace DaggerfallWorkshop.Game.UserInterface
 {
@@ -32,7 +33,6 @@ namespace DaggerfallWorkshop.Game.UserInterface
     public class StatsRollout : Panel
     {
         const int minWorkingValue = 0;
-        const int maxWorkingValue = 100;
         const int minBonusRoll = 0;         // The minimum number of points added to each base class stat
         const int maxBonusRoll = 10;        // The maximum number of points added to each base class stat
         const int minBonusPool = 6;         // The minimum number of free points to allocate
@@ -48,6 +48,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         Panel[] statPanels = new Panel[DaggerfallStats.Count];
         TextLabel[] statLabels = new TextLabel[DaggerfallStats.Count];
         bool characterSheetPositioning = false;
+        bool freeEdit = false;
 
         public DaggerfallStats StartingStats
         {
@@ -67,11 +68,16 @@ namespace DaggerfallWorkshop.Game.UserInterface
             set { SetStats(startingStats, workingStats, value); }
         }
 
-        public StatsRollout(bool onCharacterSheet = false)
+        public StatsRollout(bool onCharacterSheet = false, bool freeEdit = false)
             : base()
         {
             if (onCharacterSheet)
                 characterSheetPositioning = true;
+            if (freeEdit)
+            {
+                this.freeEdit = true;
+                modifiedStatTextColor = DaggerfallUI.DaggerfallDefaultTextColor;
+            }
 
             // Add stat panels and labels
             font = DaggerfallUI.DefaultFont;
@@ -217,15 +223,25 @@ namespace DaggerfallWorkshop.Game.UserInterface
         void StatButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             SelectStat((int)sender.Tag);
+            if (freeEdit)
+            {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
+            }
         }
 
         void Spinner_OnUpButtonClicked()
         {
+            const int maxFreeEditValue = 75;
+
             // Get working stat value
             int workingValue = workingStats.GetPermanentStatValue(selectedStat);
 
-            // Working value cannot rise above maxWorkingValue and bonus cannot fall below zero
-            if (workingValue == maxWorkingValue || bonusPool == 0)
+            // Get max working value
+            int maxWorkingValue = FormulaHelper.MaxStatValue();
+
+            // Working value cannot rise above maxWorkingValue and bonus cannot fall below zero, unless freeEdit active
+            if ((freeEdit && workingValue == maxFreeEditValue) ||
+                !freeEdit && (workingValue == maxWorkingValue || bonusPool == 0))
                 return;
 
             // Remove a point from pool stat and assign to working stat
@@ -234,15 +250,22 @@ namespace DaggerfallWorkshop.Game.UserInterface
             spinner.Value = bonusPool;
             UpdateStatLabels();
             RaiseOnStatChanged();
+            if (freeEdit)
+            {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
+            }
         }
 
         void Spinner_OnDownButtonClicked()
         {
+            const int minFreeEditValue = 10;
+
             // Get working stat value
             int workingValue = workingStats.GetPermanentStatValue(selectedStat);
 
-            // Working value cannot reduce below starting value or minWorkingValue
-            if (workingValue == startingStats.GetPermanentStatValue(selectedStat) || workingValue == minWorkingValue)
+            // Working value cannot reduce below starting value or minWorkingValue, unless freeEdit active
+            if ((freeEdit && workingValue == minFreeEditValue) ||
+                (!freeEdit && (workingValue == startingStats.GetPermanentStatValue(selectedStat) || workingValue == minWorkingValue)))
                 return;
 
             // Remove a point from working stat and assign to pool
@@ -251,6 +274,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
             spinner.Value = bonusPool;
             UpdateStatLabels();
             RaiseOnStatChanged();
+            if (freeEdit)
+            {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
+            }
         }
 
         #endregion

@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,35 +12,47 @@
 using UnityEngine;
 using System;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
-using DaggerfallConnect.Utility;
-using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
+using TMPro;
 
 namespace DaggerfallWorkshop.Game.UserInterface
 {
     /// <summary>
     /// Daggerfall-specific implementation of a pixel font.
+    /// Supports classic FONT0000-0004 with an SDF variant.
+    /// Classic font has the same limitations of 256 characters starting from ASCII 33.
+    /// SDF font uses a keyed dictionary so can support any number of glyph codes.
+    /// Current implementation will load a TextMeshPro 1.3.x font asset directly for SDF variant.
     /// </summary>
-    public class DaggerfallFont : PixelFont
+    public class DaggerfallFont
     {
         #region Fields
 
+        public const int SpaceCode = 32;
+        public const int ErrorCode = 63;
         const int defaultAsciiStart = 33;
+        public const string invalidCode = "Font does not contain glyph for code: ";
+        float classicGlyphSpacing = 1;
+        float sdfGlyphSpacing = 0.2f;
+        float sdfShadowPositionScale = 0.4f;
 
-        //string arena2Path;
+        int glyphHeight;
+        FilterMode filterMode = FilterMode.Point;
+        Dictionary<int, GlyphInfo> glyphs = new Dictionary<int, GlyphInfo>();
+
         FontName font;
         FntFile fntFile = new FntFile();
         Color backgroundColor = Color.clear;
         Color textColor = Color.white;
         protected Texture2D atlasTexture;
         protected Rect[] atlasRects;
-
         protected int asciiStart = defaultAsciiStart;
+
+        protected SDFFontInfo? sdfFontInfo;
 
         #endregion
 
@@ -55,30 +67,190 @@ namespace DaggerfallWorkshop.Game.UserInterface
             FONT0004,
         }
 
+        public struct GlyphInfo
+        {
+            public Color32[] colors;
+            public int width;
+        }
+
+        public struct SDFFontInfo
+        {
+            public float pointSize;
+            public float baseline;
+            public Texture2D atlas;
+            public Dictionary<int, SDFGlyphInfo> glyphs;
+        }
+
+        public struct SDFGlyphInfo
+        {
+            public int code;
+            public Rect rect;
+            public Vector2 offset;
+            public Vector2 size;
+            public float advance;
+        }
+
+        #endregion
+
+        #region Properties
+
+        public int AsciiStart
+        {
+            get { return asciiStart; }
+        }
+
+        public int GlyphHeight
+        {
+            get { return glyphHeight; }
+            set { glyphHeight = value; }
+        }
+
+        public float GlyphSpacing
+        {
+            get { return GetGlyphSpacing(); }
+        }
+
+        public FilterMode FilterMode
+        {
+            get { return filterMode; }
+            set { filterMode = value; }
+        }
+
+        public int GlyphCount
+        {
+            get { return glyphs.Count; }
+        }
+
+        public bool IsSDFCapable
+        {
+            get { return (DaggerfallUnity.Settings.SDFFontRendering && sdfFontInfo != null); }
+        }
+
+        public SDFFontInfo SDFInfo
+        {
+            get { return sdfFontInfo.Value; }
+        }
+
         #endregion
 
         #region Constructors
 
         public DaggerfallFont(FontName font = FontName.FONT0003)
         {
-            //this.arena2Path = string.Empty;
             this.font = font;
             LoadFont();
         }
 
         public DaggerfallFont(string arena2Path, FontName font = FontName.FONT0003)
         {
-            //this.arena2Path = arena2Path;
             this.font = font;
             LoadFont();
         }
 
         #endregion
 
-        #region Private Methods
+        #region Glyph Rendering
+
+        void DrawClassicGlyph(byte rawAscii, Rect targetRect, Color color)
+        {
+            Rect atlasRect = atlasRects[rawAscii - asciiStart];
+            Graphics.DrawTexture(targetRect, atlasTexture, atlasRect, 0, 0, 0, 0, color, DaggerfallUI.Instance.PixelFontMaterial);
+        }
+
+        void DrawClassicGlyphWithShadow(byte rawAscii, Rect targetRect, Color color, Vector2 shadowPosition, Color shadowColor)
+        {
+            if (shadowPosition != Vector2.zero && shadowColor != Color.clear)
+            {
+                Rect shadowRect = targetRect;
+                shadowRect.x += shadowPosition.x;
+                shadowRect.y += shadowPosition.y;
+                DrawClassicGlyph(rawAscii, shadowRect, shadowColor);
+            }
+
+            DrawClassicGlyph(rawAscii, targetRect, color);
+        }
+
+        void DrawSDFText(
+            string text,
+            Vector2 position,
+            Vector2 scale,
+            Color color)
+        {
+            float glyphSpacing = GlyphSpacing;
+            byte[] utf32Bytes = Encoding.UTF32.GetBytes(text);
+            for (int i = 0; i < utf32Bytes.Length; i += sizeof(int))
+            {
+                // Get code and use ? for any character code not in dictionary
+                int code = BitConverter.ToInt32(utf32Bytes, i);
+                if (!sdfFontInfo.Value.glyphs.ContainsKey(code))
+                    code = ErrorCode;
+
+                // Draw glyph and advance position
+                SDFGlyphInfo glyph = sdfFontInfo.Value.glyphs[code];
+                DrawSDFGlyph(glyph, position, scale, color);
+                position.x += GetGlyphWidth(glyph, scale, glyphSpacing) * scale.x;
+            }
+        }
+
+        float DrawSDFGlyphWithShadow(int code, Vector2 position, Vector2 scale, Color color, Vector2 shadowPosition, Color shadowColor)
+        {
+            SDFGlyphInfo glyph = sdfFontInfo.Value.glyphs[code];
+            if (shadowPosition != Vector2.zero && shadowColor != Color.clear)
+                DrawSDFGlyph(glyph, position + shadowPosition * sdfShadowPositionScale, scale, shadowColor);
+
+            return DrawSDFGlyph(glyph, position, scale, color);
+        }
+
+        #endregion
+
+        #region Public Methods
 
         /// <summary>
-        /// Draws string of individual text glyphs for small-scale font rendering.
+        /// Draws a classic glyph with a drop-shadow.
+        /// </summary>
+        public void DrawClassicGlyph(byte rawAscii, Rect targetRect, Color color, Vector2 shadowPosition, Color shadowColor)
+        {
+            if (rawAscii < asciiStart)
+                return;
+
+            DrawClassicGlyphWithShadow(rawAscii, targetRect, color, shadowPosition, shadowColor);
+        }
+
+        /// <summary>
+        /// Draws an SDF glyph with a drop-shadow.
+        /// </summary>
+        public float DrawSDFGlyph(int code, Vector2 position, Vector2 scale, Color color, Vector2 shadowPosition, Color shadowColor)
+        {
+            return DrawSDFGlyphWithShadow(code, position, scale, color, shadowPosition, shadowColor);
+        }
+
+        public float DrawSDFGlyph(int code, Vector2 position, Vector2 scale, Color color)
+        {
+            return DrawSDFGlyph(sdfFontInfo.Value.glyphs[code], position, scale, color);
+        }
+
+        public float DrawSDFGlyph(SDFGlyphInfo glyph, Vector2 position, Vector2 scale, Color color)
+        {
+            float scalingRatio = GetSDFGlyphScalingRatio(scale.y);
+
+            // Handle space
+            if (glyph.code == SpaceCode)
+                return glyph.advance * scalingRatio;
+
+            // Compose target rect - this will change based on current display scale
+            // Can use classic glyph height to approximate baseline vertical position
+            float baseline = position.y - 2 * scale.y + GlyphHeight * scale.y + sdfFontInfo.Value.baseline;
+            float xpos = position.x + glyph.offset.x * scalingRatio;
+            float ypos = baseline - glyph.offset.y * scalingRatio;
+            Rect targetRect = new Rect(xpos, ypos, glyph.size.x * scalingRatio, glyph.size.y * scalingRatio);
+
+            // Draw glyph
+            Graphics.DrawTexture(targetRect, sdfFontInfo.Value.atlas, glyph.rect, 0, 0, 0, 0, color, DaggerfallUI.Instance.SDFFontMaterial);
+            return GetGlyphWidth(glyph, scale, GlyphSpacing);
+        }
+
+        /// <summary>
+        /// Draws string of classic or SDF glyphs.
         /// </summary>
         public void DrawText(
             string text,
@@ -88,6 +260,13 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             if (!fntFile.IsLoaded)
                 throw new Exception("DaggerfallFont: DrawText() font not loaded.");
+
+            // Redirect SDF rendering when enabled
+            if (IsSDFCapable)
+            {
+                DrawSDFText(text, position, scale, color);
+                return;
+            }
 
             atlasTexture.filterMode = FilterMode;
 
@@ -101,22 +280,22 @@ namespace DaggerfallWorkshop.Game.UserInterface
             {
                 // Invalid ASCII bytes are cast to a space character
                 if (!HasGlyph(asciiBytes[i]))
-                    asciiBytes[i] = PixelFont.SpaceASCII;
+                    asciiBytes[i] = SpaceCode;
 
-                PixelFont.GlyphInfo glyph = GetGlyph(asciiBytes[i]);
+                GlyphInfo glyph = GetGlyph(asciiBytes[i]);
 
-                Rect rect = new Rect(x, y, glyph.width * scale.x, GlyphHeight * scale.y);
-                if (asciiBytes[i] != PixelFont.SpaceASCII)
+                if (asciiBytes[i] != SpaceCode)
                 {
-                    Color guiColor = GUI.color;
-
-                    GUI.color = color;
-                    GUI.DrawTextureWithTexCoords(rect, atlasTexture, atlasRects[asciiBytes[i] - asciiStart]);
-
-                    GUI.color = guiColor;
+                    Rect rect = new Rect(x, y, glyph.width * scale.x, GlyphHeight * scale.y);
+                    DrawClassicGlyph(asciiBytes[i], rect, color);
+                    x += rect.width + GlyphSpacing * scale.x;
                 }
-
-                x += rect.width + GlyphSpacing * scale.x;
+                else
+                {
+                    // Just add space character
+                    Rect rect = new Rect(x, y, glyph.width * scale.x, GlyphHeight * scale.y);
+                    x += rect.width;
+                }
             }
         }
 
@@ -136,26 +315,54 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         /// <summary>
-        /// Calculates glyph width up to character length of string (-1 for all characters)
+        /// Calculate width of text using whichever font path is active (classic or SDF).
         /// </summary>
-        public float GetCharacterWidth(string text, int length = -1, float scale = 1)
+        /// <param name="text">Text to calculate width of.</param>
+        /// <param name="scale">Scale to use when calculating width.</param>
+        /// <returns>Width of string in scaled pixels.</returns>
+        public float CalculateTextWidth(string text, Vector2 scale, int start = 0, int length = -1)
         {
-            byte[] asciiBytes = Encoding.ASCII.GetBytes(text);
-            if (asciiBytes == null || asciiBytes.Length == 0)
+            // Must have a string
+            if (string.IsNullOrEmpty(text))
                 return 0;
 
+            // Get automatic length from start position to end of text
             if (length < 0)
-                length = asciiBytes.Length;
+                length = text.Length - start;
 
+            // Get substring if required
+            if (start > 0 || length != text.Length)
+                text = text.Substring(start, length);
+
+            // Calculate width based on active font path
             float width = 0;
-            for (int i = 0; i < length; i++)
+            if (!IsSDFCapable)
             {
-                // Invalid ASCII bytes are cast to a space character
-                if (!HasGlyph(asciiBytes[i]))
-                    asciiBytes[i] = PixelFont.SpaceASCII;
+                // Classic glyphs
+                byte[] asciiBytes = Encoding.ASCII.GetBytes(text);
+                for (int i = 0; i < asciiBytes.Length; i++)
+                {
+                    // Get code and use ? for any character code not in dictionary
+                    int code = asciiBytes[i];
+                    if (!HasGlyph(code))
+                        code = ErrorCode;
 
-                PixelFont.GlyphInfo glyph = GetGlyph(asciiBytes[i]);
-                width += (glyph.width + GlyphSpacing) * scale;
+                    width += GetGlyphWidth(code, scale, GlyphSpacing);
+                }
+            }
+            else
+            {
+                // SDF glyphs
+                byte[] utf32Bytes = Encoding.UTF32.GetBytes(text);
+                for (int i = 0; i < utf32Bytes.Length; i += sizeof(int))
+                {
+                    // Get code and use ? for any character code not in dictionary
+                    int code = BitConverter.ToInt32(utf32Bytes, i);
+                    if (!sdfFontInfo.Value.glyphs.ContainsKey(code))
+                        code = ErrorCode;
+
+                    width += GetGlyphWidth(code, scale, GlyphSpacing);
+                }
             }
 
             return width;
@@ -173,9 +380,136 @@ namespace DaggerfallWorkshop.Game.UserInterface
             return LoadFont();
         }
 
+        public void ClearGlyphs()
+        {
+            glyphs.Clear();
+        }
+
+        public bool HasGlyph(int ascii)
+        {
+            return glyphs.ContainsKey(ascii);
+        }
+
+        public bool HasSDFGlyph(int code)
+        {
+            if (!IsSDFCapable || sdfFontInfo == null)
+                return false;
+
+            return sdfFontInfo.Value.glyphs.ContainsKey(code);
+        }
+
+        public void AddGlyph(int ascii, GlyphInfo info)
+        {
+            glyphs.Add(ascii, info);
+        }
+
+        public GlyphInfo GetGlyph(int ascii)
+        {
+            if (!glyphs.ContainsKey(ascii))
+                throw new Exception(invalidCode + ascii);
+
+            return glyphs[ascii];
+        }
+
+        public SDFGlyphInfo GetSDFGlyph(int code)
+        {
+            if (!IsSDFCapable || !sdfFontInfo.Value.glyphs.ContainsKey(code))
+                throw new Exception(invalidCode + code);
+
+            return sdfFontInfo.Value.glyphs[code];
+        }
+
+        public float GetGlyphWidth(int code, Vector2 scale, float spacing = 0)
+        {
+            if (!IsSDFCapable)
+            {
+                GlyphInfo glyph = GetGlyph(code);
+                return glyph.width + spacing;
+            }
+            else
+            {
+                SDFGlyphInfo glyph = SDFInfo.glyphs[code];
+                float scalingRatio = GetSDFGlyphScalingRatio(scale.y);
+                return glyph.advance * scalingRatio / scale.x + spacing;
+            }
+        }
+
+        public float GetGlyphWidth(SDFGlyphInfo glyph, Vector2 scale, float spacing = 0)
+        {
+            float scalingRatio = GetSDFGlyphScalingRatio(scale.y);
+            return glyph.advance * scalingRatio / scale.x + spacing;
+        }
+
+        public void RemoveGlyph(int ascii)
+        {
+            if (!glyphs.ContainsKey(ascii))
+                throw new Exception(invalidCode + ascii);
+
+            glyphs.Remove(ascii);
+        }
+
+        public Material GetMaterial()
+        {
+            return (IsSDFCapable) ? DaggerfallUI.Instance.SDFFontMaterial : DaggerfallUI.Instance.PixelFontMaterial;
+        }
+
+        /// <summary>
+        /// Load a TextMeshPro 1.3.x asset used for this to use for SDF rendering.
+        /// Mods can use DaggerfallUI.Instance.Font1 through Font4 to access the instances used by other game windows.
+        /// Custom font should be set only during startup.
+        /// </summary>
+        /// <param name="path">Path to a TextMeshPro 1.3.x font asset.</param>
+        public void LoadSDFFontAsset(string path)
+        {
+            // Attempt to load a TextMeshPro font asset
+            TMP_FontAsset tmpFont = Resources.Load<TMP_FontAsset>(path);
+            if (!tmpFont)
+                return;
+
+            // Create font info
+            SDFFontInfo fi = new SDFFontInfo();
+            fi.pointSize = tmpFont.fontInfo.PointSize;
+            fi.atlas = tmpFont.atlas;
+            fi.baseline = tmpFont.fontInfo.Baseline;
+            fi.glyphs = new Dictionary<int, SDFGlyphInfo>();
+
+            // Cache glyph info
+            float atlasWidth = tmpFont.atlas.width;
+            float atlasHeight = tmpFont.atlas.height;
+            foreach (var kvp in tmpFont.characterDictionary)
+            {
+                // Compose glyph rect inside of atlas
+                TMP_Glyph glyph = kvp.Value;
+                float atlasGlyphX = glyph.x / atlasWidth;
+                float atlasGlyphY = (atlasHeight - glyph.y - glyph.height) / atlasHeight;
+                float atlasGlyphWidth = glyph.width / atlasWidth;
+                float atlasGlyphHeight = glyph.height / atlasHeight;
+                Rect atlasGlyphRect = new Rect(atlasGlyphX, atlasGlyphY, atlasGlyphWidth, atlasGlyphHeight);
+
+                // Store information about this glyph
+                SDFGlyphInfo glyphInfo = new SDFGlyphInfo()
+                {
+                    code = kvp.Key,
+                    rect = atlasGlyphRect,
+                    offset = new Vector2(glyph.xOffset, glyph.yOffset),
+                    size = new Vector2(glyph.width, glyph.height),
+                    advance = glyph.xAdvance,
+                };
+                fi.glyphs.Add(kvp.Key, glyphInfo);
+            }
+
+            // Set live font info
+            sdfFontInfo = fi;
+        }
+
         #endregion
 
         #region Private Methods
+
+        float GetSDFGlyphScalingRatio(float localYScale)
+        {
+            return GlyphHeight / SDFInfo.pointSize * localYScale;
+        }
 
         bool LoadFont()
         {
@@ -187,7 +521,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             // Start new glyph dictionary
             // Daggerfall fonts start at ASCII 33 '!' so we must create our own space glyph for ASCII 32
             ClearGlyphs();
-            AddGlyph(SpaceASCII, CreateSpaceGlyph());
+            AddGlyph(SpaceCode, CreateSpaceGlyph());
 
             // Add remaining glyphs
             int ascii = asciiStart;
@@ -201,7 +535,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
             // Create font atlas
             ImageProcessing.CreateFontAtlas(fntFile, Color.clear, Color.white, out atlasTexture, out atlasRects);
             atlasTexture.filterMode = FilterMode;
-            
+
+            // Load an SDF font variant if one is available
+            LoadSDFFontAsset(string.Format("Fonts/{0}-SDF", font.ToString()));
+
             return true;
         }
 
@@ -229,6 +566,11 @@ namespace DaggerfallWorkshop.Game.UserInterface
             glyph.width = fntFile.GetGlyphWidth(index);
 
             return glyph;
+        }
+
+        float GetGlyphSpacing()
+        {
+            return (!IsSDFCapable) ? classicGlyphSpacing : sdfGlyphSpacing;
         }
 
         #endregion

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using FullSerializer;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Questing;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop.Game.Serialization
 {
@@ -51,7 +52,7 @@ namespace DaggerfallWorkshop.Game.Serialization
                 // Only fixing for enemies now - will look for a better solution in the future
                 if (enemy && GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
                 {
-                    if (SaveLoadManager.StateManager.ContainsEnemy(enemy.LoadID))
+                    while (SaveLoadManager.StateManager.ContainsEnemy(enemy.LoadID))
                         enemy.LoadID++;
                 }
 
@@ -116,6 +117,10 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.mobileGender = mobileEnemy.Summary.Enemy.Gender;
             data.items = entity.Items.SerializeItems();
             data.equipTable = entity.ItemEquipTable.SerializeEquipTable();
+            data.instancedEffectBundles = GetComponent<EntityEffectManager>().GetInstancedBundlesSaveData();
+            data.alliedToPlayer = mobileEnemy.Summary.Enemy.Team == MobileTeams.PlayerAlly;
+            data.questFoeSpellQueueIndex = entity.QuestFoeSpellQueueIndex;
+            data.wabbajackActive = entity.WabbajackActive;
 
             // Add quest resource data if present
             QuestResourceBehaviour questResourceBehaviour = GetComponent<QuestResourceBehaviour>();
@@ -145,7 +150,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             if (entity == null || entity.EntityType != data.entityType || entity.CareerIndex != data.careerIndex)
             {
                 SetupDemoEnemy setupEnemy = enemy.GetComponent<SetupDemoEnemy>();
-                setupEnemy.ApplyEnemySettings(data.entityType, data.careerIndex, data.mobileGender, data.isHostile);
+                setupEnemy.ApplyEnemySettings(data.entityType, data.careerIndex, data.mobileGender, data.isHostile, alliedToPlayer: data.alliedToPlayer);
                 setupEnemy.AlignToGround();
 
                 if (entity == null)
@@ -158,12 +163,14 @@ namespace DaggerfallWorkshop.Game.Serialization
             // Restore enemy data
             entityBehaviour.gameObject.name = data.gameObjectName;
             enemy.transform.rotation = data.currentRotation;
+            entity.QuestFoeSpellQueueIndex = data.questFoeSpellQueueIndex;
+            entity.WabbajackActive = data.wabbajackActive;
             entity.Items.DeserializeItems(data.items);
             entity.ItemEquipTable.DeserializeEquipTable(data.equipTable, entity.Items);
             entity.MaxHealth = data.startingHealth;
-            entity.CurrentHealth = data.currentHealth;
-            entity.CurrentFatigue = data.currentFatigue;
-            entity.CurrentMagicka = data.currentMagicka;
+            entity.SetHealth(data.currentHealth, true);
+            entity.SetFatigue(data.currentFatigue, true);
+            entity.SetMagicka(data.currentMagicka, true);
             motor.IsHostile = data.isHostile;
             senses.HasEncounteredPlayer = data.hasEncounteredPlayer;
 
@@ -194,7 +201,17 @@ namespace DaggerfallWorkshop.Game.Serialization
                 // Add QuestResourceBehaviour to GameObject
                 QuestResourceBehaviour questResourceBehaviour = entityBehaviour.gameObject.AddComponent<QuestResourceBehaviour>();
                 questResourceBehaviour.RestoreSaveData(data.questResource);
+
+                // Destroy QuestResourceBehaviour if no actual quest properties are restored from save
+                if (questResourceBehaviour.QuestUID == 0 || questResourceBehaviour.TargetSymbol == null)
+                {
+                    enemy.QuestSpawn = false;
+                    Destroy(questResourceBehaviour);
+                }
             }
+
+            // Restore instanced effect bundles
+            GetComponent<EntityEffectManager>().RestoreInstancedBundleSaveData(data.instancedEffectBundles);
 
             // Resume entity
             entity.Quiesce = false;

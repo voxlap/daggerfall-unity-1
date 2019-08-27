@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,9 +9,7 @@
 // Notes:
 //
 
-using UnityEngine;
 using DaggerfallConnect;
-using DaggerfallWorkshop.Game.Entity;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -20,9 +18,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class CureParalyzation : BaseEntityEffect
     {
+        public static readonly string EffectKey = "Cure-Paralyzation";
+
         public override void SetProperties()
         {
-            properties.Key = "Cure-Paralyzation";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(3, 2);
             properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "cure");
             properties.SubGroupName = TextManager.Instance.GetText("ClassicEffects", "paralyzation");

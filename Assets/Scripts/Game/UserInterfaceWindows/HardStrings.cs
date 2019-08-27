@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,16 +28,14 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public const string gameLoaded = "Game loaded.";
         public const string thisHouseHasNothingOfValue = "This house has nothing of value.";
         public const string findLocationPrompt = "Enter name of place : ";
-        public const string equippingWeapon = "Equipping %s";
         public const string rightHandEquipped = "Right hand equipped.";
         public const string leftHandEquipped = "Left hand equipped.";
         public const string usingRightHand = "Using weapon in right hand.";
         public const string usingLeftHand = "Using weapon in left hand.";
         public const string itemHasBroken = "%s has broken.";
         public const string itemHasBrokenPlural = "%s have broken.";
-        public const string cannotCarryAnymore = "You cannot carry anymore stuff.";
-        public const string cannotHoldAnymore = "Your cart cannot hold anymore stuff.";
         public const string cannotCarryGold = "You cannot carry that much gold.";
+        public const string cannotFloat = "You are carrying too much to stay afloat.";
         public const string youHaveNoArrows = "You have no arrows.";
 
         public const string enterSaveName = "Enter save name";
@@ -55,13 +53,14 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public const string youSeeA = "You see a %s.";
         public const string youSeeADeadPerson = "You see a dead person.";
         public const string youSeeADead = "You see a dead %s.";
+        public const string youCollectArrows = "You pluck your arrows out of the corpse.";
 
         public const string loiterHowManyHours = "Loiter how many hours : ";
         public const string restHowManyHours = "Rest how many hours : ";
 
         public const string potionRecipeFor = "Recipe for Potion of %po";
         public const string potionOf = "Potion of %po";
-        public const string cannotUseThis = "You cannot use this.";
+        public const string letterPrefix = "Letter: ";
         public const string multipleAssignments = "You have multiple assignments...";
 
         public const string youAreEntering = "You are entering %s";
@@ -128,6 +127,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         public const string skillImprove = "Your %s skill has improved.";
         public const string mustDistributeBonusPoints = "You must distribute all bonus points.";
+        public const string enterNewName = "Enter new name : ";
         public const string affiliation = "Affiliation";
         public const string rank = "Rank";
 
@@ -140,7 +140,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public const string serviceTeleport = "Teleportation";
         public const string serviceMakeSpells = "Make Spells";
         public const string serviceBuyMagicItems = "Buy Magic Items";
-        public const string serviceSellMagicItems = "Buy Magic Items";
+        public const string serviceSellMagicItems = "Sell Magic Items";
         public const string serviceDaedraSummon = "Daedra Summoning";
         public const string serviceMakeMagicItems = "Make Magic Items";
         public const string serviceRepairs = "Repairs";
@@ -153,15 +153,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public const string serviceReceiveArmor = "Receive Armor";
         public const string serviceReceiveHouse = "Receive House";
         public const string serviceReceiveHouseAlready = "You have already received your house.";
-        public const string serviceMembersOnly = "My services are reserved for members only.";
         public const string accessMembersOnly = "You need to be a member of sufficient rank to access this.";
-        public const string serviceDonateHowMuch = "Donate how much money : ";
+        public const string serviceCured = "You are cured.";
+        public const string serviceSummonCost1 = "%pcn, the cost for me to attempt a";
+        public const string serviceSummonCost2 = "summoning of %dae is ";
+        public const string serviceSummonCost3 = " gold.";
 
         public const string roomFreeForKnightSuchAsYou = "The room is free for a knight such as you.";
         public const string roomFreeDueToHeartsDay = "Room is free due to Heart's Day.";
         public const string youAreNotHungry = "You are not hungry.";
-
-        public const string doesntNeedIdentifying = "This does not need to be identified.";
 
         public const string exhaustedInWater = "Fatigue overcomes you and sends you to a watery grave...."; // Not in classic. Borrowed from Arena.
         public const string youFeelSomewhatBad = "You feel somewhat bad.";
@@ -249,12 +249,68 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         public const string cannotChangeTransportationIndoors = "You cannot change transportation indoors.";
         public const string cannotTravelWithEnemiesNearby = "You cannot travel with enemies nearby.";
+        public const string cannotTravelIndoors = "You cannot travel while indoors.";
 
         public const string powersUnknown = "Powers unknown.";
-        public const string repairDone = "DONE";
-        public const string repairDays = "%d days";
 
-        public const string cannotRemoveThisItem = "You cannot remove this item.";
+        public static readonly string[] itemPowers = { "Cast when used:",
+                                                    "Cast when held:",
+                                                    "Cast when strikes:",
+                                                    "Extra spell pts",
+                                                    "Potent vs",
+                                                    "Regens health",
+                                                    "Vampiric effect",
+                                                    "Increased weight allowance",
+                                                    "Repairs objects",
+                                                    "Absorbs spells",
+                                                    "Enhances skill",
+                                                    "Feather weight",
+                                                    "Strengthens armor",
+                                                    "Improves talents",
+                                                    "Good rep with",
+                                                    "Soul bound",
+                                                    "Item deteriorates",
+                                                    "User takes damage",
+                                                    "Vision problems",
+                                                    "Walking problems",
+                                                    "Low damage vs",
+                                                    "Health leech",
+                                                    "Bad reactions from",
+                                                    "Extra weight",
+                                                    "Weakens armor",
+                                                    "Bad rep with" };
+
+        public static readonly string[] enemyNames =  { "Rat", "Imp", "Spriggan",
+                                                       "Giant bat", "Grizzly bear",
+                                                       "Sabretooth tiger", "Spider",
+                                                       "Orc", "Centaur", "Werewolf",
+                                                       "Nymph", "Slaughterfish",
+                                                       "Orc sergeant", "Harpy", "Wereboar",
+                                                       "Skeletal warrior", "Giant",
+                                                       "Zombie", "Ghost", "Mummy",
+                                                       "Giant scorpion", "Orc shaman",
+                                                       "Gargoyle", "Wraith",
+                                                       "Orc warlord", "Frost daedra",
+                                                       "Fire daedra", "Daedroth",
+                                                       "Vampire", "Daedra seducer",
+                                                       "Ancient vampire", "Daedra lord",
+                                                       "Lich", "Ancient lich", "Dragonling",
+                                                       "Fire Atronach", "Iron Atronach",
+                                                       "Flesh Atronach", "Ice Atronach",
+                                                       "Horse", "Dragonling", "Dreugh",
+                                                       "Lamia" };
+
+        public static readonly string[] extraSpellPtsTimes = { "during Winter", "during Spring", "during Summer", "during Fall", "during Full Moon", "during Half Moon", "during New Moon", "near undead", "near daedra", "near humanoids", "near animals" };
+        public static readonly string[] regensHealthTimes = { "all the time", "in sunlight", "in darkness" };
+        public static readonly string[] vampiricEffectRanges = { "at range", "when strikes" };
+        public static readonly string[] increasedWeightAllowances = { "25% additional", "50% additional" };
+        public static readonly string[] improvedTalents = { "hearing", "athleticism", "adrenaline rush" };
+        public static readonly string[] itemDeteriorateLocations = { "all the time", "in sunlight", "in holy places" };
+        public static readonly string[] userTakesDamageLocations = { "in sunlight", "in holy places" };
+        public static readonly string[] enemyGroupNames =  { "undead", "Daedra", "humanoids", "animals" };
+        public static readonly string[] healthLeechStopConditions = { "whenever used", "unless used daily", "unless used weekly" };
+        public static readonly string[] badReactionFromEnemyGroups = { "humanoids", "animals", "Daedra" };
+        public static readonly string[] repWithGroups = { "Commoners", "Merchants", "Scholars", "Nobility", "Underworld", "All" };
 
         public const string youReceiveGoldPieces = "You receive %s gold pieces.";     // Custom message for "get item" gold assignment
 
@@ -279,5 +335,105 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public const string pressButtonToFireSpell = "Press button to fire spell.";
 
         public const string climbingMode = "Climbing mode.";
+        public const string rappelMode = "Rappel mode.";
+        public const string hangingMode = "Hanging Mode";
+
+        public const string acuteHearing = "Acute Hearing";
+        public const string adrenalineRush = "Adrenaline Rush";
+        public const string athleticism = "Athleticism";
+        public const string bonusToHit = "Bonus to hit";
+        public const string expertiseIn = "Expertise in";
+        public const string immunity = "Immunity";
+        public const string increasedMagery = "Increased Magery";
+        public const string rapidHealing = "Rapid Healing";
+        public const string regenerateHealth = "Regenerate Health";
+        public const string resistance = "Resistance";
+        public const string spellAbsorption = "Spell Absorption";
+        public const string animals = "Animals";
+        public const string daedra = "Daedra";
+        public const string humanoid = "Humanoid";
+        public const string undead = "Undead";
+        public const string axe = "Axe";
+        public const string bluntWeapon = "Blunt Weapon";
+        public const string handToHand = "Hand_To_Hand";
+        public const string longBlade = "Long Blade";
+        public const string missileWeapon = "Missile Weapon";
+        public const string shortBlade = "Short Blade";
+        public const string toDisease = "To Disease";
+        public const string toFire = "To Fire";
+        public const string toFrost = "To Frost";
+        public const string toMagic = "To Magic";
+        public const string toParalysis = "To Paralysis";
+        public const string toPoison = "To Poison";
+        public const string toShock = "To Shock";
+        public const string intInSpellPoints15 = "1.5X INT In Spell Points";
+        public const string intInSpellPoints175 = "1.75X INT In Spell Points";
+        public const string intInSpellPoints2 = "2X INT In Spell Points";
+        public const string intInSpellPoints3 = "3X INT In Spell Points";
+        public const string intInSpellPoints = "INT In Spell Points";
+        public const string general = "General";
+        public const string inDarkness = "In Darkness";
+        public const string inLight = "In Light";
+        public const string whileImmersed = "While Immersed In Water";
+
+        public const string criticalWeakness = "Critical Weakness";
+        public const string damage = "Damage";
+        public const string darknessPoweredMagery = "Darkness_Powered Magery";
+        public const string forbiddenArmorType = "Forbidden Armor Type";
+        public const string forbiddenMaterial = "Forbidden Material";
+        public const string forbiddenShieldTypes = "Forbidden Shield Types";
+        public const string forbiddenWeaponry = "Forbidden Weaponry";
+        public const string inabilityToRegen = "Inability To Regen Spell Points";
+        public const string lightPoweredMagery = "Light_Powered Magery";
+        public const string lowTolerance = "Low Tolerance";
+        public const string phobia = "Phobia";
+        public const string fromHolyPlaces = "From Holy Places";
+        public const string fromSunlight = "From Sunlight";
+        public const string lowerMagicAbilityDaylight = "Lower Magic Ability In Daylight";
+        public const string unableToUseMagicInDaylight = "Unable To Use Magic In Daylight";
+        public const string chain = "Chain";
+        public const string leather = "Leather";
+        public const string plate = "Plate";
+        public const string adamantium = "Adamantium";
+        public const string daedric = "Daedric";
+        public const string dwarven = "Dwarven";
+        public const string ebony = "Ebony";
+        public const string elven = "Elven";
+        public const string iron = "Iron";
+        public const string mithril = "Mithril";
+        public const string orcish = "Orcish";
+        public const string silver = "Silver";
+        public const string steel = "Steel";
+        public const string buckler = "Buckler";
+        public const string kiteShield = "Kite Shield";
+        public const string roundShield = "Round Shield";
+        public const string towerShield = "Tower Shield";
+        public const string lowerMagicAbilityDarkness = "Lower Magic Ability In Darkness";
+        public const string unableToUseMagicInDarkness = "Unable To Use Magic In Darkness";
+        public const string helpAttributes = "Attributes";
+        public const string helpClassName = "Class Name";
+        public const string helpGeneral = "General";
+        public const string helpReputations = "Reputations";
+        public const string helpSkillAdvancement = "Skill Advancement";
+        public const string helpSkills = "Skills";
+        public const string helpSpecialAdvantages = "Special Advantages";
+        public const string helpSpecialDisadvantages = "Special Disadvantages";
+        public const string lower = "Lower";
+        public const string higher = "Higher";
+        public const string unchanged = "Unchanged";
+        public const string elsweyr = "Elsweyr";
+        public const string blackMarsh = "Black Marsh";
+        public const string hammerfell = "Hammerfell";
+        public const string highRock = "High Rock";
+        public const string morrowind = "Morrowind";
+        public const string skyrim = "Skyrim";
+        public const string sumurset = "Sumurset";
+        public const string valenwood = "Valenwood";
+        public const string rollingHills = "rolling hills";
+        public const string desertLand = "desertland";
+        public const string mountains = "mountains";
+        public const string swamps = "swamps";
+        public const string forests = "forests";
+        public const string shores = "shores";
     }
 }
