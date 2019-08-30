@@ -12,7 +12,7 @@ public class VRUIManager : MonoBehaviour {
     public GameObject floatingUI;
     public GameObject FollowingUIPrefab;
     
-    private Camera mainCamera;
+    private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private GameObject hint;
     private GameObject followingUI;
     
@@ -22,19 +22,11 @@ public class VRUIManager : MonoBehaviour {
     [Tooltip("The VR Hint is an object that'll be positioned over an object that's being pointed at, to indicate to the user that it can be interacted with")]
     public GameObject HintPrefab;
 
-    [Tooltip("The name in Daggerfall Unity for the PlayerAdvanced GameObject")]
-    public String playerAdvancedName = "PlayerAdvanced";
-
-    [Tooltip("This will bet set by the VR Injector")]
-    public GameObject playerAdvanced;
-
     DaggerfallWorkshop.Game.UserInterface.IUserInterfaceManager uiManager;
 
     // Used for enabling/disabling the floating UI
     private int cachedMask = 0; 
-
-    private 
-
+    
     void Start()
     {
         if (FloatingUIPrefab) {
@@ -50,12 +42,7 @@ public class VRUIManager : MonoBehaviour {
             Debug.LogError("The VR UI Manager was unable to create the Following UI! The VR UI will be somewhat broken.");
             return;
         }
-
-        mainCamera = Camera.main;
-        if (!mainCamera) {
-            Debug.LogError("The VR UI Manager was unable to find a main camera. The VR UI will be very broken.");
-            return;
-        }
+        
 
         if (HintPrefab) {
             hint = Instantiate(HintPrefab);

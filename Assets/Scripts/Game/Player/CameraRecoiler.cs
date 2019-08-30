@@ -36,7 +36,7 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
-        protected Transform playerCamTransform;
+        protected Transform playerCamTransform { get { return GameManager.Instance.MainCamera.transform; } }
         protected VitalsChangeDetector vitalsDetector;
         protected bool bSwaying; // true if player is reeling from damage
         protected Vector2 swayAxis;
@@ -46,7 +46,6 @@ namespace DaggerfallWorkshop.Game
 
         void Start()
         {
-            playerCamTransform = GameManager.Instance.MainCamera.transform;
             vitalsDetector = GetComponent<VitalsChangeDetector>();
 
             // Get starting health and max health

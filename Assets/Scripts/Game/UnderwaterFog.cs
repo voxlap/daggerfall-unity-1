@@ -5,7 +5,7 @@ namespace DaggerfallWorkshop.Game
     public class UnderwaterFog 
     {
         //DaggerfallSky sky;
-        Camera mainCamera;
+        Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
         public Color waterFogColor { get; set; }
         private float fogDensityMin;
         private float fogDensityMax;
@@ -22,7 +22,6 @@ namespace DaggerfallWorkshop.Game
 
         public UnderwaterFog()
         {
-            mainCamera = GameManager.Instance.MainCamera;
             waterFogColor = new Color(0.25f, 0.55f, 0.79f, 1);
             fogDensityMin = 0f;
             fogDensityMax = 0.23f;

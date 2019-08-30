@@ -30,7 +30,7 @@ public class VRController : MonoBehaviour  {
     private VRUIManager vrUIManager;
     private Hand hand;
     private CharacterController player;
-    private Camera eyesCamera;
+    private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
 
     // UI targetting
     private GameObject laser;
@@ -74,12 +74,6 @@ public class VRController : MonoBehaviour  {
         }
 
         player = FindObjectOfType<CharacterController>();
-
-        eyesCamera = Camera.main;
-        if (!eyesCamera) {
-            Debug.LogError("A VR Controller script was unable to find a main camera. Movement will be broken.");
-            return;
-        }
 
         if (LeftGlovePrefab && RightGlovePrefab && GloveAnimControllerPrefab) {
             if (hand.handType == SteamVR_Input_Sources.LeftHand) {
@@ -171,7 +165,7 @@ public class VRController : MonoBehaviour  {
         //if (Physics.Raycast(trackedObj.transform.position, trackedObj.transform.forward, out hit, 75)) {
             Debug.Log("Adding action!");
             //hitPoint = hit.point;
-            player.GetComponent<PlayerActivate>().rayEmitter = hand.gameObject;
+            GameManager.Instance.PlayerActivate.rayEmitter = hand.gameObject;
             InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
         //} 
     }

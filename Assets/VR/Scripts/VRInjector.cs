@@ -29,10 +29,10 @@ public class VRInjector : MonoBehaviour {
     private GameObject controllerRight;
     private GameObject controllerLeftVirtual; // these GameObjects own the controller{Left,Right} objects, facilitating VR emulation
     private GameObject controllerRightVirtual;// by letting you move the GOs independently of the real tracking
-    private GameObject oldCamera;
-    private GameObject eyesCamera;
+    private Camera oldCamera;
+    private Camera eyesCamera;
     private GameObject vruiManager;
-    private GameObject playerAdvanced;
+    private GameObject playerObject { get { return GameManager.Instance.PlayerObject; } }
 
     private void Start() {
         StartCoroutine(Setup());
@@ -54,8 +54,8 @@ public class VRInjector : MonoBehaviour {
         }
 
         try {
-            oldCamera = player.transform.Find("SmoothFollower").gameObject.transform.Find("Camera").gameObject;
-            oldCamera.GetComponent<Camera>().enabled = false;
+            oldCamera = GameManager.Instance.MainCamera;
+            oldCamera.enabled = false;
             oldCamera.tag = "Untagged";
             oldCamera.GetComponent<AudioListener>().enabled = false;
             Destroy(oldCamera.GetComponent<UnityEngine.PostProcessing.PostProcessingBehaviour>());
@@ -94,83 +94,38 @@ public class VRInjector : MonoBehaviour {
             controller.transform.parent = controllerRight.transform;
             controller.transform.localPosition = new Vector3(0, 0, 0);
 
-            /*
-            controllerLeftVirtual = new GameObject();
-            controllerLeftVirtual.transform.parent = cameraRig.transform;
-            controllerLeftVirtual.transform.localPosition = new Vector3(0, 0, 0);
-            controllerLeft.transform.parent = controllerLeftVirtual.transform;
-
-            controllerRightVirtual = new GameObject();
-            controllerRightVirtual.transform.parent = cameraRig.transform;
-            controllerRightVirtual.transform.localPosition = new Vector3(0, 0, 0);
-            controllerRight.transform.parent = controllerRightVirtual.transform;
-            */
-
         }
         else {
             Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
         }
         Transform eyesTF = vrPlayer.hmdTransforms[IsVRDevicePresent ? 0 : 1];
         if (eyesTF && oldCamera) {
-            eyesCamera = eyesTF.gameObject;
-            SphereCollider uiHeadCollider = eyesCamera.AddComponent<SphereCollider>();
+            //set up VR camera, and preexisting scripts to reference it
+            eyesCamera = eyesTF.GetComponent<Camera>();
+            GameManager.Instance.MainCamera = eyesCamera;
+            GameManager.Instance.PlayerActivate.rayEmitter = eyesCamera.gameObject;
+            SphereCollider uiHeadCollider = eyesCamera.gameObject.AddComponent<SphereCollider>();
             uiHeadCollider.isTrigger = true;
             uiHeadCollider.radius = 0.3f;
+            eyesCamera.transform.localPosition = Vector3.up * defaultCharacterControllerHeight;
             oldCamera.transform.SetParent(eyesTF, false);
             oldCamera.transform.localPosition = Vector3.zero;
             oldCamera.transform.localRotation = Quaternion.identity;
 
+            //If VR isn't possible, then make sure the fallback camera is being rotated by the old camera's mouselook
             if (!IsVRDevicePresent) {
                 oldCamera.transform.SetParent(eyesTF.parent, true);
                 eyesTF.SetParent(oldCamera.transform, true);
             }
         }
         else {
-            Debug.LogError("Unable to get the newly created 'Camera (eyes)' object! If you continue, the VR UI and sprite rotation will be broken.");
+            Debug.LogError("Unable to get Camera object from newly spawned VR Player! If you continue, the VR UI and sprite rotation will be broken.");
         }
 
         vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
-
-        playerAdvanced = GameObject.Find(playerAdvancedName);
-        CharacterController cc = null;
-        if (playerAdvanced) {
-            cc = playerAdvanced.GetComponent<CharacterController>();
-            if (cc) {
-                cc.height = defaultCharacterControllerHeight;
-            } else {
-                Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a CharacterController! Player height may be wrong.");
-            }
-
-            PlayerActivate pa = playerAdvanced.GetComponent<PlayerActivate>();
-            if (pa) {
-                pa.rayEmitter = eyesCamera;
-            } else {
-                Debug.LogError("Got the PlayerAdvanced GameObject, but it didn't seem to contain a PlayerAdvanced script! Activating things in VR will be broken.");
-            }
-
-        } else {
-            Debug.LogError("Unable to get the PlayerAdvanced (" + playerAdvancedName + ") GameObject! Wrong name set in VRInjector in Unity Editor? Player height and some other things may be incorrect.");
-        }
-
-        vruiManager.GetComponent<VRUIManager>().playerAdvanced = playerAdvanced;
-
-        //TODO: DEBUG: REMOVEME:
-
-        // facing door
-        //playerAdvanced.transform.position = new Vector3(26.28f, 0.46f, 19.19f);
-        //playerAdvanced.transform.eulerAngles = new Vector3(0, 5.087f, 0);
-
-        // facing loot
-        /*
-        playerAdvanced.transform.position = new Vector3(29.52595f, 0.46f, 12.14156f);
-        playerAdvanced.transform.eulerAngles = new Vector3(0, 155.087f, 0);
-        */
-
-        // dungeon room
-        /*
-        playerAdvanced.transform.position = new Vector3(41.92409f, 6.86f, 16.05263f);
-        playerAdvanced.transform.eulerAngles = new Vector3(0, -164.913f, 0);
-        */
+        
+        //set player height to that defined in the injector
+        GameManager.Instance.PlayerController.height = defaultCharacterControllerHeight;
     }
 	
 	void Update() {

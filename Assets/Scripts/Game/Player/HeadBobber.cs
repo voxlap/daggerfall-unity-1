@@ -38,9 +38,10 @@ namespace DaggerfallWorkshop.Game
         }
 
         private PlayerMotor playerMotor;
-        private Camera mainCamera;
         private PlayerEnterExit playerEnterExit;
         private ClimbingMotor climbingMotor;
+        private Camera mainCamera
+        { get { return GameManager.Instance.MainCamera; } }
 
         private Vector3 restPos; //local position where your camera would rest when it's not bobbing.
         public Vector3 RestPos
@@ -69,7 +70,6 @@ namespace DaggerfallWorkshop.Game
             playerMotor = GetComponent<PlayerMotor>();
             playerEnterExit = GetComponent<PlayerEnterExit>();
             climbingMotor = GetComponent<ClimbingMotor>();
-            mainCamera = GameManager.Instance.MainCamera;
             restPos = mainCamera.transform.localPosition;
 
             bobSpeed = GetComponent<PlayerFootsteps>().WalkStepInterval / 2.0f; // 1.20f;

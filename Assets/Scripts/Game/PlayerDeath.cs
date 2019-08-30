@@ -36,7 +36,6 @@ namespace DaggerfallWorkshop.Game
         PlayerEntity playerEntity;
         CharacterController playerController;
         PlayerMotor playerMotor;
-        Camera mainCamera;
         bool deathInProgress;
         float startCameraHeight;
         float targetCameraHeight;
@@ -49,6 +48,8 @@ namespace DaggerfallWorkshop.Game
 
         public bool DeathInProgress { get { return deathInProgress;} }
 
+        private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
+
         #endregion
 
         #region Unity
@@ -59,7 +60,6 @@ namespace DaggerfallWorkshop.Game
             playerMotor = GetComponent<PlayerMotor>();
             entityBehaviour = GetComponent<DaggerfallEntityBehaviour>();
             entityBehaviour.OnSetEntity += EntityBehaviour_OnSetEntity;
-            mainCamera = GameManager.Instance.MainCamera;
 
             startCameraHeight = mainCamera.transform.localPosition.y;
         }

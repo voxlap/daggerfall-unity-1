@@ -50,7 +50,7 @@ namespace DaggerfallWorkshop.Game
         private HeadBobber headBobber;
         private LevitateMotor levitateMotor;
         private ClimbingMotor climbingMotor;
-        private Camera mainCamera;
+        private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
         private const float controllerStandingHeight = 1.8f;
         private const float controllerCrouchHeight = 0.9f;
         private const float controllerRideHeight = 2.6f;   // Height of a horse plus seated rider. (1.6m + 1m)
@@ -104,7 +104,6 @@ namespace DaggerfallWorkshop.Game
             playerMotor = GetComponent<PlayerMotor>();
             controller = GetComponent<CharacterController>();
             headBobber = GetComponent<HeadBobber>();
-            mainCamera = GameManager.Instance.MainCamera;
             levitateMotor = GetComponent<LevitateMotor>();
             climbingMotor = GetComponent<ClimbingMotor>();
             camSwimLevel = controllerSwimHeight / 2f;

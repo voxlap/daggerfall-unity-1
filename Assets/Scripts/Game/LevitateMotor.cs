@@ -29,7 +29,6 @@ namespace DaggerfallWorkshop.Game
         PlayerSpeedChanger speedChanger;
         PlayerGroundMotor groundMotor;
         ClimbingMotor climbingMotor;
-        Camera playerCamera;
         float moveSpeed = levitateMoveSpeed;
         Vector3 moveDirection = Vector3.zero;
 
@@ -45,13 +44,17 @@ namespace DaggerfallWorkshop.Game
             set { SetSwimming(value); }
         }
 
+        private Camera playerCamera
+        {
+            get { return GameManager.Instance.MainCamera; }
+        }
+
         private void Start()
         {
             playerMotor = GetComponent<PlayerMotor>();
             groundMotor = GetComponent<PlayerGroundMotor>();
             speedChanger = GetComponent<PlayerSpeedChanger>();
             climbingMotor = GetComponent<ClimbingMotor>();
-            playerCamera = GameManager.Instance.MainCamera;
         }
 
         private void Update()

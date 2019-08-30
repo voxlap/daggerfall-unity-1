@@ -37,7 +37,6 @@ namespace DaggerfallWorkshop
         #region Fields
 
         Vector3 cameraPosition;
-        Camera mainCamera = null;
         MeshFilter meshFilter = null;
         MeshRenderer meshRenderer = null;
         float facingAngle;
@@ -129,6 +128,11 @@ namespace DaggerfallWorkshop
             get { return isUsingGuardTexture; }
         }
 
+        private Camera mainCamera
+        {
+            get { return GameManager.Instance.MainCamera; }
+        }
+
         #endregion
 
         #region Unity
@@ -138,7 +142,6 @@ namespace DaggerfallWorkshop
             if (Application.isPlaying)
             {
                 // Get component references
-                mainCamera = GameManager.Instance.MainCamera;
                 meshFilter = GetComponent<MeshFilter>();
             }
         }

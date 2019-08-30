@@ -17,7 +17,7 @@ using DaggerfallWorkshop.Game;
 /// </summary>
 public class CameraClearManager : MonoBehaviour
 {
-    public Camera mainCamera;
+    private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     public PlayerEnterExit playerEnterExit;
     public CameraClearFlags cameraClearExterior = CameraClearFlags.Depth;
     public CameraClearFlags cameraClearInterior = CameraClearFlags.Color;
@@ -29,8 +29,6 @@ public class CameraClearManager : MonoBehaviour
     {
         if (playerEnterExit == null)
             playerEnterExit = GameManager.Instance.PlayerEnterExit;
-        if (mainCamera == null)
-            mainCamera = GameManager.Instance.MainCamera;
     }
 
     void Update()
