@@ -12,18 +12,13 @@ public class VRInjector : MonoBehaviour {
     public GameObject VRUIManagerPrefab;
     public GameObject OverControllerUIPrefab;
     
-    [Tooltip("The name in Daggerfall Unity for the PlayerAdvanced GameObject")]
-    public string playerAdvancedName = "PlayerAdvanced";
-
     // TODO: Change this value based on user's height?
     [Tooltip("Changes the player's height to this value. Currently this is determined by testing, but maybe it should be scaled based on " +
         "the VR user's actual height.")]
     public float defaultCharacterControllerHeight = 0.8f;
 
     public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
-
-    private GameObject player;
-    private PlayerMouseLook playerMouseLook;
+    
     private Valve.VR.InteractionSystem.Player vrPlayer;
     private GameObject controllerLeft;
     private GameObject controllerRight;
@@ -33,6 +28,7 @@ public class VRInjector : MonoBehaviour {
     private Camera eyesCamera;
     private GameObject vruiManager;
     private GameObject playerObject { get { return GameManager.Instance.PlayerObject; } }
+    private PlayerMouseLook playerMouseLook { get { return GameManager.Instance.PlayerMouseLook; } }
 
     private void Start() {
         StartCoroutine(Setup());
@@ -41,18 +37,17 @@ public class VRInjector : MonoBehaviour {
     private IEnumerator Setup() {
         yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
 
+        if (!IsVRDevicePresent)
+        {
+            Debug.LogError("There is no VR Device detected. VR obviously won't work, but we will try our best to inject everything using the fallback objects. Why do that and not just" +
+                " stop things here and now?\nBecause sometimes it's nice to develop for VR without having a VR device attached.");
+        }
+
         if (!VRPlayerPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab || !OverControllerUIPrefab) { 
             Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab, VRUIManagerPrefab, or OverControllerUIPrefab. This error is non-recoverable for VR support.");
             yield return 0;
         }
-
-        player = GameObject.Find(playerAdvancedName);
-        playerMouseLook = player.GetComponentInChildren<PlayerMouseLook>();
-        if (!player || !playerMouseLook) {
-            Debug.LogError("Attempted to inject VR but I wasn't able to find either the PlayerAdvanced or the PlayerMouseLook! This error is non-recoverable for VR support.");
-            yield return 0;
-        }
-
+        
         try {
             oldCamera = GameManager.Instance.MainCamera;
             oldCamera.enabled = false;
@@ -65,7 +60,7 @@ public class VRInjector : MonoBehaviour {
         }
         
         vrPlayer = Instantiate(VRPlayerPrefab);
-        vrPlayer.transform.SetParent(player.transform);
+        vrPlayer.transform.SetParent(playerObject.transform);
         vrPlayer.transform.localPosition = Vector3.zero;
         vrPlayer.transform.localRotation = Quaternion.identity;
 
@@ -127,8 +122,4 @@ public class VRInjector : MonoBehaviour {
         //set player height to that defined in the injector
         GameManager.Instance.PlayerController.height = defaultCharacterControllerHeight;
     }
-	
-	void Update() {
-		
-	}
 }

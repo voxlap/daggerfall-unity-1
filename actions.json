@@ -46,12 +46,12 @@
     },
     {
       "name": "/actions/default/in/Rotate",
-      "type": "vector1",
+      "type": "vector2",
       "requirement": "mandatory"
     },
     {
       "name": "/actions/default/in/Walk",
-      "type": "vector1",
+      "type": "vector2",
       "requirement": "mandatory"
     },
     {

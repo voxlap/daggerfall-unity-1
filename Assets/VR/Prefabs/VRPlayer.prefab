@@ -909,7 +909,8 @@ MonoBehaviour:
   noSteamVRFallbackCamera: {fileID: 0}
   noSteamVRFallbackMaxDistanceNoItem: 10
   noSteamVRFallbackMaxDistanceWithItem: 0.5
-  renderModelPrefab: {fileID: 0}
+  renderModelPrefab: {fileID: 1000012617731570, guid: 5fe1e33794cb8f34dbf8fdc7acef7edd,
+    type: 2}
   showDebugText: 0
   spewDebugText: 0
   showDebugInteractables: 0
@@ -969,7 +970,8 @@ MonoBehaviour:
   noSteamVRFallbackCamera: {fileID: 0}
   noSteamVRFallbackMaxDistanceNoItem: 10
   noSteamVRFallbackMaxDistanceWithItem: 0.5
-  renderModelPrefab: {fileID: 0}
+  renderModelPrefab: {fileID: 1000011547835092, guid: 0abe9544962fcbe428cdbae363bf0674,
+    type: 2}
   showDebugText: 0
   spewDebugText: 0
   showDebugInteractables: 0
@@ -1591,7 +1593,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
 --- !u!114 &114189953566909904
@@ -1630,7 +1631,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
 --- !u!114 &114540640092249322
@@ -1669,7 +1669,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9dc50a94c08064741b114f8351ca7a47, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  FLOATING_UI_TARGET_NAME: FloatingUI
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
 --- !u!114 &114835748053915168
@@ -1683,7 +1682,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20f2d85e1877f3d4791ca5c215eb1723, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  VR_UI_MANAGER_NAME: VRUIManager(Clone)
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
   LeftGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
@@ -1703,7 +1701,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20f2d85e1877f3d4791ca5c215eb1723, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  VR_UI_MANAGER_NAME: VRUIManager(Clone)
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
   LeftGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}
@@ -1723,7 +1720,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 20f2d85e1877f3d4791ca5c215eb1723, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  VR_UI_MANAGER_NAME: VRUIManager(Clone)
   LaserPrefab: {fileID: 1144647358790384, guid: 9904da5e9b693f249a40ca64529fecd2,
     type: 2}
   LeftGlovePrefab: {fileID: 100036, guid: 8b1512b5403d79c439520758eddcc1e0, type: 3}

@@ -8,9 +8,6 @@ using Valve.VR.InteractionSystem;
 
 public class ViveControllerInputTest : MonoBehaviour
 {
-    [Tooltip("This should be set to the name of the UI component that contains a User Interface Render Target script.")]
-    public string FLOATING_UI_TARGET_NAME = "FloatingUI";
-
     public GameObject LaserPrefab;
     private GameObject laser;
     private Transform laserTransform;
@@ -50,19 +47,11 @@ public class ViveControllerInputTest : MonoBehaviour
         {
             hitPoint = hit.point;
             ShowLaser(hit);
-            if (hit.transform.gameObject.name == FLOATING_UI_TARGET_NAME + "(Clone)")
+            FloatingUITest test;
+            if (test = hit.transform.GetComponent<FloatingUITest>())
             {
-                //Debug.Log("World position: " + hit.point.ToString());
-                //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
-                Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
-                //Debug.Log("Inverse Transform Point: " + localPoint);
-                FloatingUITest test = hit.transform.gameObject.GetComponent<FloatingUITest>();
-                if (test)
-                {
-                    test.HandlePointer(localPoint);
-                }
-
-
+                Vector3 localPoint = hit.transform.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
+                test.HandlePointer(localPoint);
             }
         }
         else
@@ -71,34 +60,7 @@ public class ViveControllerInputTest : MonoBehaviour
         if (InteractUIPressedDown)
         {
             InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
-            Debug.Log(gameObject.name + " Trigger pressed");
+            Debug.Log(gameObject.name + " UI clicked with VR");
         }
-
-/*        if (Controller.GetHairTriggerDown())
-        if (Controller.GetAxis() != Vector2.zero)
-        {
-            Debug.Log(gameObject.name + Controller.GetAxis());
-        }
-
-        if (Controller.GetHairTriggerDown())
-        {
-            Debug.Log(gameObject.name + " Trigger pressed");
-        }
-
-        if (Controller.GetHairTriggerUp())
-        {
-            Debug.Log(gameObject.name + " Trigger released");
-        }
-
-        if (Controller.GetPressDown(SteamVR_Controller.ButtonMask.Grip))
-        {
-            Debug.Log(gameObject.name + " Grip pressed");
-        }
-
-        if (Controller.GetPressUp(SteamVR_Controller.ButtonMask.Grip))
-        {
-            Debug.Log(gameObject.name + " Grip released");
-        }
-        */
 	}
 }

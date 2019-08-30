@@ -14,7 +14,7 @@ public class CompassDisplay : MonoBehaviour {
 
     [Tooltip("The under-controller UI will display when the bottom of the controller is facing the user. " +
         "In order to accomplish this, a raycast is shot out towards the camera. This variable needs to be set " +
-        "to the layer that the VR camera is on.")] //TODO: This raycast be replaced with a dot product
+        "to the layer that the VR camera is on.")]
     public string collisionLayerName = "UI";
 
     private UserInterfaceRenderTarget ui;

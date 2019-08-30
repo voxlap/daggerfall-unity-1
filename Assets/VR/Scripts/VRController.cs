@@ -9,10 +9,6 @@ using Valve.VR.InteractionSystem;
 
 public class VRController : MonoBehaviour  {
     
-
-    [Tooltip("This should be set to the name of the GameObject that contains the VRUIManager script. '(Clone)' will be added if necessary")]
-    public string VR_UI_MANAGER_NAME = "VRUIManager";
-    
     [Tooltip("The laser prefab is drawn when the controller is pointed at certain objects, such as distant UI targets.")]
     public GameObject LaserPrefab;
 
@@ -27,10 +23,10 @@ public class VRController : MonoBehaviour  {
     public float STRAFE_SENSITIVITY = 0.05f;
 
     // References
-    private VRUIManager vrUIManager;
     private Hand hand;
-    private CharacterController player;
+    private CharacterController player { get { return GameManager.Instance.PlayerController; } }
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
+    private VRUIManager vrUIManager { get { return VRUIManager.Instance; } }
 
     // UI targetting
     private GameObject laser;
@@ -40,17 +36,6 @@ public class VRController : MonoBehaviour  {
     private InputManager inputManager;
 
     // SteamVR Input
-    private SteamVR_Action_Boolean pointing = SteamVR_Input.GetBooleanAction("Point");
-    private SteamVR_Action_Boolean openMenu = SteamVR_Input.GetBooleanAction("OpenMenu");
-    private SteamVR_Action_Single rotate = SteamVR_Input.GetSingleAction("Rotate");
-    private SteamVR_Action_Vector2 walk = SteamVR_Input.GetVector2Action("Walk");
-    private SteamVR_Action_Boolean selectWorldObject = SteamVR_Input.GetBooleanAction("SelectWorldObject");
-
-    public bool IsPointing
-    {
-        get { return pointing.GetState(hand.handType); }
-    }
-
     private bool _init = false;
 
 
@@ -61,19 +46,6 @@ public class VRController : MonoBehaviour  {
                 "This script should be attached to an object that has the Hand script, under the Player instance, from SteamVR's InteractionSystem.");
             return;
         }
-        GameObject go = GameObject.Find(VR_UI_MANAGER_NAME);
-        if (!go) {
-            go = GameObject.Find(VR_UI_MANAGER_NAME + "(Clone)");
-        }
-        if (go) {
-            vrUIManager = go.GetComponent<VRUIManager>();
-        } else {
-            Debug.LogError("A critical error occurred in the VR Controller while trying to get the VR UI Manager GameObject in the " + hand.handType + 
-                " VR Controller. Incorrect VR_UI_MANAGER name? The VR UI is going to be broken.");
-            return;
-        }
-
-        player = FindObjectOfType<CharacterController>();
 
         if (LeftGlovePrefab && RightGlovePrefab && GloveAnimControllerPrefab) {
             if (hand.handType == SteamVR_Input_Sources.LeftHand) {
@@ -105,8 +77,8 @@ public class VRController : MonoBehaviour  {
         inputManager = InputManager.Instance;
 
         // initiate SteamVR actions
-        openMenu.onStateDown += OpenMenu_onStateDown;
-        selectWorldObject.onStateDown += SelectWorldObject_onStateDown;
+        VRInputActions.OpenMenuAction.onStateDown += OpenMenu_onStateDown;
+        VRInputActions.SelectWorldObjectAction.onStateDown += SelectWorldObject_onStateDown;
 
         _init = true;
 	}
@@ -150,8 +122,8 @@ public class VRController : MonoBehaviour  {
                 break;
         }
 
-        if (IsPointing) {
-            Debug.Log(gameObject.name + " pointing");
+        if (VRInputActions.GrabGripAction.GetState(hand.handType)) {
+            Debug.Log(gameObject.name + " grabgrip");
             gloveModel.GetComponent<Animator>().SetBool("isPointing", true);
         } else {
             gloveModel.GetComponent<Animator>().SetBool("isPointing", false);
@@ -196,7 +168,7 @@ public class VRController : MonoBehaviour  {
                 }
             }
             //rotate
-            float curRotation = rotate.GetAxis(hand.handType);
+            float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
             if (curRotation > 0.3f) {
                 if (curRotation > 0.6f) 
                     player.transform.RotateAround(player.transform.position, player.transform.up, 30);
@@ -230,8 +202,8 @@ public class VRController : MonoBehaviour  {
 
     private void handleLeftController() {
         // Touchpad drag for slide
-        if (!inputManager.IsPaused && walk.active) {
-            Vector2 touchpad = walk.GetAxis(hand.handType);
+        if (!inputManager.IsPaused && VRInputActions.WalkAction.active) {
+            Vector2 touchpad = VRInputActions.WalkAction.GetAxis(hand.handType);
             if (touchpad.y > 0.15f || touchpad.y < -0.15f) {
                 player.Move(hand.transform.forward * touchpad.y * FORWARD_SENSITIVITY);
                 //player.transform.position -= player.transform.forward * Time.deltaTime * (touchpad.y * FORWARD_SENSITIVITY);

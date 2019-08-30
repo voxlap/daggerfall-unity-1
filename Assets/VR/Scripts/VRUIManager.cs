@@ -25,8 +25,23 @@ public class VRUIManager : MonoBehaviour {
     DaggerfallWorkshop.Game.UserInterface.IUserInterfaceManager uiManager;
 
     // Used for enabling/disabling the floating UI
-    private int cachedMask = 0; 
-    
+    private int cachedMask = 0;
+
+    #region Singleton
+
+    public static VRUIManager Instance { get; private set; }
+    private void Awake()
+    {
+        if (!Instance)
+            Instance = this;
+        else
+        {
+            Debug.LogError("2nd instance of VRUIManager singleton spawned. There should only be one.");
+        }
+    }
+
+    #endregion
+
     void Start()
     {
         if (FloatingUIPrefab) {

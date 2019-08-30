@@ -97,7 +97,7 @@ namespace Valve.VR
             }
         }
         
-        public virtual SteamVR_Action_Single Rotate
+        public virtual SteamVR_Action_Vector2 Rotate
         {
             get
             {
@@ -105,7 +105,7 @@ namespace Valve.VR
             }
         }
         
-        public virtual SteamVR_Action_Single Walk
+        public virtual SteamVR_Action_Vector2 Walk
         {
             get
             {
