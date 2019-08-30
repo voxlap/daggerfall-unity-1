@@ -12,21 +12,9 @@ public class VRController : MonoBehaviour  {
 
     [Tooltip("This should be set to the name of the GameObject that contains the VRUIManager script. '(Clone)' will be added if necessary")]
     public string VR_UI_MANAGER_NAME = "VRUIManager";
-
-    [Tooltip("This should be set to the name of the GameObject that contains all the player objects.")]
-    public string PLAYER_ADVANCED_NAME = "PlayerAdvanced";
-
-    [Tooltip("This should be set to the name of the UI component that contains a User Interface Render Target script. '(Clone)' will be added if necessary")]
-    public string FLOATING_UI_TARGET_NAME = "FloatingUI";
-
-    [Tooltip("The name of the Steam VR model object, typically 'Model'")]
-    public string CONTROLLER_MODEL_NAME = "Model";
-
+    
     [Tooltip("The laser prefab is drawn when the controller is pointed at certain objects, such as distant UI targets.")]
     public GameObject LaserPrefab;
-    
-    [Tooltip("The name assigned by SteamVR when it creates the camera object for the player's eyes")]
-    public String CameraEyeName = "Camera (eye)";
 
     public GameObject LeftGlovePrefab;
     public GameObject RightGlovePrefab;
@@ -41,9 +29,8 @@ public class VRController : MonoBehaviour  {
     // References
     private VRUIManager vrUIManager;
     private Hand hand;
-    private GameObject player;
-    private CharacterController cc;
-    private GameObject eyesCamera;
+    private CharacterController player;
+    private Camera eyesCamera;
     private FloatingUITest floatingUI;
 
     // UI targetting
@@ -89,17 +76,11 @@ public class VRController : MonoBehaviour  {
 
         floatingUI = vrUIManager.floatingUI.GetComponent<FloatingUITest>();
 
-        player = GameObject.Find(PLAYER_ADVANCED_NAME);
-        cc = player.GetComponent<CharacterController>();
-        if (!player) {
-            Debug.LogError("A critical error occurred in the VR Controller while trying to get either the main player Game Object or its character controller. " +
-                "A problem with the provided GameObject name? Locomotion will be broken.");
-            return;
-        }
+        player = FindObjectOfType<CharacterController>();
 
-        eyesCamera = GameObject.Find(CameraEyeName);
+        eyesCamera = Camera.main;
         if (!eyesCamera) {
-            Debug.LogError("A VR Controller script was unable to find the Camera (eyes) component with name " + CameraEyeName + ". Improper setting in the injected VRUI Manager prefab? Movement will be broken.");
+            Debug.LogError("A VR Controller script was unable to find a main camera. Movement will be broken.");
             return;
         }
 
@@ -122,8 +103,7 @@ public class VRController : MonoBehaviour  {
             } catch (Exception e) {
                 Debug.LogError("An error occurred while trying to set up the glove animation controller!");
             }
-
-            transform.Find(CONTROLLER_MODEL_NAME).gameObject.SetActive(false);
+            
         } else {
             Debug.LogError("The VR UI Manager didn't find a left or right glove prefab, or it was missing the glove animation controller. The glove models will be missing.");
         }
@@ -163,10 +143,20 @@ public class VRController : MonoBehaviour  {
         }
         */
 
-        if (hand.handType == SteamVR_Input_Sources.LeftHand) {
-            handleLeftController();
-        } else if (hand.handType == SteamVR_Input_Sources.RightHand) {
-            handleRightController();
+        switch (hand.handType)
+        {
+            case SteamVR_Input_Sources.Any:
+                handleLeftController();
+                handleRightController();
+                break;
+            case SteamVR_Input_Sources.LeftHand:
+                handleLeftController();
+                break;
+            case SteamVR_Input_Sources.RightHand:
+                handleRightController();
+                break;
+            default:
+                break;
         }
 
         if (IsPointing) {
@@ -251,7 +241,7 @@ public class VRController : MonoBehaviour  {
         if (!inputManager.IsPaused && walk.active) {
             Vector2 touchpad = walk.GetAxis(hand.handType);
             if (touchpad.y > 0.15f || touchpad.y < -0.15f) {
-                cc.Move(hand.transform.forward * touchpad.y * FORWARD_SENSITIVITY);
+                player.Move(hand.transform.forward * touchpad.y * FORWARD_SENSITIVITY);
                 //player.transform.position -= player.transform.forward * Time.deltaTime * (touchpad.y * FORWARD_SENSITIVITY);
 
                 //Vector2 pos = player.transform.position;
@@ -260,7 +250,7 @@ public class VRController : MonoBehaviour  {
             }
 
             if (touchpad.x > 0.15f || touchpad.x < -0.15f) {
-                cc.Move(hand.transform.right * touchpad.x * FORWARD_SENSITIVITY);
+                player.Move(hand.transform.right * touchpad.x * FORWARD_SENSITIVITY);
                 //player.transform.position -= player.transform.right * Time.deltaTime * (touchpad.x * STRAFE_SENSITIVITY);
             }
         }
@@ -270,12 +260,13 @@ public class VRController : MonoBehaviour  {
 
     private void OpenMenu_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
-        if (!inputManager.IsPaused)
-            GameManager.Instance.PauseGame(true);
+        Debug.Log("SteamVR input action detected: OpenMenu");
+        InputManager.Instance.AddAction(InputManager.Actions.Escape);
     }
 
     private void SelectWorldObject_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
+        Debug.Log("SteamVR input action detected: SelectWorldObject");
         if (!inputManager.IsPaused)
             tryAction();
     }

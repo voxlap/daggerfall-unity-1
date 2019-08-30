@@ -18,9 +18,8 @@ public class FloatingUITest : MonoBehaviour
     private void Start()
     {
         // Redirect main UI stack to our custom target and disable HUD
-        ui = GetComponent<UserInterfaceRenderTarget>();
+        ui = GetComponentInChildren<UserInterfaceRenderTarget>();
         DaggerfallUI.Instance.CustomRenderTarget = ui;
-        DaggerfallUI.Instance.enableHUD = false;
 
         // Get references
         rawImage = GetComponent<RawImage>();
@@ -35,10 +34,11 @@ public class FloatingUITest : MonoBehaviour
         }
     }
 
-
     private void Update()
     {
     }
+
+
 
     public void HandlePointer(Vector3 point)
     {
