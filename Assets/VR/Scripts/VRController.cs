@@ -31,7 +31,6 @@ public class VRController : MonoBehaviour  {
     private Hand hand;
     private CharacterController player;
     private Camera eyesCamera;
-    private FloatingUITest floatingUI;
 
     // UI targetting
     private GameObject laser;
@@ -73,8 +72,6 @@ public class VRController : MonoBehaviour  {
                 " VR Controller. Incorrect VR_UI_MANAGER name? The VR UI is going to be broken.");
             return;
         }
-
-        floatingUI = vrUIManager.floatingUI.GetComponent<FloatingUITest>();
 
         player = FindObjectOfType<CharacterController>();
 
@@ -226,7 +223,8 @@ public class VRController : MonoBehaviour  {
         if (Physics.Raycast(hand.transform.position, transform.forward, out hit, 100, (1 << LayerMask.NameToLayer(vrUIManager.UI_LAYER_MASK_NAME)))) {
             ShowLaser(hit);
             hitPoint = hit.point;
-            if (hit.transform.gameObject.name == floatingUI.gameObject.name) {
+            FloatingUITest floatingUI;
+            if (floatingUI = hit.transform.GetComponent<FloatingUITest>()) {
                 //Debug.Log("World position: " + hit.point.ToString());
                 //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
                 Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
