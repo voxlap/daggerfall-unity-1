@@ -626,7 +626,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         // Apply force to horizontal axis
-        void ApplyHorizontalForce(float scale)
+        public void ApplyHorizontalForce(float scale)
         {
             // Use acceleration setting or "just go" at max value
             if (acceleration < maxAcceleration)
@@ -641,7 +641,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         // Apply force to vertical axis
-        void ApplyVerticalForce(float scale)
+        public void ApplyVerticalForce(float scale)
         {
             // Use acceleration setting or "just go" at max value
             if (acceleration < maxAcceleration)

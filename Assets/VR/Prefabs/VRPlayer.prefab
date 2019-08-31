@@ -72,6 +72,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 447954}
+  - component: {fileID: 114314515732351514}
   - component: {fileID: 11465950}
   m_Layer: 0
   m_Name: VRPlayer
@@ -1620,6 +1621,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   OutputImage: {fileID: 0}
   EnableCustomStack: 0
+--- !u!114 &114314515732351514
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 107946}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2aef0f2583b3cf14db8d34076210757a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!114 &114369750444592440
 MonoBehaviour:
   m_ObjectHideFlags: 1

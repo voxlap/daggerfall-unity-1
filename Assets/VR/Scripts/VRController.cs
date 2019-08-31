@@ -24,7 +24,9 @@ public class VRController : MonoBehaviour  {
 
     // References
     private Hand hand;
-    private CharacterController player { get { return GameManager.Instance.PlayerController; } }
+    private PlayerGroundMotor groundMotor;
+    private PlayerMotor playerMoter { get { return GameManager.Instance.PlayerMotor; } }
+    private AcrobatMotor acrobatMotor { get { return GameManager.Instance.AcrobatMotor; } }
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private VRUIManager vrUIManager { get { return VRUIManager.Instance; } }
 
@@ -34,11 +36,9 @@ public class VRController : MonoBehaviour  {
     private Vector3 hitPoint;
     private bool laserOn = false;
     private InputManager inputManager;
-
-    // SteamVR Input
+    
     private bool _init = false;
-
-
+    
     void Start() {
         // Obtain references
         if(!hand){
@@ -85,6 +85,7 @@ public class VRController : MonoBehaviour  {
 
     void Awake() {
         hand = GetComponent<Hand>();
+        groundMotor = playerMoter.GetComponent<PlayerGroundMotor>();
     }
 
     private void ShowLaser(RaycastHit hit) {
@@ -149,73 +150,91 @@ public class VRController : MonoBehaviour  {
         }
     }
 
-    private void handleRightController() { 
+    private void handleRightController()
+    {
         RaycastHit hit;
 
         // Touchpad press for rotate
-        if (inputManager.IsPaused) {
+        if (inputManager.IsPaused)
+        {
             handleUIInput();
-        } else {
+        }
+        else
+        {
             laser.SetActive(false);
 
             //activate hints
-            if (Physics.Raycast(hand.transform.position, hand.transform.forward, out hit, 75)) {
-                Debug.DrawRay(transform.position, transform.TransformDirection(Vector3.forward) * hit.distance, Color.yellow);
+            if (Physics.Raycast(hand.transform.position, hand.transform.forward, out hit, 75))
+            {
+                Debug.DrawRay(hand.transform.position, hand.transform.forward * hit.distance, Color.yellow);
                 MeshRenderer mr = hit.transform.GetComponent<MeshRenderer>();
-                if (mr) {
+                if (mr)
+                {
                     Vector3 newScale = new Vector3(mr.bounds.size.x, mr.bounds.size.y, mr.bounds.size.z);
                     vrUIManager.repositionHint(mr.bounds.center, newScale, mr.transform.rotation);
                 }
             }
             //rotate
             float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
-            if (curRotation > 0.3f) {
-                if (curRotation > 0.6f) 
-                    player.transform.RotateAround(player.transform.position, player.transform.up, 30);
-                else
-                    player.transform.RotateAround(player.transform.position, player.transform.up, 10);
-            }
-            else if (curRotation < -0.3f) {
-                if (curRotation < -0.6f)  
-                    player.transform.RotateAround(player.transform.position, player.transform.up, -30);
-                else
-                    player.transform.RotateAround(player.transform.position, player.transform.up, -10);
-            }
+            playerMoter.transform.Rotate(Vector3.up, 135f * curRotation * Time.deltaTime);
         }
     }
 
-    private void handleUIInput() {
-        RaycastHit hit;
-        if (Physics.Raycast(hand.transform.position, transform.forward, out hit, 100, (1 << LayerMask.NameToLayer(vrUIManager.UI_LAYER_MASK_NAME)))) {
-            ShowLaser(hit);
-            hitPoint = hit.point;
-            FloatingUITest floatingUI;
-            if (floatingUI = hit.transform.GetComponent<FloatingUITest>()) {
-                //Debug.Log("World position: " + hit.point.ToString());
-                //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
-                Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
-                //Debug.Log("Inverse Transform Point: " + localPoint);
-                floatingUI.HandlePointer(localPoint);
-            }
-        }
-    }
-
-    private void handleLeftController() {
+    private void handleLeftController()
+    {
         // Touchpad drag for slide
-        if (!inputManager.IsPaused && VRInputActions.WalkAction.active) {
+        if (!inputManager.IsPaused && VRInputActions.WalkAction.active)
+        {
             Vector2 touchpad = VRInputActions.WalkAction.GetAxis(hand.handType);
-            if (touchpad.y > 0.15f || touchpad.y < -0.15f) {
-                player.Move(hand.transform.forward * touchpad.y * FORWARD_SENSITIVITY);
+            Vector3 moveDir = Vector3.zero;
+            if (touchpad.y > 0.15f || touchpad.y < -0.15f)
+            {
+                Vector3 camForward = mainCamera.transform.forward;
+                camForward.y = 0;
+                moveDir += camForward.normalized * touchpad.y;
                 //player.transform.position -= player.transform.forward * Time.deltaTime * (touchpad.y * FORWARD_SENSITIVITY);
 
                 //Vector2 pos = player.transform.position;
                 //pos.y = Terrain.activeTerrain.SampleHeight(player.transform.position);
                 //player.transform.position = pos;
             }
+            else
+                touchpad.y = 0;
 
-            if (touchpad.x > 0.15f || touchpad.x < -0.15f) {
-                player.Move(hand.transform.right * touchpad.x * FORWARD_SENSITIVITY);
+            if (touchpad.x > 0.15f || touchpad.x < -0.15f)
+            {
+                Vector3 camRight = mainCamera.transform.right;
+                camRight.y = 0;
+                moveDir += camRight.normalized * touchpad.x;
                 //player.transform.position -= player.transform.right * Time.deltaTime * (touchpad.x * STRAFE_SENSITIVITY);
+            }
+            else
+                touchpad.x = 0;
+
+            if(moveDir != Vector3.zero)
+            {
+                moveDir = Quaternion.Inverse(playerMoter.transform.rotation) * moveDir;
+                inputManager.ApplyHorizontalForce(moveDir.x);
+                inputManager.ApplyVerticalForce(moveDir.z);
+            }
+        }
+    }
+
+    private void handleUIInput()
+    {
+        RaycastHit hit;
+        if (Physics.Raycast(hand.transform.position, transform.forward, out hit, 100, (1 << LayerMask.NameToLayer(vrUIManager.UI_LAYER_MASK_NAME))))
+        {
+            ShowLaser(hit);
+            hitPoint = hit.point;
+            FloatingUITest floatingUI;
+            if (floatingUI = hit.transform.GetComponent<FloatingUITest>())
+            {
+                //Debug.Log("World position: " + hit.point.ToString());
+                //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
+                Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
+                //Debug.Log("Inverse Transform Point: " + localPoint);
+                floatingUI.HandlePointer(localPoint);
             }
         }
     }

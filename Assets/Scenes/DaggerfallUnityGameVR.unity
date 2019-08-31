@@ -2435,7 +2435,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd7667b2cfec9c342bab8cd95ba35891, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  VRPlayerPrefab: {fileID: 11465950, guid: 9f96fde7b27e3f241998415e656da358, type: 2}
+  VRPlayerPrefab: {fileID: 114314515732351514, guid: 9f96fde7b27e3f241998415e656da358,
+    type: 2}
   UnderControllerUIPrefabLeft: {fileID: 1834795286912752, guid: 89c2a56c5b354a544b0c2a71b7ee884e,
     type: 2}
   UnderControllerUIPrefabRight: {fileID: 1652546189180830, guid: 511f9451bba7f7844ba62cf35aeca978,
@@ -2444,7 +2445,6 @@ MonoBehaviour:
     type: 2}
   OverControllerUIPrefab: {fileID: 1635899714367782, guid: 05eeb435344679d419d226f05d624c49,
     type: 2}
-  playerAdvancedName: PlayerAdvanced
   defaultCharacterControllerHeight: 0.8
 --- !u!4 &2100762410
 Transform:

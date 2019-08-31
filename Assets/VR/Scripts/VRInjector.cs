@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class VRInjector : MonoBehaviour {
-    public Valve.VR.InteractionSystem.Player VRPlayerPrefab;
+    public DaggerfallVRPlayer VRPlayerPrefab;
     public GameObject UnderControllerUIPrefabLeft;
     public GameObject UnderControllerUIPrefabRight;
     public GameObject VRUIManagerPrefab;
@@ -17,18 +17,18 @@ public class VRInjector : MonoBehaviour {
         "the VR user's actual height.")]
     public float defaultCharacterControllerHeight = 0.8f;
 
-    public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
-    
-    private Valve.VR.InteractionSystem.Player vrPlayer;
+    private DaggerfallVRPlayer vrPlayer;
     private GameObject controllerLeft;
     private GameObject controllerRight;
     private GameObject controllerLeftVirtual; // these GameObjects own the controller{Left,Right} objects, facilitating VR emulation
     private GameObject controllerRightVirtual;// by letting you move the GOs independently of the real tracking
     private Camera oldCamera;
-    private Camera eyesCamera;
+    private Camera headCamera;
     private GameObject vruiManager;
     private GameObject playerObject { get { return GameManager.Instance.PlayerObject; } }
     private PlayerMouseLook playerMouseLook { get { return GameManager.Instance.PlayerMouseLook; } }
+
+    public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
 
     private void Start() {
         StartCoroutine(Setup());
@@ -60,12 +60,13 @@ public class VRInjector : MonoBehaviour {
         }
         
         vrPlayer = Instantiate(VRPlayerPrefab);
-        vrPlayer.transform.SetParent(playerObject.transform);
-        vrPlayer.transform.localPosition = Vector3.zero;
-        vrPlayer.transform.localRotation = Quaternion.identity;
 
-        controllerRight = vrPlayer.rightHand.gameObject;
-        controllerLeft = vrPlayer.leftHand.gameObject;
+        //vrPlayer.transform.SetParent(playerObject.transform);
+        //vrPlayer.transform.localPosition = Vector3.zero;
+        //vrPlayer.transform.localRotation = Quaternion.identity;
+
+        controllerRight = vrPlayer.RightHand.gameObject;
+        controllerLeft = vrPlayer.LeftHand.gameObject;
 
         if (controllerLeft && controllerRight) {
             GameObject controller = GameObject.Instantiate(UnderControllerUIPrefabLeft);
@@ -93,33 +94,37 @@ public class VRInjector : MonoBehaviour {
         else {
             Debug.LogError("Unable to get the two VR controller objects! If you continue the UI for VR controllers will be broken.");
         }
-        Transform eyesTF = vrPlayer.hmdTransforms[IsVRDevicePresent ? 0 : 1];
-        if (eyesTF && oldCamera) {
+        Transform headTF = vrPlayer.HeadTF;
+        if (headTF && oldCamera) {
             //set up VR camera, and preexisting scripts to reference it
-            eyesCamera = eyesTF.GetComponent<Camera>();
-            GameManager.Instance.MainCamera = eyesCamera;
-            GameManager.Instance.PlayerActivate.rayEmitter = eyesCamera.gameObject;
-            SphereCollider uiHeadCollider = eyesCamera.gameObject.AddComponent<SphereCollider>();
+            headCamera = headTF.GetComponent<Camera>();
+            GameManager.Instance.MainCamera = headCamera;
+            GameManager.Instance.PlayerActivate.rayEmitter = headCamera.gameObject;
+            SphereCollider uiHeadCollider = headCamera.gameObject.AddComponent<SphereCollider>();
             uiHeadCollider.isTrigger = true;
             uiHeadCollider.radius = 0.3f;
-            eyesCamera.transform.localPosition = Vector3.up * defaultCharacterControllerHeight;
-            oldCamera.transform.SetParent(eyesTF, false);
+            //modify player pos so that it's zero'd at current camera position. TODO: make player move to where the head is, always?
+            Vector3 modifiedPlayerPos = -headTF.localPosition;
+            modifiedPlayerPos.y = 0;
+            vrPlayer.transform.localPosition = modifiedPlayerPos;
+            //set old camera transform as child of head camera
+            oldCamera.transform.SetParent(headTF, false);
             oldCamera.transform.localPosition = Vector3.zero;
             oldCamera.transform.localRotation = Quaternion.identity;
 
-            //If VR isn't possible, then make sure the fallback camera is being rotated by the old camera's mouselook
-            if (!IsVRDevicePresent) {
-                oldCamera.transform.SetParent(eyesTF.parent, true);
-                eyesTF.SetParent(oldCamera.transform, true);
+            // If VR isn't possible, then make sure the fallback camera is being rotated by the old camera's mouselook
+            if (!IsVRDevicePresent)
+            {
+                oldCamera.transform.SetParent(headTF.parent, true);
+                headTF.SetParent(oldCamera.transform, true);
             }
+            else //otherwise disable mouse look.
+                playerMouseLook.enabled = false;
         }
         else {
             Debug.LogError("Unable to get Camera object from newly spawned VR Player! If you continue, the VR UI and sprite rotation will be broken.");
         }
 
         vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
-        
-        //set player height to that defined in the injector
-        GameManager.Instance.PlayerController.height = defaultCharacterControllerHeight;
     }
 }
