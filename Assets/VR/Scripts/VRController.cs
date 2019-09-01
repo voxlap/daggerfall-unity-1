@@ -12,13 +12,6 @@ public class VRController : MonoBehaviour  {
     [Tooltip("The laser prefab is drawn when the controller is pointed at certain objects, such as distant UI targets.")]
     public GameObject LaserPrefab;
 
-    public GameObject LeftGlovePrefab;
-    public GameObject RightGlovePrefab;
-    private GameObject gloveModel;
-    public AnimatorController GloveAnimControllerPrefab;
-    private AnimatorController gloveAnimController;
-    private Animator gloveAnimator;
-
     public float FORWARD_SENSITIVITY = 0.05f;
     public float STRAFE_SENSITIVITY = 0.05f;
 
@@ -38,7 +31,7 @@ public class VRController : MonoBehaviour  {
     private InputManager inputManager;
     
     private bool _init = false;
-    
+
     void Start() {
         // Obtain references
         if(!hand){
@@ -47,29 +40,7 @@ public class VRController : MonoBehaviour  {
             return;
         }
 
-        if (LeftGlovePrefab && RightGlovePrefab && GloveAnimControllerPrefab) {
-            if (hand.handType == SteamVR_Input_Sources.LeftHand) {
-                gloveModel = Instantiate(LeftGlovePrefab);
-            } else {
-                gloveModel = Instantiate(RightGlovePrefab);
-            }
-            gloveModel.transform.SetParent(transform, false);
-            gloveModel.transform.localPosition = new Vector3(0, 0, -0.05f);
-            gloveModel.transform.rotation = Quaternion.identity;
-            gloveModel.transform.Rotate(0, 90f, 0, Space.Self);
-            gloveModel.transform.localScale = new Vector3(1.75f, 1.75f, 1.75f); 
-
-            gloveAnimController = Instantiate(GloveAnimControllerPrefab);
-            try {
-                gloveAnimator = gloveModel.GetComponent<Animator>();
-                gloveAnimator.runtimeAnimatorController = gloveAnimController;
-            } catch (Exception e) {
-                Debug.LogError("An error occurred while trying to set up the glove animation controller!");
-            }
-            
-        } else {
-            Debug.LogError("The VR UI Manager didn't find a left or right glove prefab, or it was missing the glove animation controller. The glove models will be missing.");
-        }
+        //SpawnGlove();
 
         // Initiate controller-specific elements
         laser = Instantiate(LaserPrefab);
@@ -77,8 +48,7 @@ public class VRController : MonoBehaviour  {
         inputManager = InputManager.Instance;
 
         // initiate SteamVR actions
-        VRInputActions.OpenMenuAction.onStateDown += OpenMenu_onStateDown;
-        VRInputActions.SelectWorldObjectAction.onStateDown += SelectWorldObject_onStateDown;
+        VRInputActions.SelectWorldObjectAction.AddOnStateDownListener(SelectWorldObject_onStateDown, hand.handType);
 
         _init = true;
 	}
@@ -95,17 +65,8 @@ public class VRController : MonoBehaviour  {
         laserTransform.localScale = new Vector3(laserTransform.localScale.x, laserTransform.localScale.y, hit.distance);
     }
 
-    void Update() {
+    void LateUpdate() {
         if (!_init) return;
-        /*laser.SetActive(laserOn);
-        if (laserOn) {
-            RaycastHit hit;
-            if (Physics.Raycast(trackedObj.transform.position, trackedObj.transform.forward, out hit, 100)) {
-                hitPoint = hit.point;
-                ShowLaser(hit);
-            } 
-        }
-        */
 
         switch (hand.handType)
         {
@@ -123,24 +84,12 @@ public class VRController : MonoBehaviour  {
                 break;
         }
 
-        if (VRInputActions.GrabGripAction.GetState(hand.handType)) {
-            Debug.Log(gameObject.name + " grabgrip");
-            gloveModel.GetComponent<Animator>().SetBool("isPointing", true);
-        } else {
-            gloveModel.GetComponent<Animator>().SetBool("isPointing", false);
-        }
-
+        //UpdateGloveAnim();
     }
 
     private void tryAction() {
-        DaggerfallUI.Instance.CustomMousePosition = new Vector2(0, 0);
-        RaycastHit hit;
-        //if (Physics.Raycast(trackedObj.transform.position, trackedObj.transform.forward, out hit, 75)) {
-            Debug.Log("Adding action!");
-            //hitPoint = hit.point;
-            GameManager.Instance.PlayerActivate.rayEmitter = hand.gameObject;
-            InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
-        //} 
+        GameManager.Instance.PlayerActivate.rayEmitter = hand.gameObject;
+        InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
     }
 
     private void handleHitDoor(GameObject hitDoor) {
@@ -164,16 +113,29 @@ public class VRController : MonoBehaviour  {
             laser.SetActive(false);
 
             //activate hints
-            if (Physics.Raycast(hand.transform.position, hand.transform.forward, out hit, 75))
+            if (Physics.Raycast(hand.transform.position, hand.transform.forward, out hit, 75) && hit.transform.tag != "StaticGeometry")
             {
                 Debug.DrawRay(hand.transform.position, hand.transform.forward * hit.distance, Color.yellow);
                 MeshRenderer mr = hit.transform.GetComponent<MeshRenderer>();
                 if (mr)
                 {
-                    Vector3 newScale = new Vector3(mr.bounds.size.x, mr.bounds.size.y, mr.bounds.size.z);
+                    Vector3 newScale = mr.bounds.size;
+                    BillboardRotationCorrector billboardCorrector;
+                    if (billboardCorrector = mr.GetComponent<BillboardRotationCorrector>())
+                    { // billboards' mesh sizes are all screwy if not rotated to zero
+                        mr.transform.rotation = Quaternion.identity;
+                        newScale = mr.bounds.size;
+                        newScale.z = .1f;
+                        billboardCorrector.CorrectRotation();
+                    }
+                    newScale *= 1.05f;
                     vrUIManager.repositionHint(mr.bounds.center, newScale, mr.transform.rotation);
                 }
+                else
+                    vrUIManager.HideHint();
             }
+            else
+                vrUIManager.HideHint();
             //rotate
             float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
             playerMoter.transform.Rotate(Vector3.up, 135f * curRotation * Time.deltaTime);
@@ -223,16 +185,17 @@ public class VRController : MonoBehaviour  {
     private void handleUIInput()
     {
         RaycastHit hit;
-        if (Physics.Raycast(hand.transform.position, transform.forward, out hit, 100, (1 << LayerMask.NameToLayer(vrUIManager.UI_LAYER_MASK_NAME))))
+        if (Physics.Raycast(hand.transform.position, hand.transform.forward, out hit, 100, LayerMask.GetMask(VRUIManager.UI_LAYER_NAME)))
         {
             ShowLaser(hit);
             hitPoint = hit.point;
             FloatingUITest floatingUI;
+            Debug.Log("Hit " + hit.transform.name);
             if (floatingUI = hit.transform.GetComponent<FloatingUITest>())
             {
                 //Debug.Log("World position: " + hit.point.ToString());
                 //Vector3 localPoint = hit.transform.InverseTransformPoint(hit.point);
-                Vector3 localPoint = hit.transform.gameObject.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
+                Vector3 localPoint = hit.transform.GetComponent<RectTransform>().InverseTransformPoint(hit.point);
                 //Debug.Log("Inverse Transform Point: " + localPoint);
                 floatingUI.HandlePointer(localPoint);
             }
@@ -241,16 +204,72 @@ public class VRController : MonoBehaviour  {
 
     // SteamVR actions
 
-    private void OpenMenu_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
-    {
-        Debug.Log("SteamVR input action detected: OpenMenu");
-        InputManager.Instance.AddAction(InputManager.Actions.Escape);
-    }
-
     private void SelectWorldObject_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
-        Debug.Log("SteamVR input action detected: SelectWorldObject");
-        if (!inputManager.IsPaused)
-            tryAction();
+        Debug.Log("SteamVR input action detected: SelectWorldObject from " + fromSource + " on hand " + hand.handType);
+        if (inputManager.IsPaused)
+            handleUIInput();
+        tryAction();
     }
+
+
+    // possibly obsolete
+    /*
+
+    //public GameObject LeftGlovePrefab;
+    //public GameObject RightGlovePrefab;
+    //private GameObject gloveModel;
+    //public AnimatorController GloveAnimControllerPrefab;
+    //private AnimatorController gloveAnimController;
+    //private Animator gloveAnimator;
+     
+    private void SpawnGlove()
+    {
+        if (LeftGlovePrefab && RightGlovePrefab && GloveAnimControllerPrefab)
+        {
+            if (hand.handType == SteamVR_Input_Sources.LeftHand)
+            {
+                gloveModel = Instantiate(LeftGlovePrefab);
+            }
+            else
+            {
+                gloveModel = Instantiate(RightGlovePrefab);
+            }
+            gloveModel.transform.SetParent(transform, false);
+            gloveModel.transform.localPosition = new Vector3(0, 0, -0.05f);
+            gloveModel.transform.rotation = Quaternion.identity;
+            gloveModel.transform.Rotate(0, 90f, 0, Space.Self);
+            gloveModel.transform.localScale = new Vector3(1.75f, 1.75f, 1.75f);
+
+            gloveAnimController = Instantiate(GloveAnimControllerPrefab);
+            try
+            {
+                gloveAnimator = gloveModel.GetComponent<Animator>();
+                gloveAnimator.runtimeAnimatorController = gloveAnimController;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError("An error occurred while trying to set up the glove animation controller!");
+            }
+
+        }
+        else
+        {
+            Debug.LogError("The VR UI Manager didn't find a left or right glove prefab, or it was missing the glove animation controller. The glove models will be missing.");
+        }
+    }
+    
+    private void UpdateGloveAnim()
+    {
+        if (VRInputActions.GrabGripAction.GetState(hand.handType))
+        {
+            //Debug.Log(gameObject.name + " grabgrip");
+            gloveModel.GetComponent<Animator>().SetBool("isPointing", true);
+        }
+        else
+        {
+            gloveModel.GetComponent<Animator>().SetBool("isPointing", false);
+        }
+    }
+    */
 }

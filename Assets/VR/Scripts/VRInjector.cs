@@ -30,18 +30,29 @@ public class VRInjector : MonoBehaviour {
 
     public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
 
+    private bool _init = false;
+
     private void Start() {
         StartCoroutine(Setup());
     }
-
+    private void OnEnable()
+    {
+        if (_init)
+            BillboardRotationCorrection();
+    }
     private IEnumerator Setup() {
-        yield return new WaitForSeconds(1); // the game starts paused. When unpaused, one second after start up it'll inject
+        // the game starts paused. When unpaused, it'll inject
+        yield return new WaitForSeconds(.1f);
+        while (GameManager.IsGamePaused)
+            yield return new WaitForEndOfFrame();
 
         if (!IsVRDevicePresent)
         {
             Debug.LogError("There is no VR Device detected. VR obviously won't work, but we will try our best to inject everything using the fallback objects. Why do that and not just" +
                 " stop things here and now?\nBecause sometimes it's nice to develop for VR without having a VR device attached.");
         }
+        //else
+        //    FindObjectOfType<UnityEngine.EventSystems.BaseInputModule>().gameObject.SetActive(false);
 
         if (!VRPlayerPrefab || !UnderControllerUIPrefabLeft || !UnderControllerUIPrefabRight || !VRUIManagerPrefab || !OverControllerUIPrefab) { 
             Debug.LogError("Attempted to inject VR, but one or more of the default prefabs aren't set! SteamVRPrefab, CameraRigPrefabLeft/Right, UnderControllerUIPrefab, VRUIManagerPrefab, or OverControllerUIPrefab. This error is non-recoverable for VR support.");
@@ -69,26 +80,11 @@ public class VRInjector : MonoBehaviour {
         controllerLeft = vrPlayer.LeftHand.gameObject;
 
         if (controllerLeft && controllerRight) {
-            GameObject controller = GameObject.Instantiate(UnderControllerUIPrefabLeft);
-            controller.transform.SetParent(controllerLeft.transform);
-            //controller.transform.parent = controllerLeft.transform;
-            controller.transform.localPosition = new Vector3(0, 0, 0);
-            controller.GetComponent<UnderHandUIController>().myController = controllerLeft;
+            Instantiate(UnderControllerUIPrefabLeft, controllerLeft.transform);
+            Instantiate(UnderControllerUIPrefabRight, controllerRight.transform);
 
-            controller = GameObject.Instantiate(UnderControllerUIPrefabRight);
-            controller.transform.SetParent(controllerRight.transform);
-            //controller.transform.parent = controllerRight.transform;
-            controller.transform.localPosition = new Vector3(0, 0, 0);
-            controller.GetComponent<UnderHandUIController>().myController = controllerRight;
-
-            controller = GameObject.Instantiate(OverControllerUIPrefab);
-            controller.transform.SetParent(controllerLeft.transform);
-            //controller.transform.parent = controllerLeft.transform;
-            controller.transform.localPosition = new Vector3(0, 0, 0);
-
-            controller = GameObject.Instantiate(OverControllerUIPrefab);
-            controller.transform.parent = controllerRight.transform;
-            controller.transform.localPosition = new Vector3(0, 0, 0);
+            Instantiate(OverControllerUIPrefab, controllerLeft.transform);
+            Instantiate(OverControllerUIPrefab, controllerRight.transform);
 
         }
         else {
@@ -125,6 +121,32 @@ public class VRInjector : MonoBehaviour {
             Debug.LogError("Unable to get Camera object from newly spawned VR Player! If you continue, the VR UI and sprite rotation will be broken.");
         }
 
+        //set up UI
         vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
+        BillboardRotationCorrection();
+
+        //Make sure the head position is on top of the character controller
+        yield return null;
+        vrPlayer.ResetPlayerPosition();
+
+        //done
+        _init = true;
     }
+    private void BillboardRotationCorrection()
+    {
+        DaggerfallBillboard[] billboards = GameObject.FindObjectsOfType<DaggerfallBillboard>();
+        for (int i = 0; i < billboards.Length; ++i)
+            if (!billboards[i].GetComponent<BillboardRotationCorrector>())
+                billboards[i].gameObject.AddComponent<BillboardRotationCorrector>();
+    }
+
+    private IEnumerator BillboardRotationCorrectionCoroutine()
+    {
+        while (true)
+        {
+            BillboardRotationCorrection();
+            yield return new WaitForSeconds(60f);
+        }
+    }
+
 }

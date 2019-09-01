@@ -20,11 +20,16 @@ public class CustomVitals : MonoBehaviour
 
         // Create HUD compass and add to offscreen UI parent panel
         vitals = new HUDVitals();
+        vitals.Enabled = true;
+        vitals.Update();
         ui.ParentPanel.Components.Add(vitals);
         ui.OutputImage = GetComponent<RawImage>();
 
 
         PlayerEntity entity = GameManager.Instance.PlayerEntity;
+        vitals.Health = entity.CurrentHealthPercent;
+        vitals.Fatigue = (entity.CurrentFatigue / entity.MaxFatigue);
+        vitals.Magicka = (entity.CurrentMagicka / entity.MaxMagicka);
         /*
         entity.CurrentHealth;
         entity.CurrentFatigue;
@@ -35,5 +40,18 @@ public class CustomVitals : MonoBehaviour
     private void Update() {
         // Scale vitals to parent
         vitals.Scale = ui.ParentPanel.LocalScale;
+    }
+    private void OnEnable()
+    {
+        if (vitals != null)
+        {
+            vitals.Enabled = true;
+            vitals.Update();
+        }
+    }
+    private void OnDisable()
+    {
+        if (vitals != null)
+            vitals.Enabled = false;
     }
 }

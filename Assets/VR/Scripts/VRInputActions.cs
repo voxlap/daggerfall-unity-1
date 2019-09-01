@@ -25,27 +25,27 @@ public class VRInputActions
     
     public static SteamVR_Action_Boolean GrabGripAction
     {
-        get { return (pointing != null) ? pointing : pointing = SteamVR_Input.GetBooleanAction("GrabGrip"); }
+        get { return (pointing != null) ? pointing : pointing = SteamVR_Input.GetBooleanAction("GrabGrip", true); }
         set { pointing = value; }
     }
     public static SteamVR_Action_Boolean OpenMenuAction
     {
-        get { return (openMenu != null) ? openMenu : openMenu = SteamVR_Input.GetBooleanAction("OpenMenu"); }
+        get { return (openMenu != null) ? openMenu : openMenu = SteamVR_Input.GetBooleanAction("OpenMenu", true); }
         set { openMenu = value; }
     }
     public static SteamVR_Action_Boolean SelectWorldObjectAction
     {
-        get { return (selectWorldObject != null) ? selectWorldObject : selectWorldObject = SteamVR_Input.GetBooleanAction("SelectWorldObject"); }
+        get { return (selectWorldObject != null) ? selectWorldObject : selectWorldObject = SteamVR_Input.GetBooleanAction("SelectWorldObject", true); }
         set { selectWorldObject = value; }
     }
     public static SteamVR_Action_Vector2 RotateAction
     {
-        get { return (rotate != null) ? rotate : rotate = SteamVR_Input.GetVector2Action("Rotate"); }
+        get { return (rotate != null) ? rotate : rotate = SteamVR_Input.GetVector2Action("Rotate", true); }
         set { rotate = value; }
     }
     public static SteamVR_Action_Vector2 WalkAction
     {
-        get { return (walk != null) ? walk : walk = SteamVR_Input.GetVector2Action("Walk"); }
+        get { return (walk != null) ? walk : walk = SteamVR_Input.GetVector2Action("Walk", true); }
         set { walk = value; }
     }
 }

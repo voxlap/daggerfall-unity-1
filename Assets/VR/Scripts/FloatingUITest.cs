@@ -22,7 +22,7 @@ public class FloatingUITest : MonoBehaviour
         DaggerfallUI.Instance.CustomRenderTarget = ui;
 
         // Get references
-        rawImage = GetComponent<RawImage>();
+        rawImage = GetComponentInChildren<RawImage>();
         canvas = GetComponent<Canvas>();
 
         if (DebugIndicatorPrefab) {

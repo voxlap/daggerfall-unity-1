@@ -44,7 +44,7 @@ namespace DaggerfallWorkshop
         public int customArchive = 210;
         public int customRecord = 0;
 
-        Camera mainCamera = null;
+        Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
         MeshFilter meshFilter = null;
         bool restartAnims = true;
         MeshRenderer meshRenderer;
@@ -88,7 +88,6 @@ namespace DaggerfallWorkshop
             if (Application.isPlaying)
             {
                 // Get component references
-                mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponent<Camera>();
                 meshFilter = GetComponent<MeshFilter>();
                 meshRenderer = GetComponent<MeshRenderer>();
 

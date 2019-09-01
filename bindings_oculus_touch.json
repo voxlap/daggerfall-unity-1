@@ -180,7 +180,8 @@
                "parameters" : {
                   "click_activate_threshold" : "0.8",
                   "click_deactivate_threshold" : "0.7",
-                  "force_input" : "value"
+                  "force_input" : "value",
+                  "haptic_amplitude" : "0.05"
                },
                "path" : "/user/hand/left/input/trigger"
             },
@@ -326,7 +327,7 @@
    "category" : "steamvr_input",
    "controller_type" : "oculus_touch",
    "description" : "",
-   "name" : "My Daggerfall Unity [Testing] configuration for Oculus Touch",
+   "name" : "oculus_touch",
    "options" : {},
    "simulated_actions" : []
 }

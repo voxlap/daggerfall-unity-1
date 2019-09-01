@@ -308,13 +308,11 @@ public class ViveControllerInput : BaseInputModule
 
     private bool ButtonDown(int index)
     {
-        return false; //FIX: Gotta make a SteamVR action for this.
-        //return (ControllerDevices[index] != null && ControllerDevices[index].GetPressDown(Valve.VR.EVRButtonId.k_EButton_SteamVR_Trigger) == true);
+        return VRInputActions.GrabGripAction.GetStateDown(Controllers[index].handType);
     }
 
     private bool ButtonUp(int index)
     {
-        return false; //FIX: Gotta make a SteamVR action for this.
-        //return (ControllerDevices[index] != null && ControllerDevices[index].GetPressUp(Valve.VR.EVRButtonId.k_EButton_SteamVR_Trigger) == true);
+        return VRInputActions.GrabGripAction.GetStateUp(Controllers[index].handType);
     }
 }

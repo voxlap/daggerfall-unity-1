@@ -43,14 +43,14 @@ public class ViveControllerInputTest : MonoBehaviour
     // Update is called once per frame
     void Update() { 
         RaycastHit hit;
-        if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100))
+        if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100, LayerMask.GetMask("UI")))
         {
             hitPoint = hit.point;
             ShowLaser(hit);
             FloatingUITest test;
             if (test = hit.transform.GetComponent<FloatingUITest>())
             {
-                Vector3 localPoint = hit.transform.GetComponent<RawImage>().rectTransform.InverseTransformPoint(hit.point);
+                Vector3 localPoint = hit.transform.GetComponent<RectTransform>().InverseTransformPoint(hit.point);
                 test.HandlePointer(localPoint);
             }
         }

@@ -4,10 +4,15 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using DaggerfallWorkshop.Game.UserInterface;
 
 /** * This component disables the default UI and replaces it with VR logic
  **/
-public class VRUIManager : MonoBehaviour {
+public class VRUIManager : MonoBehaviour
+{
+    public const string UI_LAYER_NAME = "UI";
+    public const string PLAYER_LAYER_NAME = "Player";
+
     public GameObject FloatingUIPrefab;
     public GameObject floatingUI;
     public GameObject FollowingUIPrefab;
@@ -16,21 +21,23 @@ public class VRUIManager : MonoBehaviour {
     private GameObject hint;
     private GameObject followingUI;
     
-    [Tooltip("The name of the layer that the FloatingUI is on.")]
-    public String UI_LAYER_MASK_NAME = "UI";
 
     [Tooltip("The VR Hint is an object that'll be positioned over an object that's being pointed at, to indicate to the user that it can be interacted with")]
     public GameObject HintPrefab;
 
-    DaggerfallWorkshop.Game.UserInterface.IUserInterfaceManager uiManager;
+    private IUserInterfaceManager uiManager { get { return DaggerfallUI.UIManager; } }
 
     // Used for enabling/disabling the floating UI
     private int cachedMask = 0;
+    // used to hide game world when floating UI is up
+    private int playerLayerMask;
+    private int uiLayerMask;
 
     #region Singleton
 
     public static VRUIManager Instance { get; private set; }
-    private void Awake()
+
+    private void SetupSingleton()
     {
         if (!Instance)
             Instance = this;
@@ -41,6 +48,13 @@ public class VRUIManager : MonoBehaviour {
     }
 
     #endregion
+
+    private void Awake()
+    {
+        SetupSingleton();
+        playerLayerMask = LayerMask.GetMask(PLAYER_LAYER_NAME);
+        uiLayerMask = LayerMask.GetMask(UI_LAYER_NAME);
+    }
 
     void Start()
     {
@@ -74,7 +88,6 @@ public class VRUIManager : MonoBehaviour {
 
         followingUI.GetComponent<FollowingUI>().whatToFollow = mainCamera.gameObject;
         //subscribe to window change event
-        uiManager = DaggerfallUI.UIManager;
         uiManager.OnWindowChange += UIManager_OnWindowChange;
         cachedMask = mainCamera.cullingMask;
     }
@@ -90,7 +103,7 @@ public class VRUIManager : MonoBehaviour {
         {
             // Window count increased--display the UI!
             floatingUI.SetActive(true);
-            mainCamera.cullingMask = (1 << LayerMask.NameToLayer(UI_LAYER_MASK_NAME));
+            mainCamera.cullingMask = uiLayerMask | playerLayerMask;
             stickFloatingUIInFrontOfPlayer();
         }
         else if (windowCount <= 0)
@@ -102,18 +115,27 @@ public class VRUIManager : MonoBehaviour {
     }
 
     public void repositionHint(Vector3 position, Vector3 width_height_depth, Quaternion rotation) {
-        if (hint) {
-            hint.transform.rotation = rotation;
-            //hint.transform.Rotate(0, rotation.eulerAngles.y, 0);
+        if (hint)
+        {
+            hint.gameObject.SetActive(true);
             hint.transform.localScale = width_height_depth;
             hint.transform.position = position;
+            hint.transform.rotation = rotation;
         }
+    }
+    public void HideHint()
+    {
+        if(hint)
+            hint.gameObject.SetActive(false);
     }
 
     void stickFloatingUIInFrontOfPlayer() {
         if (!floatingUI || !mainCamera) return;
-
-        floatingUI.transform.position = mainCamera.transform.position + (mainCamera.transform.forward * 3f);
+        //set position
+        Vector3 floatPos = mainCamera.transform.position + (mainCamera.transform.forward * 3f);
+        floatPos.y = mainCamera.transform.position.y;
+        floatingUI.transform.position = floatPos;
+        //set rotation
         Vector3 lookPos = mainCamera.transform.position;
         lookPos.y = floatingUI.transform.position.y;
         floatingUI.transform.LookAt(lookPos);

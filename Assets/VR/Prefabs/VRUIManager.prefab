@@ -8,15 +8,15 @@ Prefab:
     m_TransformParent: {fileID: 0}
     m_Modifications: []
     m_RemovedComponents: []
-  m_ParentPrefab: {fileID: 0}
+  m_SourcePrefab: {fileID: 0}
   m_RootGameObject: {fileID: 1318417632695750}
-  m_IsPrefabParent: 1
+  m_IsPrefabAsset: 1
 --- !u!1 &1318417632695750
 GameObject:
   m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
-  serializedVersion: 5
+  serializedVersion: 6
   m_Component:
   - component: {fileID: 4908771873689168}
   - component: {fileID: 114766926872299222}
@@ -30,7 +30,7 @@ GameObject:
 --- !u!4 &4908771873689168
 Transform:
   m_ObjectHideFlags: 1
-  m_PrefabParentObject: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1318417632695750}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
@@ -43,7 +43,7 @@ Transform:
 --- !u!114 &114766926872299222
 MonoBehaviour:
   m_ObjectHideFlags: 1
-  m_PrefabParentObject: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1318417632695750}
   m_Enabled: 1
@@ -56,8 +56,5 @@ MonoBehaviour:
   floatingUI: {fileID: 0}
   FollowingUIPrefab: {fileID: 1978699560337488, guid: 39cbe0dcd268a1e43b6cd8f687b1b96e,
     type: 2}
-  CameraEyeName: Camera (eye)
   UI_LAYER_MASK_NAME: UI
   HintPrefab: {fileID: 1785574018573570, guid: 76b775ba9014898478657a7961f4ff35, type: 2}
-  playerAdvancedName: PlayerAdvanced
-  playerAdvanced: {fileID: 0}
