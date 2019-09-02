@@ -17,21 +17,33 @@ using Valve.VR.InteractionSystem;
 
 public class VRInputActions
 {
-    private static SteamVR_Action_Boolean pointing = null;
+    private static SteamVR_Action_Boolean grabGrip = null;
+    private static SteamVR_Action_Boolean grabPinch = null;
     private static SteamVR_Action_Boolean openMenu = null;
     private static SteamVR_Action_Boolean selectWorldObject = null;
+    private static SteamVR_Action_Boolean interactUI = null;
     private static SteamVR_Action_Vector2 rotate = null;
     private static SteamVR_Action_Vector2 walk = null;
-    
+
     public static SteamVR_Action_Boolean GrabGripAction
     {
-        get { return (pointing != null) ? pointing : pointing = SteamVR_Input.GetBooleanAction("GrabGrip", true); }
-        set { pointing = value; }
+        get { return (grabGrip != null) ? grabGrip : grabGrip = SteamVR_Input.GetBooleanAction("GrabGrip", true); }
+        set { grabGrip = value; }
+    }
+    public static SteamVR_Action_Boolean GrabPinchAction
+    {
+        get { return (grabPinch != null) ? grabPinch : grabPinch = SteamVR_Input.GetBooleanAction("GrabPinch", true); }
+        set { grabPinch = value; }
     }
     public static SteamVR_Action_Boolean OpenMenuAction
     {
         get { return (openMenu != null) ? openMenu : openMenu = SteamVR_Input.GetBooleanAction("OpenMenu", true); }
         set { openMenu = value; }
+    }
+    public static SteamVR_Action_Boolean InteractUIAction
+    {
+        get { return (interactUI != null) ? interactUI : interactUI = SteamVR_Input.GetBooleanAction("InteractUI", true); }
+        set { interactUI = value; }
     }
     public static SteamVR_Action_Boolean SelectWorldObjectAction
     {

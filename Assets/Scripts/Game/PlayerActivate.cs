@@ -154,7 +154,7 @@ namespace DaggerfallWorkshop.Game
                 // TODO: Clean all this up
 
                 // Fire ray into scene for hit tests (excluding player so their ray does not intersect self)
-                Ray ray = new Ray(transform.position + Vector3.up * 0.8f, rayEmitter.transform.forward);
+                Ray ray = new Ray(rayEmitter.transform.position, rayEmitter.transform.forward);
                 RaycastHit hit;
                 bool hitSomething = Physics.Raycast(ray, out hit, RayDistance, playerLayerMask);
                 if (hitSomething)

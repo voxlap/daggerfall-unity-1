@@ -28,6 +28,8 @@ public class DaggerfallVRPlayer : MonoBehaviour
     [Tooltip("The layermask used for the ray that goes downward from the player controller. Sets the VR Player's position based on what it hits.")]
     public LayerMask positionMask = -1;
 
+    private bool wasPaused = false;
+
     private GameObject playerObject { get { return GameManager.Instance.PlayerObject; } }
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private CharacterController playerController { get { return GameManager.Instance.PlayerController; } }
@@ -51,7 +53,6 @@ public class DaggerfallVRPlayer : MonoBehaviour
     {
         VRInputActions.OpenMenuAction.onStateDown += OpenMenu_onStateDown;
     }
-
     private void OnDestroy()
     {
         VRInputActions.OpenMenuAction.onStateDown -= OpenMenu_onStateDown;
@@ -62,9 +63,10 @@ public class DaggerfallVRPlayer : MonoBehaviour
         transform.position = playerController.transform.position + Vector3.down * (playerController.height / 2f);
         transform.rotation = playerObject.transform.rotation;
 
-        if (Input.GetKeyDown(KeyCode.R))
-            ResetPlayerPosition();    
-        //UpdatePlayerHeight();
+        if (Input.GetKeyDown(KeyCode.P))
+            ResetPlayerPosition();
+
+        UpdateTagsOnPause();
     }
 
     public void ResetPlayerPosition()
@@ -75,12 +77,32 @@ public class DaggerfallVRPlayer : MonoBehaviour
         HeadTF.parent.localPosition = headParentPos;
     }
 
+    private void UpdateTagsOnPause()
+    {
+        if (!wasPaused && InputManager.Instance.IsPaused)
+            SetLayerRecursively(transform, LayerMask.NameToLayer("Player"));
+        wasPaused = InputManager.Instance.IsPaused;
+    }
 
     private void OpenMenu_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
         Debug.Log("SteamVR input action detected: OpenMenu");
         InputManager.Instance.AddAction(InputManager.Actions.CharacterSheet);
     }
+
+    //TODO: This would go well in a general utilities class.
+    /// <summary>
+    /// Sets the layer of a transform and all of its children (and subchildren) to be the given layer.
+    /// </summary>
+    public static void SetLayerRecursively(Transform tf, int layer)
+    {
+        tf.gameObject.layer = layer;
+        for (int i = 0; i < tf.childCount; ++i)
+        {
+            SetLayerRecursively(tf.GetChild(i), layer);
+        }
+    }
+
 
     /* possibly obsolete
     

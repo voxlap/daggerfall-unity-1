@@ -56,5 +56,4 @@ MonoBehaviour:
   floatingUI: {fileID: 0}
   FollowingUIPrefab: {fileID: 1978699560337488, guid: 39cbe0dcd268a1e43b6cd8f687b1b96e,
     type: 2}
-  UI_LAYER_MASK_NAME: UI
   HintPrefab: {fileID: 1785574018573570, guid: 76b775ba9014898478657a7961f4ff35, type: 2}

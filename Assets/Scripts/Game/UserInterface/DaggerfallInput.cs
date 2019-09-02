@@ -44,11 +44,19 @@ namespace DaggerfallWorkshop.Game.UserInterface
         //set custom mouse button states
         public static void SetMouseButton(int button, bool isDown)
         {
-            //don't update mouseWasDown state multiple times in one frame
-            if (lastFrameCustomMouseStateWasSet[button] != Time.frameCount)
+            if (lastFrameCustomMouseStateWasSet[button] != Time.frameCount) // this is the first time this button has been updated this frame
+            {
+                //don't want to update mouseWasDown state multiple times in one frame, so this goes here
                 customMouseWasDown[button] = customMouseIsDown[button];
-            //set mouse state for this button
-            customMouseIsDown[button] = isDown;
+                //set current mouse state for this button
+                customMouseIsDown[button] = isDown;
+            }
+            else // this button has already been updated this frame
+            {
+                // buttonDown takes precedence, so even if another controller sent "up" this frame, we set it down
+                if (isDown)
+                    customMouseIsDown[button] = isDown;
+            }
             //set lastFrame for this button to this frame
             lastFrameCustomMouseStateWasSet[button] = Time.frameCount;
         }
