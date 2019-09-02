@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -15,7 +15,6 @@ using System.IO;
 using System.Linq;
 using UnityEngine;
 using FullSerializer;
-using IniParser;
 using IniParser.Model;
 
 namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
@@ -27,6 +26,9 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
     {
         #region Fields
 
+        const string settingsFileName = "modsettings.json";
+        const string presetsFileName = "modpresets.json";
+
         readonly Mod mod;
 
         SettingsValues defaultValues;
@@ -36,19 +38,24 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 
         #region Properties
 
-        string SettingsPath
+        string LegacySettingsPath
         {
             get { return Path.Combine(mod.DirPath, string.Format("{0}.json", mod.FileName)); }
         }
 
-        string LocalPresetsPath
+        string SettingsPath
+        {
+            get { return Path.Combine(mod.ConfigurationDirectory, settingsFileName); }
+        }
+
+        string LegacyLocalPresetsPath
         {
             get { return Path.Combine(mod.DirPath, string.Format("{0}_presets.json", mod.FileName)); }
         }
 
-        string[] ImportedPresetsPaths
+        string LocalPresetsPath
         {
-            get { return Directory.GetFiles(mod.DirPath, string.Format("{0}_presets_*.json", mod.FileName)); }
+            get { return Path.Combine(mod.ConfigurationDirectory, presetsFileName); }
         }
 
         /// <summary>
@@ -123,8 +130,12 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         public void LoadLocalValues()
         {
             var settings = new SettingsValues();
-            string path = SettingsPath;
-            if (TryDeserialize(path, ref settings) && IsCompatible(settings))
+
+            Directory.CreateDirectory(mod.ConfigurationDirectory);
+            if (File.Exists(LegacySettingsPath))
+                ModManager.MoveOldConfigFile(LegacySettingsPath, SettingsPath);
+
+            if (TryDeserialize(SettingsPath, ref settings) && IsCompatible(settings))
             {
                 // Apply local values
                 ApplyPreset(settings);
@@ -147,15 +158,18 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                 Presets.Clear();
 
             // Get presets from mod
-            if (mod.AssetBundle.Contains("modpresets.json"))
+            if (mod.HasAsset(presetsFileName))
             {
                 List<Preset> modPresets = new List<Preset>();
-                if (TryDeserialize(mod, "modpresets.json", ref modPresets))
+                if (TryDeserialize(mod, presetsFileName, ref modPresets))
                     Presets.AddRange(modPresets);
             }
 
             // Local presets (managed from gui)
+            Directory.CreateDirectory(mod.ConfigurationDirectory);
             string localPresetsPath = LocalPresetsPath;
+            if (File.Exists(LegacyLocalPresetsPath))
+                ModManager.MoveOldConfigFile(LegacyLocalPresetsPath, localPresetsPath);
             if (File.Exists(localPresetsPath))
             {
                 List<Preset> localPresets = new List<Preset>();
@@ -168,11 +182,21 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             }
 
             // Other imported presets (readonly)
-            foreach (string path in ImportedPresetsPaths)
+            foreach (string path in Directory.GetFiles(mod.DirPath, string.Format("{0}_presets_*.json", mod.FileName)))
             {
                 List<Preset> importedPresets = new List<Preset>();
                 if (TryDeserialize(path, ref importedPresets))
                     Presets.AddRange(importedPresets);
+            }
+            string presetsDirectory = Path.Combine(mod.ConfigurationDirectory, "Presets");
+            if (Directory.Exists(presetsDirectory))
+            {
+                foreach (string path in Directory.GetFiles(presetsDirectory, "*.json"))
+                {
+                    List<Preset> importedPresets = new List<Preset>();
+                    if (TryDeserialize(path, ref importedPresets))
+                        Presets.AddRange(importedPresets);
+                }
             }
 
             HasLoadedPresets = true;
@@ -300,7 +324,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             if (TryGetKey(sectionName, keyName, out key))
                 return key.Value;
 
-            throw new KeyNotFoundException(string.Format("The key ({0},{1}) was not present in {2} settings.", sectionName, keyName, mod.Title));
+            throw new KeyNotFoundException(string.Format("The key <{0}>({1},{2}) was not present in {3} settings.", typeof(T), sectionName, keyName, mod.Title));
         }
 
 #if UNITY_EDITOR
@@ -391,11 +415,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// </summary>       
         public static bool HasSettings(Mod mod)
         {
-            // TODO: remove support for old ini files.
-            return (mod.AssetBundle.Contains("modsettings.json")
-                || mod.AssetBundle.Contains(mod.Title + ".ini.txt")
-                || mod.AssetBundle.Contains("modsettings.ini.txt")
-                || mod.AssetBundle.Contains(mod.FileName + ".ini.txt"));
+            return mod.HasAsset(settingsFileName);
         }
 
         /// <summary>
@@ -404,32 +424,10 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         public static ModSettingsData Make(Mod mod)
         {
             ModSettingsData instance = new ModSettingsData(mod);
-
-            if (mod.AssetBundle.Contains("modsettings.json"))
-            {
-                TryDeserialize(mod, "modsettings.json", ref instance);
-            }
-            else if (mod.AssetBundle.Contains(mod.Title + ".ini.txt"))
-            {
-                Debug.LogFormat("{0} is using a legacy modsettings format.", mod.Title);
-                LoadLegacySettingsFromMod(mod, mod.Title + ".ini.txt", ref instance);
-            }
-            else if (mod.AssetBundle.Contains("modsettings.ini.txt"))
-            {
-                Debug.LogFormat("{0} is using a legacy modsettings format.", mod.Title);
-                LoadLegacySettingsFromMod(mod, "modsettings.ini.txt", ref instance);
-            }
-            else if (mod.AssetBundle.Contains(mod.FileName + ".ini.txt"))
-            {
-                // Note: this is unsafe because file name can be changed by user.
-                Debug.LogWarningFormat("{0} is using an obsolete modsettings filename!", mod.Title);
-                LoadLegacySettingsFromMod(mod, mod.FileName + ".ini.txt", ref instance);
-            }
-
-            if (instance != null)
+            if (HasSettings(mod) && TryDeserialize(mod, settingsFileName, ref instance))
                 return instance;
 
-            throw new ArgumentException("Mod has no associated settings.");
+            throw new ArgumentException(string.Format("Failed to load settings for mod {0}.", mod.Title));
         }
 
 #if UNITY_EDITOR
@@ -554,14 +552,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                 File.WriteAllText(path, fsJsonPrinter.PrettyJson(fsData));
             else
                 Debug.LogErrorFormat("Failed to write {0}:\n{1}", path, fsResult.FormattedMessages);
-        }
-
-        private static void LoadLegacySettingsFromMod(Mod mod, string assetName, ref ModSettingsData instance)
-        {
-            var textAsset = mod.GetAsset<TextAsset>(assetName);
-            using (var stream = new MemoryStream(textAsset.bytes))
-            using (var reader = new StreamReader(stream))
-                instance.ImportLegacyIni((new FileIniDataParser()).ReadData(reader));
         }
 
         #endregion

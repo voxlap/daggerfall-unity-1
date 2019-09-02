@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -17,7 +17,7 @@ using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Utility;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
-
+using DaggerfallWorkshop.Game.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -98,6 +98,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             base.Update();
 
+            // Close immediately if no crime assigned to player
+            if (playerEntity.CrimeCommitted == Entity.PlayerEntity.Crimes.None)
+            {
+                CloseWindow();
+                return;
+            }
+
             if (state == 0) // Starting
             {
                 regionIndex = GameManager.Instance.PlayerGPS.CurrentRegionIndex;
@@ -118,8 +125,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     if (threshold2 > 75)
                         threshold2 = 75;
                 }
-                if (UnityEngine.Random.Range(1, 101) > threshold2 &&
-                    UnityEngine.Random.Range(1, 101) > threshold1)
+                if (Dice100.FailedRoll(threshold2) &&
+                    Dice100.FailedRoll(threshold1))
                     punishmentType = 2; // fine/prison
                 else
                     punishmentType = 0; // banishment or execution
@@ -226,7 +233,18 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 messageBox.ClickAnywhereToClose = true;
                 messageBox.AllowCancel = false;
                 uiManager.PushWindow(messageBox);
-                state = 3;
+
+                if (daysInPrison > 0)
+                    state = 3;
+                else
+                {
+                    // Give the reputation raise here if no prison time will be served.
+                    playerEntity.RaiseReputationForDoingSentence();
+                    repositionPlayer = true;
+                    playerEntity.FillVitalSigns();
+                    ReleaseFromPrison();
+                    state = 100;
+                }
             }
             else if (state == 3) // Serve prison sentence
             {
@@ -364,7 +382,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             else if (chanceToGoFree < 5)
                 chanceToGoFree = 5;
 
-            if (UnityEngine.Random.Range(1, 101) > chanceToGoFree)
+            if (Dice100.FailedRoll(chanceToGoFree))
             {
                 // Banishment
                 if (punishmentType == 0)
@@ -375,7 +393,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 // Prison/Fine
                 else
                 {
-                    int roll = playerEntity.RegionData[regionIndex].LegalRep + UnityEngine.Random.Range(1, 101);
+                    int roll = playerEntity.RegionData[regionIndex].LegalRep + Dice100.Roll();
                     if (roll < 25)
                         fine *= 2;
                     else if (roll > 75)
@@ -447,6 +465,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 playerEntity.PreventEnemySpawns = true;
                 playerEntity.PreventNormalizingReputations = true;
                 DaggerfallUnity.WorldTime.DaggerfallDateTime.RaiseTime(daysInPrison * 1440 * 60);
+                RaiseOnEndPrisonTimeEvent();
                 inPrison = false;
                 playerEntity.FillVitalSigns();
             }
@@ -470,6 +489,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             if (OnCourtScreen != null)
                 OnCourtScreen();
+        }
+
+        // OnEndPrisonTime
+        public delegate void OnEndPrisonTimeEventHandler();
+        public static event OnCourtScreenEventHandler OnEndPrisonTime;
+        protected virtual void RaiseOnEndPrisonTimeEvent()
+        {
+            if (OnEndPrisonTime != null)
+                OnEndPrisonTime();
         }
 
         private void SwitchToPrisonScreen()

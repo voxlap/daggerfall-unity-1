@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,15 +9,10 @@
 // Notes:
 //
 
-using System;
 using System.Collections.Generic;
-using UnityEngine;
 using DaggerfallConnect.FallExe;
-using DaggerfallConnect.Save;
-using DaggerfallConnect.Arena2;
-using DaggerfallWorkshop.Utility;
-using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop.Game.Items
 {
@@ -31,6 +26,7 @@ namespace DaggerfallWorkshop.Game.Items
 
         const int equipTableLength = 27;
 
+        readonly DaggerfallEntity parentEntity = null;
         DaggerfallUnityItem[] equipTable = new DaggerfallUnityItem[equipTableLength];
 
         #endregion
@@ -51,6 +47,15 @@ namespace DaggerfallWorkshop.Game.Items
         public DaggerfallUnityItem[] EquipTable
         {
             get { return equipTable; }
+        }
+
+        #endregion
+
+        #region Constructors
+
+        public ItemEquipTable(DaggerfallEntity parentEntity)
+        {
+            this.parentEntity = parentEntity;
         }
 
         #endregion
@@ -96,6 +101,10 @@ namespace DaggerfallWorkshop.Game.Items
             if (slot == EquipSlots.None)
                 return null;
 
+            // If more than one item selected, equip only one
+            if (item.IsAStack())
+                item = GameManager.Instance.PlayerEntity.Items.SplitStack(item, 1);
+            
             List<DaggerfallUnityItem> unequippedList = new List<DaggerfallUnityItem>();
 
             // Special weapon handling
@@ -111,7 +120,7 @@ namespace DaggerfallWorkshop.Game.Items
                     UnequipItem(EquipSlots.LeftHand, unequippedList);
                     UnequipItem(EquipSlots.RightHand, unequippedList);
                 }
-            }            
+            }
 
             // Equipping a shield will always unequip 2H weapon
             if (item.ItemGroup == ItemGroups.Armor &&
@@ -140,6 +149,9 @@ namespace DaggerfallWorkshop.Game.Items
             if (playEquipSounds)
                 DaggerfallUI.Instance.PlayOneShot(item.GetEquipSound());
 
+            // Allow entity effect manager to start any enchantments on this item
+            StartEquippedItem(item);
+
             //Debug.Log(string.Format("Equipped {0} to {1}", item.LongName, slot.ToString()));
 
             return unequippedList;
@@ -150,6 +162,9 @@ namespace DaggerfallWorkshop.Game.Items
             DaggerfallUnityItem item = UnequipItem(slot);
             if (item != null)
                 list.Add(item);
+
+            // Allow entity effect manager to stop any enchantments on this item
+            StopEquippedItem(item);
         }
 
         /// <summary>
@@ -187,8 +202,12 @@ namespace DaggerfallWorkshop.Game.Items
                 equipTable[(int)slot].EquipSlot = EquipSlots.None;
                 equipTable[(int)slot] = null;
 
+                // Allow entity effect manager to stop any enchantments on this item
+                StopEquippedItem(item);
+
                 return item;
             }
+
             return null;
         }
 
@@ -212,6 +231,9 @@ namespace DaggerfallWorkshop.Game.Items
                 }
             }
 
+            // Allow entity effect manager to stop any enchantments on this item
+            StopEquippedItem(item);
+
             return false;
         }
 
@@ -233,7 +255,7 @@ namespace DaggerfallWorkshop.Game.Items
             switch (item.ItemGroup)
             {
                 case ItemGroups.Gems:
-                    result = GetGemSlot(item);
+                    result = GetGemSlot();
                     break;
                 case ItemGroups.Jewellery:
                     result = GetJewellerySlot(item);
@@ -312,7 +334,7 @@ namespace DaggerfallWorkshop.Game.Items
         public ulong[] SerializeEquipTable()
         {
             ulong[] data = new ulong[equipTableLength];
-            for(int i = 0; i < equipTableLength; i++)
+            for (int i = 0; i < equipTableLength; i++)
             {
                 if (equipTable[i] != null)
                     data[i] = equipTable[i].UID;
@@ -355,7 +377,7 @@ namespace DaggerfallWorkshop.Game.Items
 
         #region Private Methods
 
-        EquipSlots GetGemSlot(DaggerfallUnityItem item)
+        EquipSlots GetGemSlot()
         {
             return GetFirstSlot(EquipSlots.Crystal0, EquipSlots.Crystal1);
         }
@@ -363,7 +385,7 @@ namespace DaggerfallWorkshop.Game.Items
         EquipSlots GetJewellerySlot(DaggerfallUnityItem item)
         {
             ItemTemplate template = item.ItemTemplate;
-            switch((Jewellery)template.index)
+            switch ((Jewellery)template.index)
             {
                 case Jewellery.Amulet:
                 case Jewellery.Torc:
@@ -385,7 +407,7 @@ namespace DaggerfallWorkshop.Game.Items
         EquipSlots GetArmorSlot(DaggerfallUnityItem item)
         {
             ItemTemplate template = item.ItemTemplate;
-            switch((Armor)template.index)
+            switch ((Armor)template.index)
             {
                 case Armor.Cuirass:
                     return EquipSlots.ChestArmor;
@@ -415,11 +437,8 @@ namespace DaggerfallWorkshop.Game.Items
         {
             // If a 2H weapon is currently equipped then next weapon will always replace it in right hand
             DaggerfallUnityItem rightHandItem = equipTable[(int)EquipSlots.RightHand];
-            if (rightHandItem != null)
-            {
-                if (GetItemHands(rightHandItem) == ItemHands.Both)
-                    return EquipSlots.RightHand;
-            }
+            if (rightHandItem != null && GetItemHands(rightHandItem) == ItemHands.Both)
+                return EquipSlots.RightHand;
 
             // Find best hand for this item
             ItemHands hands = GetItemHands(item);
@@ -440,7 +459,7 @@ namespace DaggerfallWorkshop.Game.Items
         EquipSlots GetMensClothingSlot(DaggerfallUnityItem item)
         {
             ItemTemplate template = item.ItemTemplate;
-            switch((MensClothing)template.index)
+            switch ((MensClothing)template.index)
             {
                 case MensClothing.Straps:
                 case MensClothing.Armbands:
@@ -546,6 +565,26 @@ namespace DaggerfallWorkshop.Game.Items
 
                 default:
                     return EquipSlots.None;
+            }
+        }
+
+        void StartEquippedItem(DaggerfallUnityItem item)
+        {
+            if (parentEntity != null && parentEntity.EntityBehaviour)
+            {
+                EntityEffectManager manager = parentEntity.EntityBehaviour.GetComponent<EntityEffectManager>();
+                if (manager)
+                    manager.DoItemEnchantmentPayloads(EnchantmentPayloadFlags.Equipped | EnchantmentPayloadFlags.Held, item);
+            }
+        }
+
+        void StopEquippedItem(DaggerfallUnityItem item)
+        {
+            if (parentEntity != null && parentEntity.EntityBehaviour)
+            {
+                EntityEffectManager manager = parentEntity.EntityBehaviour.GetComponent<EntityEffectManager>();
+                if (manager)
+                    manager.DoItemEnchantmentPayloads(EnchantmentPayloadFlags.Unequipped, item);
             }
         }
 

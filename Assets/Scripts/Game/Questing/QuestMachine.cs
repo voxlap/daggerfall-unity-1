@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Hazelnut
 // 
 // Notes:
 //
@@ -12,8 +12,6 @@
 using UnityEngine;
 using System;
 using System.IO;
-using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using FullSerializer;
 using DaggerfallConnect.Arena2;
@@ -31,10 +29,6 @@ namespace DaggerfallWorkshop.Game.Questing
     /// Running quests can perform actions in the world (e.g. spawn enemies and play sounds).
     /// Or they can provide data to external systems like the NPC dialog interface (e.g. 'tell me about' and 'rumors').
     /// Quest support is considered to be in very early prototype stages and may change at any time.
-    /// 
-    /// Notes:
-    ///  * Quests are not serialized at this time.
-    ///  * Some data, such as reserved sites, need to be serialized from QuestMachine.
     /// </summary>
     public class QuestMachine : MonoBehaviour
     {
@@ -63,6 +57,8 @@ namespace DaggerfallWorkshop.Game.Questing
         const string itemsTableFileName = "Quests-Items";
         const string factionsTableFileName = "Quests-Factions";
         const string foesTableFileName = "Quests-Foes";
+        const string diseasesTableFileName = "Quests-Diseases";
+        const string spellsTableFileName = "Quests-Spells";
 
         // Data tables
         Table globalVarsTable;
@@ -72,6 +68,8 @@ namespace DaggerfallWorkshop.Game.Questing
         Table itemsTable;
         Table factionsTable;
         Table foesTable;
+        Table diseasesTable;
+        Table spellsTable;
 
         List<IQuestAction> actionTemplates = new List<IQuestAction>();
         Dictionary<ulong, Quest> quests = new Dictionary<ulong, Quest>();
@@ -79,6 +77,7 @@ namespace DaggerfallWorkshop.Game.Questing
         List<Quest> questsToTombstone = new List<Quest>();
         List<Quest> questsToRemove = new List<Quest>();
         List<Quest> questsToInvoke = new List<Quest>();
+        List<StoredException> storedExceptions = new List<StoredException>();
 
         bool waitingForStartup = true;
         float startupTimer = 0;
@@ -181,6 +180,22 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
+        /// Gets the diseases data table.
+        /// </summary>
+        public Table DiseasesTable
+        {
+            get { return diseasesTable; }
+        }
+
+        /// <summary>
+        /// Gets the spells data table.
+        /// </summary>
+        public Table SpellsTable
+        {
+            get { return spellsTable; }
+        }
+
+        /// <summary>
         /// Gets or sets StaticNPC last clicked by player.
         /// </summary>
         public StaticNPC LastNPCClicked
@@ -209,7 +224,18 @@ namespace DaggerfallWorkshop.Game.Questing
 
         #endregion
 
-        #region Enums
+        #region Structs & Enums
+
+        /// <summary>
+        /// Stores information about an exception that would result in quest termination.
+        /// This is stored permanently with save data to help with troubleshooting.
+        /// </summary>
+        public struct StoredException
+        {
+            public string questName;
+            public Exception exception;
+            public string stackTrace;
+        }
 
         /// <summary>
         /// Fixed quest message constants.
@@ -243,6 +269,8 @@ namespace DaggerfallWorkshop.Game.Questing
             itemsTable = new Table(Instance.GetTableSourceText(itemsTableFileName));
             factionsTable = new Table(Instance.GetTableSourceText(factionsTableFileName));
             foesTable = new Table(Instance.GetTableSourceText(foesTableFileName));
+            diseasesTable = new Table(Instance.GetTableSourceText(diseasesTableFileName));
+            spellsTable = new Table(Instance.GetTableSourceText(spellsTableFileName));
         }
 
         void Start()
@@ -297,9 +325,11 @@ namespace DaggerfallWorkshop.Game.Questing
             //RegisterAction(new JuggleAction(null));
 
             // Register trigger conditions
+            RegisterAction(new WhenPcEntersExits(null));
             RegisterAction(new WhenNpcIsAvailable(null));
             RegisterAction(new WhenReputeWith(null));
             RegisterAction(new WhenSkillLevel(null));
+            RegisterAction(new WhenAttributeLevel(null));
             RegisterAction(new WhenTask(null));
             RegisterAction(new ClickedNpc(null));
             RegisterAction(new ClickedItem(null));
@@ -349,16 +379,18 @@ namespace DaggerfallWorkshop.Game.Questing
             RegisterAction(new ItemUsedDo(null));
             RegisterAction(new TakeItem(null));
             RegisterAction(new TeleportPc(null));
-
-            // In progress - these actions are being actively developed
             RegisterAction(new DialogLink(null));
             RegisterAction(new AddDialog(null));
             RegisterAction(new RumorMill(null));
-
-            // Stubs - these actions are not complete yet
-            // Just setting up so certain quests compile for now
-            //RegisterAction(new MuteNpc(null));
-            //RegisterAction(new LegalRepute(null));
+            RegisterAction(new MakePcDiseased(null));
+            RegisterAction(new CurePcDisease(null));
+            RegisterAction(new CastSpellDo(null));
+            RegisterAction(new CastEffectDo(null));
+            RegisterAction(new CastSpellOnFoe(null));
+            RegisterAction(new RemoveFoe(null));
+            RegisterAction(new LegalRepute(null));
+            RegisterAction(new MuteNpc(null));
+            RegisterAction(new DestroyNpc(null));
 
             // Raise event for custom actions to be registered
             RaiseOnRegisterCustomerActionsEvent();
@@ -397,10 +429,20 @@ namespace DaggerfallWorkshop.Game.Questing
                 }
                 catch (Exception ex)
                 {
-                    LogFormat(quest, "Error in quest follows. Terminating quest runtime.");
-                    LogFormat(ex.Message);
-                    RaiseOnQuestErrorTerminationEvent(quest);
-                    questsToRemove.Add(quest);
+                    if (IsProtectedQuest(quest))
+                    {
+                        LogFormat(quest, "Exception in protected quest. Logging only.");
+                        StoreQuestException(quest, ex);
+                        LogFormat(ex.Message);
+                    }
+                    else
+                    {
+                        LogFormat(quest, "Error in quest follows. Terminating quest runtime.");
+                        LogFormat(ex.Message);
+                        StoreQuestException(quest, ex);
+                        RaiseOnQuestErrorTerminationEvent(quest);
+                        questsToRemove.Add(quest);
+                    }
                 }
 
                 // Schedule completed quests for tombstoning
@@ -429,6 +471,17 @@ namespace DaggerfallWorkshop.Game.Questing
 
             // Fire tick event
             RaiseOnTickEvent();
+        }
+
+        /// <summary>
+        /// Checks if a quest is protected from ending prematurely.
+        /// </summary>
+        /// <returns>True if quest is protected.</returns>
+        public static bool IsProtectedQuest(Quest quest)
+        {
+            return string.Compare(quest.QuestName, "S0000999", true) == 0 ||
+                   string.Compare(quest.QuestName, "S0000977", true) == 0 ||
+                   string.Compare(quest.QuestName, "_BRISIEN", true) == 0;
         }
 
         /// <summary>
@@ -541,11 +594,12 @@ namespace DaggerfallWorkshop.Game.Questing
 
         /// <summary>
         /// Parses a new quest from name.
+        /// AJRB: Internal use only, use QuestListsManager.GetQuest() instead.
         /// Quest will attempt to load from QuestSourceFolder property path.
         /// </summary>
         /// <param name="questName">Name of quest filename. Extensions .txt is optional.</param>
         /// <returns>Quest object if successfully parsed, otherwise null.</returns>
-        public Quest ParseQuest(string questName)
+        private Quest ParseQuest(string questName)
         {
             string[] source = GetQuestSourceText(questName);
             if (source == null || source.Length == 0)
@@ -560,7 +614,7 @@ namespace DaggerfallWorkshop.Game.Questing
         /// <summary>
         /// Instantiate a new quest from source text array.
         /// </summary>
-        /// <param name="questSource">Array of lines from quuest source file.</param>
+        /// <param name="questSource">Array of lines from quest source file.</param>
         /// <returns>Quest.</returns>
         public Quest ParseQuest(string questName, string[] questSource)
         {
@@ -737,6 +791,29 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
+        /// Finds quests based on quest name.
+        /// </summary>
+        /// <param name="questName">Quest name to search for.</param>
+        /// <param name="activeOnly">Only find active quests.</param>
+        /// <returns>ulong[] array of quest UIDs with matching quest name.</returns>
+        public ulong[] FindQuests(string questName, bool activeOnly = false)
+        {
+            List<ulong> keys = new List<ulong>();
+            foreach (Quest quest in quests.Values)
+            {
+                if (quest.QuestName == questName)
+                {
+                    if (activeOnly && quest.QuestTombstoned)
+                        continue;
+                    else
+                        keys.Add(quest.UID);
+                }
+            }
+
+            return keys.ToArray();
+        }
+
+        /// <summary>
         /// Creates a yes/no prompt from quest message.
         /// Caller must set events and call Show() when ready.
         /// </summary>
@@ -768,8 +845,9 @@ namespace DaggerfallWorkshop.Game.Questing
         /// Checks if last NPC clicked is questor for any quests.
         /// This is used for quest turn-in and reward process.
         /// </summary>
+        /// <param name="mcp">External secondary context provider for quest macro expansion. (optional)</param>
         /// <returns>True if this NPC is a questor in any quest.</returns>
-        public bool IsLastNPCClickedAnActiveQuestor()
+        public bool IsLastNPCClickedAnActiveQuestor(IMacroContextProvider mcp = null)
         {
             foreach(Quest quest in quests.Values)
             {
@@ -784,6 +862,8 @@ namespace DaggerfallWorkshop.Game.Questing
                         if (IsNPCDataEqual(person.QuestorData, lastNPCClicked.Data))
                         {
                             LogFormat(quest, "This person is used in quest as Person {1}", person.ParentQuest.UID, person.Symbol.Original);
+                            if (mcp != null)
+                                quest.ExternalMCP = mcp;
                             return true;
                         }
                     }
@@ -964,6 +1044,36 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
+        /// Finds an active questor given a specific static NPC.
+        /// NPCData passed must be populated with runtime data such as map id and building key.
+        /// </summary>
+        public Person ActiveQuestor(StaticNPC.NPCData npcData)
+        {
+            Person found = null;
+            foreach (Quest quest in quests.Values)
+            {
+                Symbol[] questorSymbols = quest.GetQuestors();
+                if (questorSymbols == null || questorSymbols.Length == 0)
+                    continue;
+
+                foreach (Symbol symbol in questorSymbols)
+                {
+                    Person person = quest.GetPerson(symbol);
+                    if (person == null)
+                        continue;
+
+                    if (IsNPCDataEqual(npcData, person.QuestorData))
+                    {
+                        found = person;
+                        break;
+                    }
+                }
+            }
+
+            return found;
+        }
+
+        /// <summary>
         /// Check if a faction listener is active for the individual faction ID.
         /// </summary>
         public bool HasFactionListener(int factionID)
@@ -992,95 +1102,36 @@ namespace DaggerfallWorkshop.Game.Questing
                 factionListeners.Remove(factionID);
         }
 
-        public void ClearMainQuestState()
+        public void ClearQuests()
         {
-            // Reset current state
-            Instance.PurgeAllQuests();
-            GameManager.Instance.PlayerEntity.FactionData.ZeroAllReputations();
-            GameManager.Instance.PlayerEntity.GlobalVars.ZeroAllGlobalVars();
-            QuestMachine.Instance.LastNPCClicked = null;
+            PurgeAllQuests();
+            LastNPCClicked = null;
         }
 
         /// <summary>
-        /// Sets main quest stage from 1-7 (currently).
+        /// Unmutes all quest NPCs.
+        /// Supports console command workaround for "mute npc" bug present up to 0.7.36.
         /// </summary>
-        /// <param name="stage">Stage value.</param>
-        public int SetMainQuestStage(int stage)
+        public int UnmuteQuestNPCs()
         {
-            // Clamp to valid range
-            stage = Mathf.Clamp(stage, 1, 7);
+            int count = 0;
+            foreach (Quest quest in quests.Values)
+            {
+                QuestResource[] persons = quest.GetAllResources(typeof(Person));
+                if (persons == null || persons.Length == 0)
+                    continue;
 
-            // Setup current stage
-            ClearMainQuestState();
-            if (stage == 1)
-            {
-                GameManager.Instance.PlayerEntity.Level = 1;
-                InstantiateQuest("_BRISIEN"); // Also starts backbone S0000999
-                InstantiateQuest("S0000977"); // Normally started by tutorial
-            }
-            else if (stage == 2)
-            {
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(31, true);        // MetLadyBrisienna globalvar
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.Queen_Aubki, 20);
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.Princess_Morgiah, 20);
-
-                GameManager.Instance.PlayerEntity.Level = 3;
-                InstantiateQuest("S0000999");
-                InstantiateQuest("S0000977");
-            }
-            else if (stage == 3)
-            {
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.Queen_Barenziah, 20);
-                GameManager.Instance.PlayerEntity.Level = 9;
-                InstantiateQuest("__MQSTAGE03");
-                InstantiateQuest("S0000977");
-            }
-            else if (stage == 4)
-            {
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.Queen_Akorithi, 20);
-                GameManager.Instance.PlayerEntity.Level = 8;
-                InstantiateQuest("__MQSTAGE04");
-                InstantiateQuest("S0000977");
-            }
-            else if (stage == 5)
-            {
-                GameManager.Instance.PlayerEntity.Level = 8;
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.The_Merchants, 60);
-                InstantiateQuest("__MQSTAGE05");
-                InstantiateQuest("S0000977");
-            }
-            else if (stage == 6)
-            {
-                GameManager.Instance.PlayerEntity.Level = 10;
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.Medora, 20);
-                GameManager.Instance.PlayerEntity.FactionData.ChangeReputation((int)FactionFile.FactionIDs.King_of_Worms, 20);
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(29, true);        // MyniseraSatisfied globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(31, true);        // MetLadyBrisienna globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(33, true);        // KingOfWormsSatisfied globalvar
-                InstantiateQuest("__MQSTAGE06");
-                InstantiateQuest("S0000977");
-            }
-            else if (stage == 7)
-            {
-                // Only raise level
-                if (GameManager.Instance.PlayerEntity.Level < 10)
-                    GameManager.Instance.PlayerEntity.Level = 10;
-
-                // Set global variables
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(0, true);         // LiftedCurse globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(9, true);         // MedoraGotHorn globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(23, true);        // MorgiahSatisfied globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(28, true);        // BarenziahSatisfied globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(29, true);        // MyniseraSatisfied globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(31, true);        // MetLadyBrisienna globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(33, true);        // KingOfWormsSatisfied globalvar
-                GameManager.Instance.PlayerEntity.GlobalVars.SetGlobalVar(43, true);        // LysandusSatisfied globalvar
-
-                // Start final quest line
-                InstantiateQuest("S0000008");
+                foreach (Person person in persons)
+                {
+                    if (person.IsMuted)
+                    {
+                        person.IsMuted = false;
+                        count++;
+                    }
+                }
             }
 
-            return stage;
+            return count;
         }
 
         #endregion
@@ -1202,7 +1253,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
                 // Must have target resources
                 SiteDetails siteDetails = place.SiteDetails;
-                QuestMarker marker = siteDetails.questSpawnMarkers[siteDetails.selectedQuestItemMarker];
+                QuestMarker marker = siteDetails.selectedMarker;
                 if (marker.targetResources == null)
                 {
                     Log(quest, "IsIndividualQuestNPCAtSiteLink() found a SiteLink with no targetResources assigned.");
@@ -1237,15 +1288,14 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
-        /// Gets the quest spawn marker in player's current location.
+        /// Gets active marker in player's current location.
         /// </summary>
-        /// <param name="markerType">Get quest spawn or item marker.</param>
-        /// <param name="questMarkerOut">QuestMarker out.</param>
+        /// <param name="markerOut">Active QuestMarker out.</param>
         /// <param name="buildingOriginOut">Building origin in scene, or Vector3.zero if not inside a building.</param>
         /// <returns>True if successful.</returns>
-        public bool GetCurrentLocationQuestMarker(MarkerTypes markerType, out QuestMarker questMarkerOut, out Vector3 buildingOriginOut)
+        public bool GetCurrentLocationQuestMarker(out QuestMarker markerOut, out Vector3 buildingOriginOut)
         {
-            questMarkerOut = new QuestMarker();
+            markerOut = new QuestMarker();
             buildingOriginOut = Vector3.zero;
 
             // Get PlayerEnterExit for world context
@@ -1294,21 +1344,9 @@ namespace DaggerfallWorkshop.Game.Questing
                 if (place == null)
                     return false;
 
-                // Get spawn marker
-                QuestMarker spawnMarker = place.SiteDetails.questSpawnMarkers[place.SiteDetails.selectedQuestSpawnMarker];
-                if (markerType == MarkerTypes.QuestSpawn && spawnMarker.targetResources != null)
-                {
-                    questMarkerOut = spawnMarker;
-                    return true;
-                }
-
-                // Get item marker
-                QuestMarker itemMarker = place.SiteDetails.questItemMarkers[place.SiteDetails.selectedQuestItemMarker];
-                if (markerType == MarkerTypes.QuestItem && itemMarker.targetResources != null)
-                {
-                    questMarkerOut = itemMarker;
-                    return true;
-                }
+                // Get marker
+                markerOut = place.SiteDetails.selectedMarker;
+                return true;
             }
 
             return false;
@@ -1322,7 +1360,7 @@ namespace DaggerfallWorkshop.Game.Questing
         /// This needs to be done in a way that does not break resources allocated from other quests.
         /// </summary>
         /// <param name="resource">The resource to cull. No action taken if resource null or not found.</param>
-        public void CullResourceTarget(QuestResource resource)
+        public void CullResourceTarget(QuestResource resource, Symbol newPlace)
         {
             // Do nothing if resource null
             if (resource == null)
@@ -1334,62 +1372,95 @@ namespace DaggerfallWorkshop.Game.Questing
                 // Get link
                 SiteLink link = siteLinks[i];
 
+                // Do nothing if this link not for same quest as resource
+                if (link.questUID != resource.ParentQuest.UID)
+                    continue;
+
                 // Get the Quest object referenced by this link
                 Quest quest = GetQuest(link.questUID);
                 if (quest == null)
-                    throw new Exception(string.Format("CullResourceSiteLink() could not find active quest for UID {0}", link.questUID));
+                {
+                    Debug.LogWarningFormat("CullResourceTarget() could not find active quest for UID {0}", link.questUID);
+                    return;
+                }
 
                 // Get the Place resource referenced by this link
                 Place place = quest.GetPlace(link.placeSymbol);
                 if (place == null)
-                    throw new Exception(string.Format("CullResourceSiteLink() could not find Place symbol {0} in quest UID {1}", link.placeSymbol, link.questUID));
+                {
+                    Debug.LogWarningFormat("CullResourceTarget() could not find Place symbol {0} in quest UID {1}", link.placeSymbol, link.questUID);
+                    return;
+                }
+
+                // Do nothing if old Place same as new Place
+                if (place.Symbol.Equals(newPlace))
+                    continue;
 
                 // Modify selected spawn QuestMarker for this Place
-                QuestMarker spawnMarker = place.SiteDetails.questSpawnMarkers[place.SiteDetails.selectedQuestSpawnMarker];
-                if (spawnMarker.targetResources != null)
+                QuestMarker selectedMarker = place.SiteDetails.selectedMarker;
+                if (selectedMarker.targetResources != null)
                 {
-                    for (int j = 0; j < spawnMarker.targetResources.Count; j++)
+                    for (int j = 0; j < selectedMarker.targetResources.Count; j++)
                     {
                         // Get target resource
-                        QuestResource existingResource = quest.GetResource(spawnMarker.targetResources[j]);
+                        QuestResource existingResource = quest.GetResource(selectedMarker.targetResources[j]);
                         if (existingResource == null)
                             continue;
 
                         // Cull matching resource
                         if (existingResource.Symbol.Equals(resource.Symbol))
                         {
-                            spawnMarker.targetResources.Remove(existingResource.Symbol);
-                            LogFormat(quest, "Removed spawn {0} from {1}", existingResource.Symbol.Original, place.Symbol.Original);
+                            selectedMarker.targetResources.Remove(existingResource.Symbol);
+                            LogFormat(quest, "Removed resource {0} from {1}", existingResource.Symbol.Original, place.Symbol.Original);
                             break;
                         }
                     }
                 }
-                place.SiteDetails.questSpawnMarkers[place.SiteDetails.selectedQuestSpawnMarker] = spawnMarker;
-
-                // Modify selected item QuestMarker for this Place
-                QuestMarker itemMarker = place.SiteDetails.questItemMarkers[place.SiteDetails.selectedQuestItemMarker];
-                if (itemMarker.targetResources != null)
-                {
-                    for (int j = 0; j < itemMarker.targetResources.Count; j++)
-                    {
-                        // Get target resource
-                        QuestResource existingResource = quest.GetResource(itemMarker.targetResources[j]);
-                        if (existingResource == null)
-                            continue;
-
-                        // Cull matching resource
-                        if (existingResource.Symbol.Equals(resource.Symbol))
-                        {
-                            itemMarker.targetResources.Remove(existingResource.Symbol);
-                            LogFormat(quest, "Removed item {0} from {1}", existingResource.Symbol.Original, place.Symbol.Original);
-                            break;
-                        }
-                    }
-                }
-                place.SiteDetails.questItemMarkers[place.SiteDetails.selectedQuestItemMarker] = itemMarker;
             }
 
             // TODO: Might need to hot-remove items here if timer expires while player inside target site
+        }
+
+        /// <summary>
+        /// Stores a quest exception in save file.
+        /// Should only be used for major quest-ending errors to help diagnose difficult issues.
+        /// Will only store a finite number of exceptions before overwriting oldest.
+        /// </summary>
+        /// <param name="quest">Quest throwing the exception.</param>
+        /// <param name="ex">Exception being thrown.</param>
+        public void StoreQuestException(Quest quest, Exception ex)
+        {
+            const int maxExceptions = 100;
+
+            // Remove oldest exception from list if going over max
+            if (storedExceptions.Count + 1 > maxExceptions)
+                storedExceptions.RemoveRange(0, 1);
+
+            // Store newest exception
+            StoredException storedException = new StoredException()
+            {
+                questName = quest.QuestName,
+                exception = ex,
+                stackTrace = ex.StackTrace,
+            };
+            storedExceptions.Add(storedException);
+        }
+
+        /// <summary>
+        /// Gets array of stored exceptions.
+        /// </summary>
+        public StoredException[] GetStoredExceptions()
+        {   
+            return storedExceptions.ToArray();
+        }
+
+        /// <summary>
+        /// Restores an array of stored exceptions.
+        /// </summary>
+        public void SetStoredExceptions(StoredException[] exceptions)
+        {
+            storedExceptions.Clear();
+            storedExceptions.AddRange(exceptions);
         }
 
         #endregion
@@ -1498,7 +1569,7 @@ namespace DaggerfallWorkshop.Game.Questing
                 sw.Write("\r\n");
             }
 
-            Debug.Log(text);
+            Debug.Log(text.Trim());
         }
 
         public static void Log(Quest quest, string text)
@@ -1612,6 +1683,33 @@ namespace DaggerfallWorkshop.Game.Questing
                 Quest quest = new Quest();
                 quest.RestoreSaveData(questData);
                 quests.Add(quest.UID, quest);
+            }
+
+            // Remove site links with no matching quest
+            RemoveStaleSiteLinks();
+        }
+
+        void RemoveStaleSiteLinks()
+        {
+            List<SiteLink> siteLinksToRemove = new List<SiteLink>();
+            if (siteLinks != null && siteLinks.Count > 0)
+            {
+                foreach (SiteLink link in siteLinks)
+                {
+                    Quest quest = GetQuest(link.questUID);
+                    if (quest == null)
+                        siteLinksToRemove.Add(link);
+                }
+            }
+
+            // Remove any stale sitelinks pointing to quests no longer active
+            if (siteLinksToRemove.Count > 0)
+            {
+                foreach (SiteLink link in siteLinksToRemove)
+                {
+                    Debug.LogWarningFormat("Removing stale SiteLink {0}. Quest UID {1} not present.", link.placeSymbol.Original, link.questUID);
+                    siteLinks.Remove(link);
+                }
             }
         }
 

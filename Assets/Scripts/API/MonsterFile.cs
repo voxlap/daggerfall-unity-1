@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,10 +11,7 @@
 
 #region Using Statements
 using System;
-using System.Text;
-using System.Collections.Generic;
 using System.IO;
-using DaggerfallConnect.Utility;
 #endregion
 
 namespace DaggerfallConnect.Arena2
@@ -30,7 +27,7 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// The BsaFile representing MONSTER.BSA.
         /// </summary>
-        private BsaFile bsaFile = new BsaFile();
+        private readonly BsaFile bsaFile = new BsaFile();
 
         #endregion
 

@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -55,7 +55,7 @@ namespace DaggerfallWorkshop
         [Range(0, 30)]
         public float FramesPerSecond = 0;
         public bool RandomStartFrame = true;
-        public ShadowCastingMode ShadowCasting = ShadowCastingMode.On;
+        public ShadowCastingMode ShadowCasting = ShadowCastingMode.TwoSided;
         [Range(1, 127)]
         public int RandomWidth = 16;
         [Range(1, 127)]
@@ -177,7 +177,7 @@ namespace DaggerfallWorkshop
                 return;
 
             // Get atlas size
-            int size = DaggerfallUnity.Settings.MeshAndTextureReplacement ? 4096 : 2048;
+            int size = DaggerfallUnity.Settings.AssetInjection ? 4096 : 2048;
 
             // Get standard atlas material
             // Just going to steal texture and settings
@@ -202,8 +202,8 @@ namespace DaggerfallWorkshop
 
             // Steal textures from source material
             Texture albedoMap = material.mainTexture;
-            Texture normalMap = material.GetTexture("_BumpMap");
-            Texture emissionMap = material.GetTexture("_EmissionMap");
+            Texture normalMap = material.GetTexture(Uniforms.BumpMap);
+            Texture emissionMap = material.GetTexture(Uniforms.EmissionMap);
 
             // Create local material
             // TODO: This should be created by MaterialReader
@@ -214,14 +214,14 @@ namespace DaggerfallWorkshop
             // Assign other maps
             if (normalMap != null)
             {
-                atlasMaterial.SetTexture("_BumpMap", normalMap);
-                atlasMaterial.EnableKeyword("_NORMALMAP");
+                atlasMaterial.SetTexture(Uniforms.BumpMap, normalMap);
+                atlasMaterial.EnableKeyword(KeyWords.NormalMap);
             }
             if (emissionMap != null)
             {
-                atlasMaterial.SetTexture("_EmissionMap", emissionMap);
-                atlasMaterial.SetColor("_EmissionColor", material.GetColor("_EmissionColor"));
-                atlasMaterial.EnableKeyword("_EMISSION");
+                atlasMaterial.SetTexture(Uniforms.EmissionMap, emissionMap);
+                atlasMaterial.SetColor(Uniforms.EmissionColor, material.GetColor(Uniforms.EmissionColor));
+                atlasMaterial.EnableKeyword(KeyWords.Emission);
             }
 
             // Assign renderer properties

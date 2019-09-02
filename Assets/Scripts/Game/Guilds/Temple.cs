@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -269,7 +269,7 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         #region Properties & Data
 
-        string[] rankTitles = new string[] {
+        readonly string[] rankTitles = {
                 "Novice", "Initiate", "Acolyte", "Adept", "Curate", "Disciple", "Brother", "Diviner", "Master", "Patriarch"
         };
 
@@ -302,11 +302,16 @@ namespace DaggerfallWorkshop.Game.Guilds
             this.deity = deity;
         }
 
+        public static bool IsDivine(int factionId)
+        {
+            return (Enum.IsDefined(typeof(Divines), factionId));
+        }
+
         public static Divines GetDivine(int factionId)
         {
             // Temple hall:
             if (Enum.IsDefined(typeof(Divines), factionId))
-                return (Divines) factionId;
+                return (Divines)factionId;
 
             // Templar order:
             PersistentFactionData persistentFactionData = GameManager.Instance.PlayerEntity.FactionData;
@@ -314,9 +319,9 @@ namespace DaggerfallWorkshop.Game.Guilds
             if (persistentFactionData.GetFactionData(factionId, out factionData))
             {
                 if (Enum.IsDefined(typeof(Divines), factionData.parent))
-                    return (Divines) factionData.parent;
+                    return (Divines)factionData.parent;
             }
-            throw new ArgumentOutOfRangeException("There is no Divine that matches the factionId: "+ factionId);
+            throw new ArgumentOutOfRangeException("There is no Divine that matches the factionId: " + factionId);
         }
 
         public void Blessing(PlayerEntity playerEntity, int donationAmount)
@@ -366,7 +371,7 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         public override int GetFactionId()
         {
-            return (int) deity;
+            return (int)deity;
         }
 
         // Temple guild names are different from affiliation
@@ -498,7 +503,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         public override TextFile.Token[] TokensIneligible(PlayerEntity playerEntity)
         {
             int msgId = (GetReputation(playerEntity) < 0) ? IneligibleBadRepId : IneligibleLowSkillId;
-            return DaggerfallUnity.Instance.TextProvider.GetRSCTokens(msgId);
+            return DaggerfallUnity.Instance.TextProvider.GetRandomTokens(msgId);
         }
         public override TextFile.Token[] TokensEligible(PlayerEntity playerEntity)
         {
@@ -522,7 +527,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         internal override void RestoreGuildData(GuildMembership_v1 data)
         {
             base.RestoreGuildData(data);
-            deity = (Divines) data.variant;
+            deity = (Divines)data.variant;
         }
 
         #endregion
@@ -540,7 +545,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         /// </summary>
         protected class TempleMacroDataSource : GuildMacroDataSource
         {
-            private Temple parent;
+            private readonly Temple parent;
             public TempleMacroDataSource(Temple guild) : base(guild)
             {
                 parent = guild;

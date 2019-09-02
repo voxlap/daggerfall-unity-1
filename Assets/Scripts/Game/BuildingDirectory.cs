@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -26,6 +26,13 @@ namespace DaggerfallWorkshop.Game
     public class BuildingDirectory : MonoBehaviour
     {
         #region Fields
+
+        // Hack fix to provide a non-zero building key when packed building indices result in 0
+        // Fixes an oversight where a building key of 0 can be disregarded by multiple systems
+        // This value is 1 higher than any other possible building key
+        // MakeBuildingKey() will return this value when packed building key is 0
+        // ReverseBuildingKey() will unpack indices to 0 when reversing this value
+        public const int buildingKey0 = 1 << 24;
 
         uint locationId;
         int mapId;
@@ -171,7 +178,8 @@ namespace DaggerfallWorkshop.Game
         /// <returns>Building key.</returns>
         public static int MakeBuildingKey(byte layoutX, byte layoutY, byte recordIndex)
         {
-            return (layoutX << 16) + (layoutY << 8) + recordIndex;
+            int buildingKey = (layoutX << 16) + (layoutY << 8) + recordIndex;
+            return (buildingKey == 0) ? buildingKey0 : buildingKey;
         }
 
         /// <summary>
@@ -183,9 +191,18 @@ namespace DaggerfallWorkshop.Game
         /// <param name="recordIndexOut">Record index of building inside parent block.</param>
         public static void ReverseBuildingKey(int key, out int layoutXOut, out int layoutYOut, out int recordIndexOut)
         {
-            layoutXOut = key >> 16;
-            layoutYOut = (key >> 8) & 0xff;
-            recordIndexOut = key & 0xff;
+            if (key == buildingKey0)
+            {
+                layoutXOut = 0;
+                layoutYOut = 0;
+                recordIndexOut = 0;
+            }
+            else
+            {
+                layoutXOut = key >> 16;
+                layoutYOut = (key >> 8) & 0xff;
+                recordIndexOut = key & 0xff;
+            }
         }
 
         #endregion

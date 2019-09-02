@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -34,6 +34,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         Texture2D uncheckedTexture = null;
         Texture2D checkedTexture = null;
         Vector2 checkTextureSize = Vector2.zero;
+        bool previousSDFState;
 
         public delegate void OnToggleStateHandler();
         public event OnToggleStateHandler OnToggleState;
@@ -92,6 +93,12 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public override void Update()
         {
             base.Update();
+
+            if (label.Font != null && label.Font.IsSDFCapable != previousSDFState)
+            {
+                label.RefreshLayout();
+                previousSDFState = label.Font.IsSDFCapable;
+            }
 
             float width = checkTextureSize.x + checkTextHorzOffset + label.Size.x;
             float height = Mathf.Max(checkTextureSize.y, label.Size.y);

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -77,9 +77,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             // What transport options does the player have?
             ItemCollection inventory = GameManager.Instance.PlayerEntity.Items;
-            bool hasHorse = inventory.Contains(ItemGroups.Transportation, (int) Transportation.Horse);
-            bool hasCart = inventory.Contains(ItemGroups.Transportation, (int) Transportation.Small_cart);
-            bool hasShip = DaggerfallBankManager.OwnsShip;
+            bool hasHorse = GameManager.Instance.TransportManager.HasHorse();
+            bool hasCart = GameManager.Instance.TransportManager.HasCart();
+            bool hasShip = GameManager.Instance.TransportManager.HasShip();
 
             // Load all textures
             LoadTextures();
@@ -143,9 +143,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         #endregion
 
-            #region Private Methods
+        #region Private Methods
 
-            void LoadTextures()
+        void LoadTextures()
         {
             ImageData baseData = ImageReader.GetImageData(baseTextureName);
             baseTexture = baseData.texture;

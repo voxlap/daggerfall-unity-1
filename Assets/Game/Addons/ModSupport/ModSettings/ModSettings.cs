@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 using System;
 using System.Linq;
-using System.Globalization;
 using System.Reflection;
 using UnityEngine;
 using DaggerfallWorkshop.Utility;
@@ -19,21 +18,24 @@ using DaggerfallWorkshop.Utility;
 namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 {
     /// <summary>
-    /// Read mod settings.
+    /// Provides a read-only access to mod settings.
     /// </summary>
     public class ModSettings
     {
-        // Fields
+        #region Fields
+
         readonly Mod mod;
         readonly ModSettingsData data;
 
-        #region Public Methods
+        #endregion
+
+        #region Constructors
 
         /// <summary>
-        /// Import settings for Mod.
+        /// Import settings for a mod.
         /// </summary>
         /// <param name="mod">Mod to load settings for.</param>
-        public ModSettings(Mod mod)
+        internal ModSettings(Mod mod)
         {
             if (!mod.HasSettings)
                 throw new ArgumentException(string.Format("{0} has no settings.", mod.Title), "mod");
@@ -42,6 +44,10 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             data = ModSettingsData.Make(mod);
             data.LoadLocalValues();
         }
+
+        #endregion
+
+        #region Public Methods
 
         /// <summary>
         /// Get string from user settings or, as fallback, from default settings.
@@ -60,39 +66,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// <param name="name">Name of key.</param>
         public int GetInt(string section, string name)
         {
-            // Legacy support
-            int value;
-            if (int.TryParse(GetTextValue(section, name), out value))
-                return value;
-
             return GetValue<int>(section, name);
-        }
-
-        /// <summary>
-        /// Get integer from user settings or, as fallback, from default settings.
-        /// Value is at least equal to min.
-        /// </summary>
-        /// <param name="section">Name of section.</param>
-        /// <param name="name">Name of key.</param>
-        /// <param name="min">Minimum accepted value.</param>
-        [Obsolete("Set range from editor gui")]
-        public int GetInt(string section, string name, int min)
-        {
-            return Mathf.Max(min, GetInt(section, name));
-        }
-
-        /// <summary>
-        /// Get integer from user settings or, as fallback, from default settings.
-        /// Value is clamped in range (min-max).
-        /// </summary>
-        /// <param name="section">Name of section.</param>
-        /// <param name="name">Name of key.</param>
-        /// <param name="min">Minimum accepted value.</param>
-        /// <param name="max">Maximum accepted value.</param>
-        [Obsolete("Set range from editor gui")]
-        public int GetInt(string section, string name, int min, int max)
-        {
-            return Mathf.Clamp(GetInt(section, name), min, max);
         }
 
         /// <summary>
@@ -102,39 +76,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// <param name="name">Name of key.</param>
         public float GetFloat(string section, string name)
         {
-            // Legacy support
-            float value;
-            if (float.TryParse(GetTextValue(section, name), out value))
-                return value;
-
             return GetValue<float>(section, name);
-        }
-
-        /// <summary>
-        /// Get float from user settings or, as fallback, from default settings.
-        /// Value is at least equal to min.
-        /// </summary>
-        /// <param name="section">Name of section.</param>
-        /// <param name="name">Name of key.</param>
-        /// <param name="min">Minimum accepted value.</param>
-        [Obsolete("Set range from editor gui")]
-        public float GetFloat(string section, string name, float min)
-        {
-            return Mathf.Max(min, GetFloat(section, name));
-        }
-
-        /// <summary>
-        /// Get float from user settings or, as fallback, from default settings.
-        /// Value is clamped in range (min-max).
-        /// </summary>
-        /// <param name="section">Name of section.</param>
-        /// <param name="name">Name of key.</param>
-        /// <param name="min">Minimum accepted value.</param>
-        /// <param name="max">Maximum accepted value.</param>
-        [Obsolete("Set range from editor gui")]
-        public float GetFloat(string section, string name, float min, float max)
-        {
-            return Mathf.Clamp(GetFloat(section, name), min, max);
         }
 
         /// <summary>
@@ -144,11 +86,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// <param name="name">Name of key.</param>
         public bool GetBool(string section, string name)
         {
-            // Legacy support
-            bool value;
-            if (bool.TryParse(GetTextValue(section, name), out value))
-                return value;
-
             return GetValue<bool>(section, name);
         }
 
@@ -157,7 +94,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// </summary>
         /// <param name="section">Name of section.</param>
         /// <param name="name">Name of key.</param>
-        public Color GetColor(string section, string name)
+        public Color32 GetColor(string section, string name)
         {
             return GetValue<Color32>(section, name);
         }
@@ -221,23 +158,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
                     if (section.Keys.TryGetValue(property.Name, out key))
                         property.SetValue(instance, key.ToObject(), null);
                 }
-        }
-
-        #endregion
-
-        #region Private Methods
-
-        /// <summary>
-        /// Get non type-safe value from user settings (legacy support).
-        /// </summary>
-        private string GetTextValue(string section, string name)
-        {
-            Key key;
-            if (data.TryGetKey(section, name, out key))
-                return key.TextValue;
-
-            Debug.LogErrorFormat("Failed to get ({0},{1}) for mod {2}.", section, name, mod.Title);
-            return null;
         }
 
         #endregion

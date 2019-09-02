@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,7 +9,6 @@
 // Notes:
 //
 
-using UnityEngine;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 
@@ -20,11 +19,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class Regenerate : IncumbentEffect
     {
-        const string textDatabase = "ClassicEffects";
+        public static readonly string EffectKey = "Regenerate";
 
         public override void SetProperties()
         {
-            properties.Key = "Regenerate";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(18, 255);
             properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "regenerate");
             properties.SubGroupName = string.Empty;

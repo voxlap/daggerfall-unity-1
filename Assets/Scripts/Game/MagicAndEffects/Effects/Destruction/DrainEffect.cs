@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -24,8 +24,6 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public abstract class DrainEffect : IncumbentEffect
     {
-        const string textDatabase = "ClassicEffects";
-
         protected int magnitude = 0;
         protected DFCareer.Stats drainStat = DFCareer.Stats.None;
         protected int lastMagnitudeIncreaseAmount = 0;
@@ -61,14 +59,17 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
         protected override bool IsLikeKind(IncumbentEffect other)
         {
-            return (other is DrainEffect && (other as DrainEffect).drainStat == drainStat) ? true : false;
+            return (other is DrainEffect && (other as DrainEffect).drainStat == drainStat);
         }
 
         protected override void BecomeIncumbent()
         {
             lastMagnitudeIncreaseAmount = GetMagnitude(caster);
-            IncreaseMagnitude(lastMagnitudeIncreaseAmount);
-            ShowPlayerDrained();
+            if (lastMagnitudeIncreaseAmount > 0)
+            {
+                IncreaseMagnitude(lastMagnitudeIncreaseAmount);
+                ShowPlayerDrained();
+            }
         }
 
         protected override void AddState(IncumbentEffect incumbent)
@@ -77,15 +78,21 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 return;
 
             lastMagnitudeIncreaseAmount = GetMagnitude(caster);
-            (incumbent as DrainEffect).IncreaseMagnitude(lastMagnitudeIncreaseAmount);
-            ShowPlayerDrained();
+            if (lastMagnitudeIncreaseAmount > 0)
+            {
+                (incumbent as DrainEffect).IncreaseMagnitude(lastMagnitudeIncreaseAmount);
+                ShowPlayerDrained();
+            }
         }
 
-        public virtual void Heal(int amount)
+        public override void HealAttributeDamage(DFCareer.Stats stat, int amount)
         {
-            // Can only heal incumbent
-            if (!IsIncumbent)
+            // Can only heal incumbent matching drain
+            if (!IsIncumbent || stat != drainStat)
                 return;
+
+            // Heal attribute
+            base.HealAttributeDamage(stat, amount);
 
             // Reduce magnitude and cancel effect once reduced to 0
             if (DecreaseMagnitude(amount) == 0)
@@ -99,7 +106,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 DaggerfallUI.AddHUDText(TextManager.Instance.GetText(textDatabase, "youFeelDrained"));
         }
 
-        int IncreaseMagnitude(int amount)
+        public void IncreaseMagnitude(int amount)
         {
             DaggerfallEntityBehaviour host = GetPeeredEntityBehaviour(manager);
 
@@ -112,17 +119,13 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 magnitude += amount;
 
             SetStatMod(drainStat, -magnitude);
-
-            return magnitude;
         }
 
-        int DecreaseMagnitude(int amount)
+        public int DecreaseMagnitude(int amount)
         {
             magnitude -= amount;
             if (magnitude < 0)
                 magnitude = 0;
-
-            SetStatMod(drainStat, -magnitude);
 
             return magnitude;
         }

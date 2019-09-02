@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,11 +10,8 @@
 //
 
 using System;
-using System.Text;
 using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using DaggerfallConnect.Utility;
 
 namespace DaggerfallConnect.Save
 {
@@ -41,6 +38,8 @@ namespace DaggerfallConnect.Save
         // Tree management
         protected SaveTreeBaseRecord parent;
         protected List<SaveTreeBaseRecord> children = new List<SaveTreeBaseRecord>();
+
+        protected bool failedRecord = false;
 
         #endregion
 
@@ -119,6 +118,14 @@ namespace DaggerfallConnect.Save
         public List<SaveTreeBaseRecord> Children
         {
             get { return children; }
+        }
+
+        /// <summary>
+        /// True if record failed to read (e.g. end of stream reached unexpectedly).
+        /// </summary>
+        public bool IsFailedRecord
+        {
+            get { return failedRecord; }
         }
 
         #endregion
@@ -218,6 +225,7 @@ namespace DaggerfallConnect.Save
             // Must have RecordRootLength of bytes to read or something has gone wrong
             if (stream.Length < RecordRootLength)
             {
+                failedRecord = true;
                 stream.Close();
                 return;
             }
@@ -248,8 +256,11 @@ namespace DaggerfallConnect.Save
             // ParentRecordID
             recordRoot.ParentRecordID = reader.ReadUInt32();
 
+            // Time
+            reader.BaseStream.Position = 43;
+            recordRoot.Time = reader.ReadUInt32();
+
             // ItemObject
-            reader.BaseStream.Position = 47;
             recordRoot.ItemObject = reader.ReadUInt32();
 
             // QuestObjectID

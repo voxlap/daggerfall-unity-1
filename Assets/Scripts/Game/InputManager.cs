@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -34,15 +34,15 @@ namespace DaggerfallWorkshop.Game
         const string keyBindsFilename = "KeyBinds.txt";
 
         const float deadZone = 0.05f;
-        const float frameSkipTotal = 5;
+        const float inputWaitTotal = 0.0833f;
 
         KeyCode[] reservedKeys = new KeyCode[] { KeyCode.Escape, KeyCode.BackQuote };
         Dictionary<KeyCode, Actions> actionKeyDict = new Dictionary<KeyCode, Actions>();
-        private List<Actions> currentActions = new List<Actions>();
+        List<Actions> currentActions = new List<Actions>();
         List<Actions> previousActions = new List<Actions>();
         bool isPaused;
         bool wasPaused;
-        int frameSkipCount;
+        float inputWaitTimer;
         float horizontal;
         float vertical;
         float lookX;
@@ -231,7 +231,7 @@ namespace DaggerfallWorkshop.Game
         void Start()
         {
             // Read acceleration/deceleration setting
-            acceleration = DaggerfallUnity.Settings.MovementAcceleration;
+            acceleration = DaggerfallUnity.Settings.MoveSpeedAcceleration;
 
             try
             {
@@ -276,11 +276,11 @@ namespace DaggerfallWorkshop.Game
             // Do nothing if paused
             if (isPaused)
             {
-                frameSkipCount = 0;
+                inputWaitTimer = 0f;
                 wasPaused = true;
 
                 // Allow quickload during death
-                if (GameManager.Instance.PlayerDeath.DeathInProgress)
+                if (GameManager.Instance.PlayerObject && GameManager.Instance.PlayerDeath.DeathInProgress)
                 {
                     KeyCode quickLoadBinding = GetBinding(Actions.QuickLoad);
                     if (Input.GetKey(quickLoadBinding))
@@ -292,13 +292,14 @@ namespace DaggerfallWorkshop.Game
                 return;
             }
 
-            // Skip some frame post-pause
+            // Skip some time post-pause
             // This ensures GUI actions do not "fall-through" to main world
             // as closing GUI and picking up next input all happen same-frame
             // This also helps prevent fall-through of GUI mouse movements to
             // same-frame mouse-look actions
-            if (wasPaused && frameSkipCount++ < frameSkipTotal)
+            if (wasPaused && inputWaitTimer < inputWaitTotal)
             {
+                inputWaitTimer += Time.deltaTime;
                 return;
             }
 
@@ -625,7 +626,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         // Apply force to horizontal axis
-        void ApplyHorizontalForce(float scale)
+        public void ApplyHorizontalForce(float scale)
         {
             // Use acceleration setting or "just go" at max value
             if (acceleration < maxAcceleration)
@@ -640,7 +641,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         // Apply force to vertical axis
-        void ApplyVerticalForce(float scale)
+        public void ApplyVerticalForce(float scale)
         {
             // Use acceleration setting or "just go" at max value
             if (acceleration < maxAcceleration)

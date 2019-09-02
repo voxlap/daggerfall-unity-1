@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -178,19 +178,7 @@ namespace DaggerfallWorkshop.Utility
             // Replace %rt based on faction ruler
             if (a.Contains(royalTitleVar))
             {
-                // Get factionID of this region
-                FactionFile factionFile = DaggerfallUnity.Instance.ContentReader.FactionFileReader;
-                int regionalFactionID = factionFile.GetFactionID(regionName);
-                if (regionalFactionID != -1)
-                {
-                    // Get faction data
-                    if (factionFile.GetFactionData(factionID, out factionData))
-                    {
-                        // Get ruler title for this region
-                        string royalTile = RoyalTitles[factionData.ruler];
-                        a = a.Replace(royalTitleVar, royalTile);
-                    }
-                }
+                a = a.Replace(royalTitleVar, MacroHelper.RegentTitle(null));
             }
 
             // Final text is "{a} {b}" for two-part names or just "{a}" for singleton names
@@ -481,24 +469,5 @@ namespace DaggerfallWorkshop.Utility
 
         #endregion
 
-        #region Titles
-
-        static string[] RoyalTitles = new string[]
-        {
-            "King",
-            "Queen",
-            "Duke",
-            "Duchess",
-            "Marquis",
-            "Marquise",
-            "Count",
-            "Countess",
-            "Baron",
-            "Baroness",
-            "Lord",
-            "Lady",
-        };
-
-        #endregion
     }
 }

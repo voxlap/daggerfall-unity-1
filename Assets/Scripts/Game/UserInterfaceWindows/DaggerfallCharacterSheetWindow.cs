@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,14 +28,16 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
     {
         #region Fields
         const string nativeImgName = "INFO00I0.IMG";
+
+        protected const string textDatabase = "DaggerfallUI";
         private const int noAffiliationsMsgId = 19;
 
         StatsRollout statsRollout;
 
         bool leveling = false;
 
-        const int minBonusPool = 4;        // The minimum number of free points to allocate on level up
-        const int maxBonusPool = 6;        // The maximum number of free points to allocate on level up
+        const int oghmaBonusPool = 30;
+
         SoundClips levelUpSound = SoundClips.LevelUp;
 
         KeyCode toggleClosedBinding;
@@ -122,6 +124,18 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 panelPos.y += 24f;
             }
 
+            // Name button
+            Button nameButton = DaggerfallUI.AddButton(new Rect(4, 3, 132, 8), NativePanel);
+            nameButton.OnMouseClick += NameButton_OnMouseClick;
+
+            // Level button
+            Button levelButton = DaggerfallUI.AddButton(new Rect(4, 33, 132, 8), NativePanel);
+            levelButton.OnMouseClick += LevelButton_OnMouseClick;
+
+            // Gold button
+            Button goldButton = DaggerfallUI.AddButton(new Rect(4, 43, 132, 8), NativePanel);
+            goldButton.OnMouseClick += GoldButton_OnMouseClick;
+
             // Health button
             Button healthButton = DaggerfallUI.AddButton(new Rect(4, 63, 128, 8), NativePanel);
             healthButton.OnMouseClick += HealthButton_OnMouseClick;
@@ -163,7 +177,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // History button
             Button historyButton = DaggerfallUI.AddButton(new Rect(69, 165, 65, 12), NativePanel);
-            historyButton.BackgroundColor = DaggerfallUI.DaggerfallUnityNotImplementedColor;
+            historyButton.OnMouseClick += HistoryButton_OnMouseClick;
 
             // Exit button
             Button exitButton = DaggerfallUI.AddButton(new Rect(50, 179, 39, 19), NativePanel);
@@ -199,7 +213,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Toggle window closed with same hotkey used to open it
             if (Input.GetKeyUp(toggleClosedBinding))
-                CloseWindow();
+                if (CheckIfDoneLeveling())
+                    CloseWindow();
         }
 
         public override void OnPush()
@@ -214,12 +229,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         public override void CancelWindow()
         {
-            if (leveling)
-            {
-                if (!CheckIfDoneLeveling())
-                    return;
-            }
-            base.CancelWindow();
+            if (CheckIfDoneLeveling())
+                base.CancelWindow();
         }
 
         #endregion
@@ -238,20 +249,23 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         // Creates formatting tokens for skill popups
         TextFile.Token[] CreateSkillTokens(DFCareer.Skills skill, bool twoColumn = false, int startPosition = 0)
         {
+            bool highlight = playerEntity.GetSkillRecentlyIncreased(skill);
+
             List<TextFile.Token> tokens = new List<TextFile.Token>();
+            TextFile.Formatting formatting = highlight ? TextFile.Formatting.TextHighlight : TextFile.Formatting.Text;
 
             TextFile.Token skillNameToken = new TextFile.Token();
+            skillNameToken.formatting = formatting;
             skillNameToken.text = DaggerfallUnity.Instance.TextProvider.GetSkillName(skill);
-            skillNameToken.formatting = TextFile.Formatting.Text;
 
             TextFile.Token skillValueToken = new TextFile.Token();
+            skillValueToken.formatting = formatting;
             skillValueToken.text = string.Format("{0}%", playerEntity.Skills.GetLiveSkillValue(skill));
-            skillValueToken.formatting = TextFile.Formatting.Text;
 
             DFCareer.Stats primaryStat = DaggerfallSkills.GetPrimaryStat(skill);
             TextFile.Token skillPrimaryStatToken = new TextFile.Token();
+            skillPrimaryStatToken.formatting = formatting;
             skillPrimaryStatToken.text = DaggerfallUnity.Instance.TextProvider.GetAbbreviatedStatName(primaryStat);
-            skillPrimaryStatToken.formatting = TextFile.Formatting.Text;
 
             TextFile.Token positioningToken = new TextFile.Token();
             positioningToken.formatting = TextFile.Formatting.PositionPrefix;
@@ -334,6 +348,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
 
             DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
+            messageBox.SetHighlightColor(DaggerfallUI.DaggerfallUnityStatIncreasedTextColor);
             messageBox.SetTextTokens(tokens.ToArray(), null, false);
             messageBox.ClickAnywhereToClose = true;
             messageBox.Show();
@@ -386,12 +401,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 leveling = true;
                 PlayerEntity.Level++;
-                PlayerEntity.MaxHealth += FormulaHelper.CalculateHitPointsPerLevelUp(PlayerEntity);
+                PlayerEntity.MaxHealth = PlayerEntity.RawMaxHealth + FormulaHelper.CalculateHitPointsPerLevelUp(PlayerEntity);
                 DaggerfallUI.Instance.PlayOneShot(levelUpSound);
 
-                // Roll bonus pool for player to distribute
-                // Using maxBonusPool + 1 for inclusive range
-                int bonusPool = UnityEngine.Random.Range(minBonusPool, maxBonusPool + 1);
+                int bonusPool;
+
+                if (!PlayerEntity.OghmaLevelUp)
+                {
+                    bonusPool = FormulaHelper.BonusPool();
+                }
+                else
+                    bonusPool = oghmaBonusPool;
 
                 // Add stats rollout for leveling up
                 NativePanel.Components.Add(statsRollout);
@@ -401,6 +421,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 this.statsRollout.BonusPool = bonusPool;
 
                 PlayerEntity.ReadyToLevelUp = false;
+                PlayerEntity.OghmaLevelUp = false;
             }
 
             // Update main labels
@@ -442,26 +463,368 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         bool CheckIfDoneLeveling()
         {
-            if (statsRollout.BonusPool > 0)
+            if (leveling)
             {
-                DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
-                messageBox.SetText(HardStrings.mustDistributeBonusPoints);
-                messageBox.ClickAnywhereToClose = true;
-                messageBox.Show();
-                return false;
+                if (statsRollout.BonusPool > 0 && !statsRollout.WorkingStats.IsAllMax())
+                {
+                    DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
+                    messageBox.SetText(HardStrings.mustDistributeBonusPoints);
+                    messageBox.ClickAnywhereToClose = true;
+                    messageBox.Show();
+                    return false;
+                }
+                else
+                {
+                    leveling = false;
+                    PlayerEntity.Stats = statsRollout.WorkingStats;
+                    NativePanel.Components.Remove(statsRollout);
+                }
             }
             else
             {
-                leveling = false;
-                PlayerEntity.Stats = statsRollout.WorkingStats;
-                NativePanel.Components.Remove(statsRollout);
-                return true;
+                playerEntity.ResetSkillsRecentlyRaised();
             }
+            return true;
+        }
+
+        string[] GetClassSpecials()
+        {
+            List<string> specials = new List<string>();
+            DFCareer career = GameManager.Instance.PlayerEntity.Career;
+            RaceTemplate race = GameManager.Instance.PlayerEntity.RaceTemplate;
+
+            // Tolerances
+            Dictionary<DFCareer.Tolerance, string> tolerances = new Dictionary<DFCareer.Tolerance, string>
+            {
+                { DFCareer.Tolerance.CriticalWeakness, HardStrings.criticalWeakness },
+                { DFCareer.Tolerance.Immune, HardStrings.immunity },
+                { DFCareer.Tolerance.LowTolerance, HardStrings.lowTolerance },
+                { DFCareer.Tolerance.Resistant, HardStrings.resistance }
+            };
+
+            if (career.Paralysis != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Paralysis] + " " + HardStrings.toParalysis);
+
+            if (career.Magic != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Magic] + " " + HardStrings.toMagic);
+
+            if (career.Poison != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Poison] + " " + HardStrings.toPoison);
+
+            if (career.Fire != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Fire] + " " + HardStrings.toFire);
+
+            if (career.Frost != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Frost] + " " + HardStrings.toFrost);
+
+            if (career.Shock != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Shock] + " " + HardStrings.toShock);
+
+            if (career.Disease != DFCareer.Tolerance.Normal)
+                specials.Add(tolerances[career.Disease] + " " + HardStrings.toDisease);
+
+            // Weapon Proficiencies
+            Dictionary<DFCareer.Proficiency, string> profs = new Dictionary<DFCareer.Proficiency, string>
+            {
+                { DFCareer.Proficiency.Expert, HardStrings.expertiseIn },
+                { DFCareer.Proficiency.Forbidden, HardStrings.forbiddenWeaponry }
+            };
+
+            if (career.ShortBlades != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.ShortBlades] + " " + HardStrings.shortBlade);
+
+            if (career.LongBlades != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.LongBlades] + " " + HardStrings.longBlade);
+
+            if (career.HandToHand != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.HandToHand] + " " + HardStrings.handToHand);
+
+            if (career.Axes != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.Axes] + " " + HardStrings.axe);
+
+            if (career.BluntWeapons != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.BluntWeapons] + " " + HardStrings.bluntWeapon);
+
+            if (career.MissileWeapons != DFCareer.Proficiency.Normal)
+                specials.Add(profs[career.MissileWeapons] + " " + HardStrings.missileWeapon);
+
+            // Attack modifiers
+            Dictionary<DFCareer.AttackModifier, string> atkMods = new Dictionary<DFCareer.AttackModifier, string>
+            {
+                { DFCareer.AttackModifier.Bonus, HardStrings.bonusToHit },
+                { DFCareer.AttackModifier.Phobia, HardStrings.phobia }
+            };
+
+            if (career.UndeadAttackModifier != DFCareer.AttackModifier.Normal)
+                specials.Add(atkMods[career.UndeadAttackModifier] + " " + HardStrings.undead);
+
+            if (career.DaedraAttackModifier != DFCareer.AttackModifier.Normal)
+                specials.Add(atkMods[career.DaedraAttackModifier] + " " + HardStrings.daedra);
+
+            if (career.HumanoidAttackModifier != DFCareer.AttackModifier.Normal)
+                specials.Add(atkMods[career.HumanoidAttackModifier] + " " + HardStrings.humanoid);
+
+            if (career.AnimalsAttackModifier != DFCareer.AttackModifier.Normal)
+                specials.Add(atkMods[career.AnimalsAttackModifier] + " " + HardStrings.animals);
+
+            // Darkness/light powered magery
+            if (career.DarknessPoweredMagery != DFCareer.DarknessMageryFlags.Normal)
+            {
+                if ((career.DarknessPoweredMagery & DFCareer.DarknessMageryFlags.ReducedPowerInLight) == DFCareer.DarknessMageryFlags.ReducedPowerInLight)
+                    specials.Add(HardStrings.darknessPoweredMagery + " " + HardStrings.lowerMagicAbilityDaylight);
+                if ((career.DarknessPoweredMagery & DFCareer.DarknessMageryFlags.UnableToCastInLight) == DFCareer.DarknessMageryFlags.UnableToCastInLight)
+                    specials.Add(HardStrings.darknessPoweredMagery + " " + HardStrings.unableToUseMagicInDaylight);
+            }
+
+            if (career.LightPoweredMagery != DFCareer.LightMageryFlags.Normal)
+            {
+                if ((career.LightPoweredMagery & DFCareer.LightMageryFlags.ReducedPowerInDarkness) == DFCareer.LightMageryFlags.ReducedPowerInDarkness)
+                    specials.Add(HardStrings.lightPoweredMagery + " " + HardStrings.lowerMagicAbilityDarkness);
+                if ((career.LightPoweredMagery & DFCareer.LightMageryFlags.UnableToCastInDarkness) == DFCareer.LightMageryFlags.UnableToCastInDarkness)
+                    specials.Add(HardStrings.lightPoweredMagery + " " + HardStrings.unableToUseMagicInDarkness);
+            }
+
+            // Forbidden materials (multiple)
+            if (career.ForbiddenMaterials != 0)
+            {
+                Dictionary<DFCareer.MaterialFlags, string> forbMaterials = new Dictionary<DFCareer.MaterialFlags, string>
+                {
+                    { DFCareer.MaterialFlags.Adamantium, HardStrings.adamantium },
+                    { DFCareer.MaterialFlags.Daedric, HardStrings.daedric },
+                    { DFCareer.MaterialFlags.Dwarven, HardStrings.dwarven },
+                    { DFCareer.MaterialFlags.Ebony, HardStrings.ebony },
+                    { DFCareer.MaterialFlags.Elven, HardStrings.elven },
+                    { DFCareer.MaterialFlags.Iron, HardStrings.iron },
+                    { DFCareer.MaterialFlags.Mithril, HardStrings.mithril },
+                    { DFCareer.MaterialFlags.Orcish, HardStrings.orcish },
+                    { DFCareer.MaterialFlags.Silver, HardStrings.silver },
+                    { DFCareer.MaterialFlags.Steel, HardStrings.steel }
+                };
+                foreach (DFCareer.MaterialFlags flag in Enum.GetValues(typeof(DFCareer.MaterialFlags)))
+                {
+                    if ((career.ForbiddenMaterials & flag) == flag)
+                        specials.Add(HardStrings.forbiddenMaterial + " " + forbMaterials[flag]);
+                }
+            }
+
+            // Forbidden shields (multiple)
+            if (career.ForbiddenShields != 0)
+            {
+                Dictionary<DFCareer.ShieldFlags, string> forbShields = new Dictionary<DFCareer.ShieldFlags, string>
+                {
+                    { DFCareer.ShieldFlags.Buckler, HardStrings.buckler },
+                    { DFCareer.ShieldFlags.KiteShield, HardStrings.kiteShield },
+                    { DFCareer.ShieldFlags.RoundShield, HardStrings.roundShield },
+                    { DFCareer.ShieldFlags.TowerShield, HardStrings.towerShield }
+                };
+                foreach (DFCareer.ShieldFlags flag in Enum.GetValues(typeof(DFCareer.ShieldFlags)))
+                {
+                    if ((career.ForbiddenShields & flag) == flag)
+                        specials.Add(HardStrings.forbiddenShieldTypes + " " + forbShields[flag]);
+                }
+            }
+
+            // Forbidden armor (multiple)
+            if (career.ForbiddenArmors != 0)
+            {
+                Dictionary<DFCareer.ArmorFlags, string> forbArmors = new Dictionary<DFCareer.ArmorFlags, string>
+                {
+                    { DFCareer.ArmorFlags.Chain, HardStrings.chain },
+                    { DFCareer.ArmorFlags.Leather, HardStrings.leather },
+                    { DFCareer.ArmorFlags.Plate, HardStrings.plate }
+                };
+                foreach (DFCareer.ArmorFlags flag in Enum.GetValues(typeof(DFCareer.ArmorFlags)))
+                {
+                    if ((career.ForbiddenArmors & flag) == flag)
+                        specials.Add(HardStrings.forbiddenArmorType + " " + forbArmors[flag]);
+                }
+            }
+
+            // Forbidden proficiencies (flags)
+            // Expert proficiencies (flags)
+            // Omitted - redundant
+
+            // Spell point multiplier
+            if (career.SpellPointMultiplier != DFCareer.SpellPointMultipliers.Times_0_50)
+            {
+                Dictionary<DFCareer.SpellPointMultipliers, string> spellPtMults = new Dictionary<DFCareer.SpellPointMultipliers, string>
+                {
+                    { DFCareer.SpellPointMultipliers.Times_1_00, HardStrings.intInSpellPoints },
+                    { DFCareer.SpellPointMultipliers.Times_1_50, HardStrings.intInSpellPoints15 },
+                    { DFCareer.SpellPointMultipliers.Times_1_75, HardStrings.intInSpellPoints175 },
+                    { DFCareer.SpellPointMultipliers.Times_2_00, HardStrings.intInSpellPoints2 },
+                    { DFCareer.SpellPointMultipliers.Times_3_00, HardStrings.intInSpellPoints3 },
+                };
+                specials.Add(HardStrings.increasedMagery + " " + spellPtMults[career.SpellPointMultiplier]);
+            }
+
+            // Spell absorption
+            if (career.SpellAbsorption != DFCareer.SpellAbsorptionFlags.None)
+            {
+                Dictionary<DFCareer.SpellAbsorptionFlags, string> absorbConds = new Dictionary<DFCareer.SpellAbsorptionFlags, string>
+                {
+                    { DFCareer.SpellAbsorptionFlags.Always, HardStrings.general },
+                    { DFCareer.SpellAbsorptionFlags.InDarkness, HardStrings.inDarkness },
+                    { DFCareer.SpellAbsorptionFlags.InLight, HardStrings.inLight }
+                };
+                specials.Add(HardStrings.spellAbsorption + " " + absorbConds[career.SpellAbsorption]);
+            }
+
+            // Spell point regeneration
+            if (career.NoRegenSpellPoints)
+                specials.Add(HardStrings.inabilityToRegen);
+
+            // Talents
+            if (career.AcuteHearing)
+                specials.Add(HardStrings.acuteHearing);
+
+            if (career.Athleticism)
+                specials.Add(HardStrings.athleticism);
+
+            if (career.AdrenalineRush)
+                specials.Add(HardStrings.adrenalineRush);
+
+            // Regeneration and rapid healing
+            if (career.Regeneration != DFCareer.RegenerationFlags.None)
+            {
+                Dictionary<DFCareer.RegenerationFlags, string> regenConds = new Dictionary<DFCareer.RegenerationFlags, string>
+                {
+                    { DFCareer.RegenerationFlags.Always, HardStrings.general },
+                    { DFCareer.RegenerationFlags.InDarkness, HardStrings.inDarkness },
+                    { DFCareer.RegenerationFlags.InLight, HardStrings.inLight },
+                    { DFCareer.RegenerationFlags.InWater, HardStrings.whileImmersed }
+                };
+                specials.Add(HardStrings.regenerateHealth + " " + regenConds[career.Regeneration]);
+            }
+
+            if (career.RapidHealing != DFCareer.RapidHealingFlags.None)
+            {
+                Dictionary<DFCareer.RapidHealingFlags, string> rapidHealingConds = new Dictionary<DFCareer.RapidHealingFlags, string>
+                {
+                    { DFCareer.RapidHealingFlags.Always, HardStrings.general },
+                    { DFCareer.RapidHealingFlags.InDarkness, HardStrings.inDarkness },
+                    { DFCareer.RapidHealingFlags.InLight, HardStrings.inLight }
+                };
+                specials.Add(HardStrings.rapidHealing + " " + rapidHealingConds[career.RapidHealing]);
+            }
+
+            // Damage
+            if (career.DamageFromSunlight)
+                specials.Add(HardStrings.damage + " " + HardStrings.fromSunlight);
+
+            if (career.DamageFromHolyPlaces)
+                specials.Add(HardStrings.damage + " " + HardStrings.fromHolyPlaces);
+
+            // Add racial tolerances and abilities
+            Dictionary<DFCareer.EffectFlags, string> raceEffectMods = new Dictionary<DFCareer.EffectFlags, string>
+            {
+                { DFCareer.EffectFlags.Paralysis, HardStrings.toParalysis },
+                { DFCareer.EffectFlags.Magic, HardStrings.toMagic },
+                { DFCareer.EffectFlags.Poison, HardStrings.toPoison },
+                { DFCareer.EffectFlags.Fire, HardStrings.toFire },
+                { DFCareer.EffectFlags.Frost, HardStrings.toFrost },
+                { DFCareer.EffectFlags.Shock, HardStrings.toShock },
+                { DFCareer.EffectFlags.Disease, HardStrings.toDisease },
+            };
+            foreach (DFCareer.EffectFlags effectFlag in Enum.GetValues(typeof(DFCareer.EffectFlags)))
+            {
+                if (effectFlag != DFCareer.EffectFlags.None)
+                {
+                    // Resistances
+                    if ((race.ResistanceFlags & effectFlag) == effectFlag)
+                    { 
+                        string toAdd = HardStrings.resistance + " " + raceEffectMods[effectFlag];
+                        if (!specials.Contains(toAdd)) // prevent duplicates from career
+                        {
+                            specials.Add(toAdd);
+                        }
+                    }
+                    // Immunities
+                    if ((race.ImmunityFlags & effectFlag) == effectFlag)
+                    {
+                        string toAdd = HardStrings.immunity + " " + raceEffectMods[effectFlag];
+                        if (!specials.Contains(toAdd))
+                        {
+                            specials.Add(toAdd);
+                        }
+                    }
+                    // Low tolerances
+                    if ((race.LowToleranceFlags & effectFlag) == effectFlag)
+                    {
+                        string toAdd = HardStrings.lowTolerance + " " + raceEffectMods[effectFlag];
+                        if (!specials.Contains(toAdd))
+                        {
+                            specials.Add(toAdd);
+                        }
+                    }
+                    // Critical weaknesses
+                    if ((race.CriticalWeaknessFlags & effectFlag) == effectFlag)
+                    {
+                        string toAdd = HardStrings.criticalWeakness + " " + raceEffectMods[effectFlag];
+                        if (!specials.Contains(toAdd))
+                        {
+                            specials.Add(toAdd);
+                        }
+                    }
+                }
+            }
+
+            Dictionary<DFCareer.SpecialAbilityFlags, string> raceAbilities = new Dictionary<DFCareer.SpecialAbilityFlags, string>
+            {
+                { DFCareer.SpecialAbilityFlags.AcuteHearing, HardStrings.acuteHearing },
+                { DFCareer.SpecialAbilityFlags.Athleticism, HardStrings.acuteHearing },
+                { DFCareer.SpecialAbilityFlags.AdrenalineRush, HardStrings.adrenalineRush },
+                { DFCareer.SpecialAbilityFlags.NoRegenSpellPoints, HardStrings.inabilityToRegen },
+                { DFCareer.SpecialAbilityFlags.SunDamage, HardStrings.damage + " " + HardStrings.fromSunlight },
+                { DFCareer.SpecialAbilityFlags.HolyDamage, HardStrings.damage + " " + HardStrings.fromHolyPlaces }
+            };
+            foreach (DFCareer.SpecialAbilityFlags abilityFlag in Enum.GetValues(typeof(DFCareer.SpecialAbilityFlags)))
+            {
+                if (abilityFlag != DFCareer.SpecialAbilityFlags.None && (race.SpecialAbilities & abilityFlag) == abilityFlag)
+                {
+                    string toAdd = raceAbilities[abilityFlag];
+                    if (!specials.Contains(toAdd))
+                    {
+                        specials.Add(toAdd);
+                    }
+                }
+            }
+
+            return specials.ToArray();
         }
 
         #endregion
 
         #region Event Handlers
+
+        private void NameButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            DaggerfallInputMessageBox mb = new DaggerfallInputMessageBox(uiManager, this);
+            mb.TextBox.Text = nameLabel.Text;
+            mb.SetTextBoxLabel(HardStrings.enterNewName);
+            mb.OnGotUserInput += EnterName_OnGotUserInput;
+            mb.Show();
+        }
+
+        private void LevelButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            float currentLevel = (playerEntity.CurrentLevelUpSkillSum - playerEntity.StartingLevelUpSkillSum + 28f) / 15f;
+            int progress = (int)((currentLevel % 1) * 100);
+            DaggerfallUI.MessageBox(string.Format(TextManager.Instance.GetText(textDatabase, "levelProgress"), progress));
+        }
+
+        private void GoldButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            DaggerfallMessageBox bankingStatusBox = DaggerfallBankingWindow.CreateBankingStatusBox(this);
+            bankingStatusBox.Show();
+        }
+
+        private void EnterName_OnGotUserInput(DaggerfallInputMessageBox sender, string input)
+        {
+            if (input.Length > 0)
+                PlayerEntity.Name = input;
+            UpdatePlayerValues();
+        }
 
         private void HealthButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
@@ -509,6 +872,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             uiManager.PostMessage(DaggerfallUIMessages.dfuiOpenQuestJournalWindow);
         }
 
+        void HistoryButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            DaggerfallMessageBox advantageTextBox = DaggerfallUI.MessageBox(GetClassSpecials());
+            advantageTextBox.OnClose += AdvantageTextBox_OnClose;
+        }
+
+        void AdvantageTextBox_OnClose()
+        {
+            uiManager.PostMessage(DaggerfallUIMessages.dfuiOpenPlayerHistoryWindow);
+        }
+
         private void StatButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (!leveling)
@@ -526,12 +900,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         private void ExitButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
-            if (leveling)
-            {
-                if (!CheckIfDoneLeveling())
-                    return;
-            }
-            CloseWindow();
+            if (CheckIfDoneLeveling())
+                CloseWindow();
         }
 
         private void StatsRollout_OnStatChanged()

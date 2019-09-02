@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,7 +28,7 @@ namespace DaggerfallConnect.Arena2
         FileProxy fileProxy;
         bool isLoaded = false;
         TextRecordDatabaseHeader header;
-        Dictionary<int, int> recordIdToIndexDict = new Dictionary<int, int>();
+        readonly Dictionary<int, int> recordIdToIndexDict = new Dictionary<int, int>();
 
         #region Properties
 
@@ -100,6 +100,8 @@ namespace DaggerfallConnect.Arena2
             Text = -1,
 
             TextHighlight = -2,
+            TextQuestion = -3,
+            TextAnswer = -4,
 
             NewLineOffset = 0x00,
             SameLineOffset = 0x01,
@@ -148,6 +150,22 @@ namespace DaggerfallConnect.Arena2
             public string text;
             public int x;
             public int y;
+
+            public Token(Formatting formatting)
+            {
+                this.formatting = formatting;
+                text = string.Empty;
+                x = 0;
+                y = 0;
+            }
+
+            public Token(Formatting formatting, string text, int x = 0, int y = 0)
+            {
+                this.formatting = formatting;
+                this.text = text;
+                this.x = x;
+                this.y = y;
+            }
         }
 
         private struct TextRecordDatabaseHeader
@@ -347,7 +365,7 @@ namespace DaggerfallConnect.Arena2
                     dst += string.Format("[0x{0}]", b.ToString("X2"));      // Format control bytes in [0x00] format
                 }
             }
-            
+
             return dst;
         }
 
@@ -375,7 +393,7 @@ namespace DaggerfallConnect.Arena2
                 if (IsFormattingToken(nextByte))
                     tokens.Add(ReadFormattingToken(ref buffer, position, out position));
                 else
-                    tokens.Add(ReadTextToken(ref buffer, position, out position));     
+                    tokens.Add(ReadTextToken(ref buffer, position, out position));
             }
 
             return tokens.ToArray();
@@ -391,13 +409,45 @@ namespace DaggerfallConnect.Arena2
         public static string[] GetTokenLines(Token[] tokens)
         {
             List<string> lines = new List<string>();
-            foreach(Token token in tokens)
+            foreach (Token token in tokens)
             {
                 if (token.formatting == Formatting.Text)
                     lines.Add(token.text);
             }
 
             return lines.ToArray();
+        }
+
+        /// <summary>
+        /// Appends new tokens to an existing token array and optionally injects newline between current tokens and appended tokens.
+        /// </summary>
+        /// <param name="current">Current tokens.</param>
+        /// <param name="extra">New tokens to append.</param>
+        /// <param name="newLine">True to inject newline between current and extra tokens.</param>
+        /// <returns>Resultant Token[] array.</returns>
+        public static Token[] AppendTokens(Token[] current, Token[] extra, bool newLine = true)
+        {
+            // Return current tokens if extra is null or empty
+            if (extra == null || extra.Length == 0)
+                return current;
+
+            // Return extra tokens if current is null or empty
+            if (current == null || current.Length == 0)
+                return extra;
+
+            // Expand array (with optional newline) and copy current tokens
+            int newLineTokenCount = (newLine) ? 1 : 0;
+            Token[] result = new Token[current.Length + extra.Length + newLineTokenCount];
+            current.CopyTo(result, 0);
+
+            // Append optional newline
+            if (newLine)
+                result[current.Length] = NewLineToken;
+
+            // Append new tokens
+            extra.CopyTo(result, current.Length + newLineTokenCount);
+
+            return result;
         }
 
         private static Token ReadFormattingToken(ref byte[] buffer, int position, out int endPosition)

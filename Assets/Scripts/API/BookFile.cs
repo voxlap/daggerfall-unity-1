@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,13 +9,11 @@
 // Notes:
 //
 
-#region Using Statements
 using System;
-using System.Text;
-using System.Collections.Generic;
 using System.IO;
 using DaggerfallConnect.Utility;
-#endregion
+using DaggerfallWorkshop;
+using UnityEngine;
 
 namespace DaggerfallConnect.Arena2
 {
@@ -29,7 +27,7 @@ namespace DaggerfallConnect.Arena2
         const string books = "books";
         const string naughty = "naughty";
 
-        FileProxy bookFile = new FileProxy();
+        readonly FileProxy bookFile = new FileProxy();
         BookHeader header = new BookHeader();
 
         #endregion
@@ -104,6 +102,17 @@ namespace DaggerfallConnect.Arena2
         }
 
         /// <summary>
+        /// Open a book file from binary data.
+        /// </summary>
+        /// <param name="data">Byte array to parse as a book file.</param>
+        /// <param name="name">Name to describe book.</param>
+        public void OpenBook(byte[] data, string name)
+        {
+            bookFile.Load(data, name);
+            ReadHeader();
+        }
+
+        /// <summary>
         /// Reads the TextResource tokens for this page record.
         /// </summary>
         /// <param name="page">Page index.</param>
@@ -127,9 +136,9 @@ namespace DaggerfallConnect.Arena2
             BinaryReader reader = bookFile.GetReader();
 
             header = new BookHeader();
-            header.Title = bookFile.ReadCStringSkip(reader, 0, 64);
-            header.Author = bookFile.ReadCStringSkip(reader, 0, 64);
-            header.IsNaughty = (bookFile.ReadCStringSkip(reader, 0, 8) == naughty);
+            header.Title = FileProxy.ReadCStringSkip(reader, 0, 64);
+            header.Author = FileProxy.ReadCStringSkip(reader, 0, 64);
+            header.IsNaughty = (FileProxy.ReadCStringSkip(reader, 0, 8) == naughty);
             header.NullValues = reader.ReadBytes(88);
             header.Price = reader.ReadUInt32();
             header.Unknown1 = reader.ReadUInt16();
@@ -141,6 +150,11 @@ namespace DaggerfallConnect.Arena2
             {
                 header.PageOffsets[i] = reader.ReadUInt32();
             }
+            // Overwrite price field using random seeded with first 4 bytes.
+            // (See https://forums.dfworkshop.net/viewtopic.php?f=23&t=1576)
+            reader.BaseStream.Position = 0;
+            DFRandom.Seed = reader.ReadUInt32(); // first 4 bytes of book file as a uint
+            header.Price = (uint)DFRandom.random_range_inclusive(300, 800);
         }
 
         #endregion

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -14,6 +14,8 @@ using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Utility;
+using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop
 {
@@ -33,6 +35,7 @@ namespace DaggerfallWorkshop
         public int TextureArchive = 0;
         public int TextureRecord = 0;
         public bool playerOwned = false;
+        public bool houseOwned = false;
         public bool customDrop = false;         // Custom drop loot is not part of base scene and must be respawned on deserialization
         public bool isEnemyClass = false;
         public int stockedDate = 0;
@@ -63,7 +66,7 @@ namespace DaggerfallWorkshop
         public static void GenerateItems(string LootTableKey, ItemCollection collection)
         {
             LootChanceMatrix matrix = LootTables.GetMatrix(LootTableKey);
-            DaggerfallUnityItem[] newitems = LootTables.GenerateRandomLoot(LootTableKey, matrix, GameManager.Instance.PlayerEntity);
+            DaggerfallUnityItem[] newitems = LootTables.GenerateRandomLoot(matrix, GameManager.Instance.PlayerEntity);
 
             collection.Import(newitems);
         }
@@ -73,7 +76,7 @@ namespace DaggerfallWorkshop
         /// </summary>
         public static void RandomlyAddMap(int chance, ItemCollection collection)
         {
-            if (Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
                 DaggerfallUnityItem map = new DaggerfallUnityItem(ItemGroups.MiscItems, 8);
                 collection.AddItem(map);
@@ -85,7 +88,7 @@ namespace DaggerfallWorkshop
         /// </summary>
         public static void RandomlyAddPotion(int chance, ItemCollection collection)
         {
-            if (Random.Range(1, 101) < chance)
+            if (Dice100.SuccessRoll(chance))
                 collection.AddItem(ItemBuilder.CreateRandomPotion());
         }
 
@@ -94,11 +97,11 @@ namespace DaggerfallWorkshop
         /// </summary>
         public static void RandomlyAddPotionRecipe(int chance, ItemCollection collection)
         {
-            if (Random.Range(1, 101) < chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                DaggerfallUnityItem potionRecipe = new DaggerfallUnityItem(ItemGroups.MiscItems, 4);
-                byte recipe = (byte)Random.Range(0, 20);
-                potionRecipe.typeDependentData = recipe;
+                int recipeIdx = Random.Range(0, PotionRecipe.classicRecipeKeys.Length);
+                int recipeKey = PotionRecipe.classicRecipeKeys[recipeIdx];
+                DaggerfallUnityItem potionRecipe = new DaggerfallUnityItem(ItemGroups.MiscItems, 4) { PotionRecipeKey = recipeKey };
                 collection.AddItem(potionRecipe);
             }
         }
@@ -192,7 +195,7 @@ namespace DaggerfallWorkshop
                             if (itemTemplate.rarity <= shopQuality)
                             {
                                 int stockChance = chanceMod * 5 * (21 - itemTemplate.rarity) / 100;
-                                if (Random.Range(1, 101) <= stockChance)
+                                if (Dice100.SuccessRoll(stockChance))
                                 {
                                     DaggerfallUnityItem item = null;
                                     if (itemGroup == ItemGroups.Weapons)
@@ -209,9 +212,16 @@ namespace DaggerfallWorkshop
                                         item = ItemBuilder.CreateWomensClothing(j + WomensClothing.Brassier, playerEntity.Race);
                                         item.dyeColor = ItemBuilder.RandomClothingDye();
                                     }
+                                    else if (itemGroup == ItemGroups.MagicItems)
+                                    {
+                                        item = ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+                                    }
                                     else
+                                    {
                                         item = new DaggerfallUnityItem(itemGroup, j);
-
+                                        if (DaggerfallUnity.Settings.PlayerTorchFromItems && item.IsOfTemplate(ItemGroups.UselessItems2, (int)UselessItems2.Oil))
+                                            item.stackCount = Random.Range(5, 20 + 1);  // Shops stock 5-20 bottles
+                                    }
                                     items.AddItem(item);
                                 }
                             }
@@ -228,7 +238,7 @@ namespace DaggerfallWorkshop
 
             DFLocation.BuildingTypes buildingType = buildingData.buildingType;
             uint modelIndex = (uint) TextureRecord;
-            int buildingQuality = buildingData.quality;
+            //int buildingQuality = buildingData.quality;
             byte[] privatePropertyList = null;
             DaggerfallUnityItem item = null;
             Game.Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
@@ -276,15 +286,11 @@ namespace DaggerfallWorkshop
                     {
                         if (itemGroup == ItemGroups.MagicItems)
                         {
-                            //TODO: Make magic item
+                            item = ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
                         }
                         else if (itemGroup == ItemGroups.Books)
                         {
-                            int groupIndex = (buildingQuality + 3) / 5;
-                            if (groupIndex == (int)ItemGroups.Books)
-                                items.AddItem(ItemBuilder.CreateRandomBook());
-                            else
-                                item = new DaggerfallUnityItem(itemGroup, groupIndex);
+                            item = ItemBuilder.CreateRandomBook();
                         }
                         else
                         {

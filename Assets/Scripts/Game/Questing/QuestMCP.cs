@@ -1,17 +1,17 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Hazelnut
 
 using UnityEngine;
-using System;
 using DaggerfallConnect;
 using DaggerfallConnect.Utility;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
+using DaggerfallWorkshop.Game.Formulas;
 
 namespace DaggerfallWorkshop.Game.Questing
 {
@@ -31,6 +31,23 @@ namespace DaggerfallWorkshop.Game.Questing
             public QuestMacroDataSource(Quest parent)
             {
                 this.parent = parent;
+            }
+
+            public override string Name()
+            {
+                // Set seed to the quest UID before falling through to random name generation. (See t=2108)
+                DFRandom.srand((int) parent.UID);
+                return null;
+            }
+
+            public override string FactionOrderName()
+            {
+                // Only used for knightly order quests, %kno macro. (removing 'The ' prefix from name for readability)
+                FactionFile.FactionData factionData;
+                if (DaggerfallUnity.Instance.ContentReader.FactionFileReader.GetFactionData(parent.FactionId, out factionData))
+                    return factionData.name.StartsWith("The ") ? factionData.name.Substring(4) : factionData.name;
+                else
+                    return null;
             }
 
             // He/She
@@ -92,8 +109,33 @@ namespace DaggerfallWorkshop.Game.Questing
                     case Game.Entity.Genders.Male:
                         return HardStrings.pronounHis;
                     case Game.Entity.Genders.Female:
-                        return HardStrings.pronounHers;
+                        return HardStrings.pronounHer;
                 }
+            }
+
+            public override string VampireNpcClan()
+            {
+                // %vcn
+                if (parent.LastResourceReferenced == null && !(parent.LastResourceReferenced is Person))
+                    return null;
+
+                // Use home Place region to determine vampire clan of NPC
+                // Fallback to current region if unable to determine home region of NPC
+                // Also fallback to using generic "vampire" faction name if clan not resolved
+                Person person = (Person)parent.LastResourceReferenced;
+                if (person.FactionData.type == (int)FactionFile.FactionTypes.VampireClan)
+                {
+                    int regionIndex = person.HomeRegionIndex;
+                    if (regionIndex == -1)
+                        regionIndex = GameManager.Instance.PlayerGPS.CurrentRegionIndex;
+                    VampireClans vampireClan = FormulaHelper.GetVampireClan(regionIndex);
+                    if (vampireClan == VampireClans.None)
+                        return person.FactionData.name;
+                    else
+                        return TextManager.Instance.GetText("Races", vampireClan.ToString().ToLower());
+                }
+
+                return null;
             }
 
             public override string QuestDate()
@@ -165,52 +207,36 @@ namespace DaggerfallWorkshop.Game.Questing
                 //return "%god";
             }
 
-            public override string LocationDirection()
+            public override string Direction()
             {
-                Vector2 positionPlayer;
-                Vector2 positionLocation = Vector2.zero;
+                Place questLastPlaceReferenced = parent.LastPlaceReferenced;
 
-                DFPosition position = new DFPosition();
-                PlayerGPS playerGPS = GameManager.Instance.PlayerGPS;
-                if (playerGPS)
-                    position = playerGPS.CurrentMapPixel;
-                
-                positionPlayer = new Vector2(position.X, position.Y);
-
-                int region = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetPoliticIndex(position.X, position.Y) - 128;
-                if (region < 0 || region >= DaggerfallUnity.Instance.ContentReader.MapFileReader.RegionCount)
-                    region = -1;
-                
-                DFRegion.RegionMapTable locationInfo = new DFRegion.RegionMapTable();
-
-                DFRegion currentDFRegion = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRegion(region);
-
-                string name = this.parent.LastPlaceReferenced.SiteDetails.locationName.ToLower();
-                string[] locations = currentDFRegion.MapNames;                              
-                for (int i = 0; i < locations.Length; i++)
+                if (questLastPlaceReferenced.Scope == Place.Scopes.Remote)
                 {
-                    if (locations[i].ToLower() == name) // Valid location found with exact name
+                    if (questLastPlaceReferenced == null)
                     {
-                        if (currentDFRegion.MapNameLookup.ContainsKey(locations[i]))
-                        {
-                            int index = currentDFRegion.MapNameLookup[locations[i]];
-                            locationInfo = currentDFRegion.MapTable[index];
-                            position = MapsFile.LongitudeLatitudeToMapPixel((int)locationInfo.Longitude, (int)locationInfo.Latitude);
-                            positionLocation = new Vector2(position.X, position.Y);
-                        }
+                        QuestMachine.Log(parent, "Trying to get direction to quest location when no location has been referenced in the quest.");
+                        return TextManager.Instance.GetText("ConversationText", "resolvingError");
+                    }
+
+                    return GameManager.Instance.TalkManager.GetLocationCompassDirection(questLastPlaceReferenced);
+                }
+                else if (questLastPlaceReferenced.Scope == Place.Scopes.Local)
+                {
+                    if (questLastPlaceReferenced.SiteDetails.locationName == GameManager.Instance.PlayerGPS.CurrentLocation.Name)
+                    {
+                        return GameManager.Instance.TalkManager.GetBuildingCompassDirection(questLastPlaceReferenced.SiteDetails.buildingKey);
+                    }
+                    else
+                    {
+                        string result = questLastPlaceReferenced.SiteDetails.locationName;
+                        result += TextManager.Instance.GetText(TalkManager.TextDatabase, "comma");                        
+                        result += GameManager.Instance.TalkManager.GetLocationCompassDirection(questLastPlaceReferenced);
+                        return result;
                     }
                 }
-                
-                if (positionLocation != Vector2.zero)
-                {
-                    Vector2 vecDirectionToTarget = positionLocation - positionPlayer;
-                    vecDirectionToTarget.y = -vecDirectionToTarget.y; // invert y axis
-                    return GameManager.Instance.TalkManager.DirectionVector2DirectionHintString(vecDirectionToTarget);
-                }
-                else
-                {
-                    return "... never mind ...";
-                }
+
+                return TextManager.Instance.GetText(TalkManager.TextDatabase, "resolvingError");
             }
         }
     }

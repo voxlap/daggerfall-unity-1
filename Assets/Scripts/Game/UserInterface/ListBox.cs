@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,15 +11,7 @@
 
 using UnityEngine;
 using System;
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
-using System.Text;
-using DaggerfallConnect;
-using DaggerfallConnect.Arena2;
-using DaggerfallConnect.Utility;
-using DaggerfallWorkshop;
-using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterface
 {
@@ -31,8 +23,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
         #region Fields
 
         int maxCharacters = -1;
-        PixelFont font;
+        DaggerfallFont font;
         int selectedIndex = 0;
+        int highlightedIndex = -1;
         int scrollIndex = 0;
         bool enabledHorizontalScroll = false;
         int horizontalScrollIndex = 0;
@@ -49,10 +42,6 @@ namespace DaggerfallWorkshop.Game.UserInterface
         Color selectedTextColor = DaggerfallUI.DaggerfallDefaultSelectedTextColor;
         Color shadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
         Color selectedShadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
-
-        // restricted render area can be used to force list box content rendering inside this rect (used for content rendering in window frames where content is larger than frame)
-        new bool useRestrictedRenderArea = false;
-        new Rect rectRestrictedRenderArea;
 
         public enum VerticalScrollModes
         {
@@ -77,6 +66,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             public Color selectedTextColor = DaggerfallUI.DaggerfallDefaultSelectedTextColor;
             public Color shadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
             public Color selectedShadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
+            public Color highlightedTextColor = DaggerfallUI.DaggerfallAlternateHighlightTextColor;
+            public Color highlightedSelectedTextColor = DaggerfallUI.DaggerfallBrighterSelectedTextColor;
+            public object tag;
 
             public ListItem(TextLabel textLabel)
             {
@@ -99,7 +91,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             set { maxCharacters = value; }
         }
 
-        public PixelFont Font
+        public DaggerfallFont Font
         {
             get { return font; }
             set { font = value; }
@@ -151,6 +143,11 @@ namespace DaggerfallWorkshop.Game.UserInterface
         public string SelectedItem
         {
             get { return listItems[selectedIndex].textLabel.Text; }
+        }
+
+        public ListItem SelectedValue
+        {
+            get { return listItems[selectedIndex]; }
         }
 
         public int Count
@@ -237,19 +234,6 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         /// <summary>
-        /// define a restricted render area so that listbox content (textlabels) are only rendered within these Rect's bounds
-        /// </summary>
-        public new Rect RectRestrictedRenderArea
-        {
-            get { return rectRestrictedRenderArea; }
-            set
-            {
-                rectRestrictedRenderArea = value;
-                useRestrictedRenderArea = true;
-            }
-        }
-
-        /// <summary>
         /// set vertical scroll mode to either character wise or pixel wise
         /// </summary>
         public VerticalScrollModes VerticalScrollMode
@@ -269,8 +253,15 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         #endregion
 
-        #region Overrides
+        #region Constructors
+        public ListBox()
+        {
+            OnMouseMove += MouseMove;
+            OnMouseLeave += MouseLeave;
+        }
+        #endregion
 
+        #region Overrides
         public override void Update()
         {
             base.Update();
@@ -310,19 +301,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
                     currentLine += label.NumTextLines;                
                     label.StartCharacterIndex = horizontalScrollIndex;
-                    label.UpdateLabelTexture();
-                    if (i == selectedIndex)
-                    {
-                        label.TextColor = listItems[i].selectedTextColor;
-                        label.ShadowPosition = selectedShadowPosition;
-                        label.ShadowColor = listItems[i].selectedShadowColor;
-                    }
-                    else
-                    {
-                        label.TextColor = listItems[i].textColor;
-                        label.ShadowPosition = shadowPosition;
-                        label.ShadowColor = listItems[i].shadowColor;
-                    }
+
+                    DecideTextColor(label, i);
 
                     label.Position = new Vector2(x, y);
                     label.Draw();
@@ -348,26 +328,81 @@ namespace DaggerfallWorkshop.Game.UserInterface
                         label.StartCharacterIndex = horizontalScrollIndex;
                     else if (horizontalScrollMode == HorizontalScrollModes.PixelWise)
                         x = -horizontalScrollIndex;
-                    label.UpdateLabelTexture();
-                    if (i == selectedIndex)
-                    {
-                        label.TextColor = listItems[i].selectedTextColor;
-                        label.ShadowPosition = selectedShadowPosition;
-                        label.ShadowColor = listItems[i].selectedShadowColor;
-                    }
-                    else
-                    {
-                        label.TextColor = listItems[i].textColor;
-                        label.ShadowPosition = shadowPosition;
-                        label.ShadowColor = listItems[i].shadowColor;
-                    }
 
+                    DecideTextColor(label, i);
+
+                    label.HorzPixelScrollOffset = x;
                     label.Position = new Vector2(x, y);
                     label.Draw();
 
                     y += label.TextHeight + rowSpacing;
                 }
             }           
+        }
+
+        private void DecideTextColor(TextLabel label, int i)
+        {
+            if (i == highlightedIndex && i == selectedIndex)
+            {
+                label.TextColor = listItems[i].highlightedSelectedTextColor;
+                label.ShadowPosition = selectedShadowPosition;
+                label.ShadowColor = listItems[i].selectedShadowColor;
+            }
+            else if (i == selectedIndex)
+            {
+                label.TextColor = listItems[i].selectedTextColor;
+                label.ShadowPosition = selectedShadowPosition;
+                label.ShadowColor = listItems[i].selectedShadowColor;
+            }
+            else if (i == highlightedIndex)
+            {
+                label.TextColor = listItems[i].highlightedTextColor;
+                label.ShadowPosition = shadowPosition;
+                label.ShadowColor = listItems[i].shadowColor;
+            }
+            else
+            {
+                label.TextColor = listItems[i].textColor;
+                label.ShadowPosition = shadowPosition;
+                label.ShadowColor = listItems[i].shadowColor;
+            }
+        }
+        protected override void MouseMove(int x, int y)
+        {
+            if (listItems.Count == 0)
+                return;
+            highlightedIndex = -1;
+            if (verticalScrollMode == VerticalScrollModes.EntryWise)
+            {
+                int row = (y / (font.GlyphHeight + rowSpacing));
+                int index = scrollIndex + row;
+                if (index >= 0 && index < Count)
+                {
+                    highlightedIndex = index;
+                }
+            }
+            else if (verticalScrollMode == VerticalScrollModes.PixelWise)
+            {
+                int yCurrentItem = 0;
+                int yNextItem = 0;
+                for (int i = 0; i < listItems.Count; i++)
+                {
+                    yNextItem = yCurrentItem + listItems[i].textLabel.TextHeight + rowSpacing;
+                    int yVal = scrollIndex + y;
+                    if (yVal >= yCurrentItem - rowSpacing * 0.5 && yVal < yNextItem - rowSpacing * 0.5)
+                    {
+                        highlightedIndex = i;
+                        break;
+                    }
+                    yCurrentItem = yNextItem;
+                }
+
+            }
+        }
+
+        protected override void MouseLeave(BaseScreenComponent sender)
+        {
+            highlightedIndex = -1;
         }
 
         protected override void MouseClick(Vector2 clickPosition)
@@ -439,15 +474,17 @@ namespace DaggerfallWorkshop.Game.UserInterface
             SelectNone();
         }
 
-        public void AddItem(string text, out ListItem itemOut, int position = -1)
+        public void AddItem(string text, out ListItem itemOut, int position = -1, object tag = null)
         {
             if (font == null)
                 font = DaggerfallUI.DefaultFont;
 
             TextLabel textLabel = new TextLabel();
-            if (useRestrictedRenderArea)
+            if (UseRestrictedRenderArea)
             {
-                textLabel.RectRestrictedRenderArea = this.rectRestrictedRenderArea;
+                textLabel.RectRestrictedRenderArea = RectRestrictedRenderArea;
+                textLabel.RestrictedRenderAreaCoordinateType = RestrictedRenderAreaCoordinateType;
+                textLabel.RestrictedRenderAreaCustomParent = RestrictedRenderAreaCustomParent;
             }
             if (horizontalScrollMode == HorizontalScrollModes.CharWise)
                 textLabel.MaxWidth = (int)Size.x;
@@ -468,22 +505,69 @@ namespace DaggerfallWorkshop.Game.UserInterface
             itemOut.selectedTextColor = selectedTextColor;
             itemOut.shadowColor = shadowColor;
             itemOut.selectedShadowColor = selectedShadowColor;
+            itemOut.tag = tag;
             if (position < 0)
                 listItems.Add(itemOut);
             else
                 listItems.Insert(position, itemOut);
         }
 
-        public void AddItem(string text, int position = -1)
+        public void AddItem(TextLabel textLabel, out ListItem itemOut, int position = -1, string tag = null)
+        {
+            if (textLabel == null)
+            {
+                itemOut = new ListItem(null);
+                return;
+            }
+
+            if (UseRestrictedRenderArea)
+            {
+                textLabel.RectRestrictedRenderArea = RectRestrictedRenderArea;
+                textLabel.RestrictedRenderAreaCoordinateType = RestrictedRenderAreaCoordinateType;
+                textLabel.RestrictedRenderAreaCustomParent = RestrictedRenderAreaCustomParent;
+            }
+            if (horizontalScrollMode == HorizontalScrollModes.CharWise)
+                textLabel.MaxWidth = (int)Size.x;
+            else if (horizontalScrollMode == HorizontalScrollModes.PixelWise)
+                textLabel.MaxWidth = -1;
+            textLabel.Parent = this;
+            textLabel.WrapText = wrapTextItems;
+            textLabel.WrapWords = wrapWords;
+
+            itemOut = new ListItem(textLabel);
+            itemOut.textColor = textColor;
+            itemOut.selectedTextColor = selectedTextColor;
+            itemOut.shadowColor = shadowColor;
+            itemOut.selectedShadowColor = selectedShadowColor;
+            itemOut.tag = tag;
+            if (position < 0)
+                listItems.Add(itemOut);
+            else
+                listItems.Insert(position, itemOut);
+        }
+
+        public void AddItem(string text, int position = -1, object tag = null)
         {
             ListItem itemOut;
-            AddItem(text, out itemOut, position);
+            AddItem(text, out itemOut, position, tag);
         }
 
         public void AddItems(string[] items)
         {
             foreach (string item in items)
                 AddItem(item);
+        }
+
+        public void AddItems(TextLabel[] labels)
+        {
+            if (labels == null || labels.Length == 0)
+                return;
+
+            ListItem itemOut;
+            foreach (TextLabel label in labels)
+            {
+                AddItem(label, out itemOut);
+            }
         }
 
         public void RemoveItem(int index)

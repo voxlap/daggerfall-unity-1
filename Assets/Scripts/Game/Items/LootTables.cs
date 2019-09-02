@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,10 +9,10 @@
 // Notes:
 //
 
-//using System;
 using UnityEngine;
 using DaggerfallWorkshop.Game.Entity;
 using System.Collections.Generic;
+using DaggerfallWorkshop.Game.Utility;
 
 namespace DaggerfallWorkshop.Game.Items
 {
@@ -48,8 +48,7 @@ namespace DaggerfallWorkshop.Game.Items
         /// T, 3, 1
         /// U, 3, 2
         /// </summary>
-        public static LootChanceMatrix[] DefaultLootTables = new LootChanceMatrix[]
-        {
+        public static LootChanceMatrix[] DefaultLootTables = {
             new LootChanceMatrix() {key = "-", MinGold = 0, MaxGold = 0, P1 = 0, P2 = 0, C1 = 0, C2 = 0, C3 = 0, M1 = 0, AM = 0, WP = 0, MI = 0, CL = 0, BK = 0, M2 = 0, RL = 0 },
             new LootChanceMatrix() {key = "A", MinGold = 1, MaxGold = 10, P1 = 0, P2 = 0, C1 = 0, C2 = 0, C3 = 0, M1 = 0, AM = 5, WP = 5, MI = 2, CL = 4, BK = 0, M2 = 2, RL = 0 },
             // Chronicles says B has 10 for Warm Plant and Misc. Monster, but in FALL.EXE it is Temperate Plant and Warm Plant.
@@ -142,11 +141,10 @@ namespace DaggerfallWorkshop.Game.Items
         /// <summary>
         /// Generates an array of items based on loot chance matrix.
         /// </summary>
-        /// <param name="key">Starting loot table key. Used for special handling.</param>
         /// <param name="matrix">Loot chance matrix.</param>
-        /// <param name="playerLevel">Level of player.</param>
+        /// <param name="playerEntity">Player entity.</param>
         /// <returns>DaggerfallUnityItem array.</returns>
-        public static DaggerfallUnityItem[] GenerateRandomLoot(string key, LootChanceMatrix matrix, PlayerEntity playerEntity)
+        public static DaggerfallUnityItem[] GenerateRandomLoot(LootChanceMatrix matrix, PlayerEntity playerEntity)
         {
             // Notes: The first part of the DF Chronicles explanation of how loot is generated does not match the released game.
             // It says the chance for each item category is the matrix amount * the level of the NPC. Actual behavior in the
@@ -160,6 +158,9 @@ namespace DaggerfallWorkshop.Game.Items
             float chance;
             List<DaggerfallUnityItem> items = new List<DaggerfallUnityItem>();
 
+            // Reseed random
+            Random.InitState(items.GetHashCode());
+
             // Random gold
             int goldCount = Random.Range(matrix.MinGold, matrix.MaxGold + 1) * playerEntity.Level;
             if (goldCount > 0)
@@ -169,7 +170,7 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Random weapon
             chance = matrix.WP;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 items.Add(ItemBuilder.CreateRandomWeapon(playerEntity.Level));
                 chance *= 0.5f;
@@ -177,7 +178,7 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Random armor
             chance = matrix.AM;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 items.Add(ItemBuilder.CreateRandomArmor(playerEntity.Level, playerEntity.Gender, playerEntity.Race));
                 chance *= 0.5f;
@@ -192,21 +193,17 @@ namespace DaggerfallWorkshop.Game.Items
             RandomIngredient(matrix.M1, ItemGroups.MiscellaneousIngredients1, items);
             RandomIngredient(matrix.M2, ItemGroups.MiscellaneousIngredients2, items);
 
-            // TEMP: Magic item chance is just another shot at armor or weapon for now
+            // Random magic item
             chance = matrix.MI;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
-                if (Random.value < 0.5f)
-                    items.Add(ItemBuilder.CreateRandomWeapon(playerEntity.Level));
-                else
-                    items.Add(ItemBuilder.CreateRandomArmor(playerEntity.Level, playerEntity.Gender, playerEntity.Race));
-
+                items.Add(ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race));
                 chance *= 0.5f;
             }
 
             // Random clothes
             chance = matrix.CL;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 items.Add(ItemBuilder.CreateRandomClothing(playerEntity.Gender, playerEntity.Race));
                 chance *= 0.5f;
@@ -214,7 +211,7 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Random books
             chance = matrix.BK;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 items.Add(ItemBuilder.CreateRandomBook());
                 chance *= 0.5f;
@@ -222,7 +219,7 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Random religious item
             chance = matrix.RL;
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 items.Add(ItemBuilder.CreateRandomReligiousItem());
                 chance *= 0.5f;
@@ -235,7 +232,7 @@ namespace DaggerfallWorkshop.Game.Items
 
         static void RandomIngredient(float chance, ItemGroups ingredientGroup, List<DaggerfallUnityItem> targetItems)
         {
-            while (Random.Range(0, 100) < chance)
+            while (Dice100.SuccessRoll((int)chance))
             {
                 targetItems.Add(ItemBuilder.CreateRandomIngredient(ingredientGroup));
                 chance *= 0.5f;

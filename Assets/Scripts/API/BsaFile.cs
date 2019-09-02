@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.IO;
 using DaggerfallConnect.Utility;
 #endregion
@@ -28,7 +27,7 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// Abstracts BSA file to a managed disk or memory stream.
         /// </summary>
-        private FileProxy managedFile = new FileProxy();
+        private readonly FileProxy managedFile = new FileProxy();
 
         /// <summary>
         /// Contains the BSA file header data.
@@ -147,17 +146,31 @@ namespace DaggerfallConnect.Arena2
         /// <param name="filePath">Absolute path to BSA file.</param>
         /// <param name="usage">Specify if file will be accessed from disk, or loaded into RAM.</param>
         /// <param name="readOnly">File will be read-only if true, read-write if false.</param>
+        /// <param name="filePatch">An optional list of patches to apply to file memory buffer.</param>
         /// <returns>True if successful, otherwise false.</returns>
-        public bool Load(string filePath, FileUsage usage, bool readOnly)
+        public bool Load(string filePath, FileUsage usage, bool readOnly, PatchList filePatch = null)
         {
             // Ensure filename ends with .BSA or .SND
             if (!filePath.EndsWith(".BSA", StringComparison.InvariantCultureIgnoreCase) &&
-                !filePath.EndsWith(".SND", StringComparison.InvariantCultureIgnoreCase))
+                !filePath.EndsWith(".SND", StringComparison.InvariantCultureIgnoreCase) &&
+                !filePath.EndsWith(".SAV", StringComparison.InvariantCultureIgnoreCase))
                 return false;
 
             // Load file into memory
             if (!managedFile.Load(filePath, usage, readOnly))
                 return false;
+
+            // Patch the file
+            if (usage == FileUsage.UseMemory && filePatch != null)
+            {
+                foreach (var patch in filePatch)
+                {
+                    for (int i = 0; i < patch.data.Length; i++)
+                    {
+                        managedFile.Buffer[patch.offset + i] = patch.data[i];
+                    }
+                }
+            }
 
             // Read file
             if (!Read())

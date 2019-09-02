@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,12 +12,13 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
+using DaggerfallConnect.Save;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop
 {
@@ -54,6 +55,7 @@ namespace DaggerfallWorkshop
 
         AudioSource audioSource;
         ActionState currentState;
+        float cooldown;
 
         //lookup for action type12, temp. storing them here
         static Dictionary<int, string[]> actionTypeTwelveLookup = new Dictionary<int, string[]>()
@@ -91,6 +93,12 @@ namespace DaggerfallWorkshop
             set { SetState(value); }
         }
 
+        public float Cooldown
+        {
+            get { return cooldown; }
+            set { cooldown = value; }
+        }
+
         public bool IsMoving
         {
             get { return (currentState == ActionState.PlayingForward || currentState == ActionState.PlayingReverse); }
@@ -119,7 +127,7 @@ namespace DaggerfallWorkshop
         {DFBlock.RdbActionFlags.NegativeZ,  new ActionDelegate(Move)},
         {DFBlock.RdbActionFlags.PositiveY,  new ActionDelegate(Move)},
         {DFBlock.RdbActionFlags.NegativeY,  new ActionDelegate(Move)},
-        {DFBlock.RdbActionFlags.CastSpell,  new ActionDelegate(Move)},
+        {DFBlock.RdbActionFlags.CastSpell,  new ActionDelegate(CastSpell)},
         {DFBlock.RdbActionFlags.ShowText,   new ActionDelegate(ShowText)},
         {DFBlock.RdbActionFlags.ShowTextWithInput,   new ActionDelegate(ShowTextWithInput)},
         {DFBlock.RdbActionFlags.Teleport,   new ActionDelegate(Teleport)},
@@ -248,7 +256,10 @@ namespace DaggerfallWorkshop
                 ActivateNext();
 
             if (PlaySound && Index > 0 && audioSource)
+            {
+                audioSource.volume = DaggerfallUnity.Settings.SoundVolume;
                 audioSource.Play();
+            }
 
             //stop if failed to get valid delegate from lookup - ideally this check should be done before playing
             //sound & activating next, but for testing purposes is done after
@@ -321,14 +332,14 @@ namespace DaggerfallWorkshop
             Hashtable rotateParams = __ExternalAssets.iTween.Hash(
                  "amount", new Vector3(ActionRotation.x / 360f, ActionRotation.y / 360f, ActionRotation.z / 360f),
                 "space", ActionSpace,
-                "time", Duration,
+                "time", duration,
                  "easetype", __ExternalAssets.iTween.EaseType.linear,
                 "oncomplete", "SetState",
                 "oncompleteparams", ActionState.End);
 
             Hashtable moveParams = __ExternalAssets.iTween.Hash(
                 "position", StartingPosition + ActionTranslation,
-                "time", Duration,
+                "time", duration,
                 "easetype", __ExternalAssets.iTween.EaseType.linear,
                 "oncomplete", "SetState",
                 "oncompleteparams", ActionState.End);
@@ -344,14 +355,14 @@ namespace DaggerfallWorkshop
             Hashtable rotateParams = __ExternalAssets.iTween.Hash(
                  "amount", new Vector3(-ActionRotation.x / 360f, -ActionRotation.y / 360f, -ActionRotation.z / 360f),
                 "space", ActionSpace,
-                "time", Duration,
+                "time", duration,
                  "easetype", __ExternalAssets.iTween.EaseType.linear,
                 "oncomplete", "SetState",
                 "oncompleteparams", ActionState.Start);
 
             Hashtable moveParams = __ExternalAssets.iTween.Hash(
                 "position", startingPosition,
-                "time", Duration,
+                "time", duration,
                 "easetype", __ExternalAssets.iTween.EaseType.linear,
                 "oncomplete", "SetState",
                 "oncompleteparams", ActionState.Start);
@@ -439,11 +450,41 @@ namespace DaggerfallWorkshop
         /// 9
         /// Creates spell. Use Action's index to get the spell by index from Spells.STD
         /// </summary>
-        /// <param name="obj"></param>
+        /// <param name="triggerObj"></param>
         /// <param name="thisAction"></param>
         public static void CastSpell(GameObject triggerObj, DaggerfallAction thisAction)
         {
-            //Debug.Log("Action Type 9: CastSpell");
+            thisAction.Cooldown -= 45.454546f; // Approximates classic based on observation
+            if (thisAction.Cooldown <= 0)
+            {
+                SpellRecord.SpellRecordData spell;
+                if (GameManager.Instance.EntityEffectBroker.GetClassicSpellRecord(thisAction.Index, out spell))
+                {
+                    // Create effect bundle settings from classic spell
+                    EffectBundleSettings bundleSettings;
+                    if (GameManager.Instance.EntityEffectBroker.ClassicSpellRecordDataToEffectBundleSettings(spell, BundleTypes.Spell, out bundleSettings))
+                    {
+                        if (bundleSettings.TargetType == TargetTypes.CasterOnly)
+                        {
+                            // Spell is readied on player for free
+                            GameManager.Instance.PlayerEffectManager.SetReadySpell(thisAction.Index, true);
+                        }
+                        else
+                        {
+                            // Spell is fired at player, at strength of player level, from triggering object
+                            DaggerfallMissile missile = GameManager.Instance.PlayerEffectManager.InstantiateSpellMissile(bundleSettings.ElementType);
+                            missile.Payload = new EntityEffectBundle(bundleSettings, GameManager.Instance.PlayerEntityBehaviour);
+                            Vector3 customAimPosition = thisAction.transform.position;
+                            customAimPosition.y += 40 * MeshReader.GlobalScale;
+                            missile.CustomAimPosition = customAimPosition;
+                            missile.CustomAimDirection = Vector3.Normalize(GameManager.Instance.PlayerObject.transform.position - thisAction.transform.position);
+                        }
+                    }
+                }
+
+                //Reset cooldown
+                thisAction.Cooldown = 1000;
+            }
         }
 
         /// <summary>
@@ -478,7 +519,7 @@ namespace DaggerfallWorkshop
             {
                 Debug.LogError(string.Format("Error: invalid key: {0} for action type 12, couldn't get answer(s)", textID));//todo - display error message
             }
-            DaggerfallInputMessageBox inputBox = new DaggerfallInputMessageBox(DaggerfallWorkshop.Game.DaggerfallUI.UIManager, textID, 20, "\t> ", false, true, null);
+            DaggerfallInputMessageBox inputBox = new DaggerfallInputMessageBox(DaggerfallUI.UIManager, textID, 20, " > ", false, true, null);
             inputBox.ParentPanel.BackgroundColor = Color.clear;
             inputBox.OnGotUserInput += thisAction.UserInputHandler;
             inputBox.Show();
@@ -506,8 +547,11 @@ namespace DaggerfallWorkshop
                 return;
             }
             GameManager.Instance.PlayerMotor.FreezeMotor = 0.5f;
+
+            RaiseOnTeleportActionEvent(thisAction.gameObject, thisAction.NextObject);
+
             playerObject.transform.position = thisAction.NextObject.transform.position;
-            playerObject.transform.rotation = thisAction.NextObject.transform.rotation;
+            playerObject.transform.rotation = thisAction.NextObject.transform.rotation;            
         }
 
         /// <summary>
@@ -800,6 +844,19 @@ namespace DaggerfallWorkshop
                     GameManager.Instance.MakeEnemiesHostile();
                 }
             }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        // OnMapPixelChanged
+        public delegate void OnTeleportActionEventHandler(GameObject triggerObj, GameObject nextObj);
+        public static event OnTeleportActionEventHandler OnTeleportAction;
+        protected static void RaiseOnTeleportActionEvent(GameObject triggerObj, GameObject nextObj)
+        {
+            if (OnTeleportAction != null)
+                OnTeleportAction(triggerObj, nextObj);
         }
 
         #endregion

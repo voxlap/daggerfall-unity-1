@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,6 +9,7 @@
 // Notes:
 //
 
+using System;
 using UnityEngine;
 using DaggerfallWorkshop.Game.UserInterface;
 using System.Collections;
@@ -17,7 +18,8 @@ using DaggerfallConnect.Utility;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Utility;
-
+using DaggerfallWorkshop.Game.Serialization;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -83,14 +85,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         bool hasCart = false;
         bool hasShip = false;
 
-        int tripCost = 0;
-
         #endregion
 
         #region Properties
 
-        internal DFPosition EndPos { get { return endPos; } set { endPos = value;} }
+        public DFPosition EndPos { get { return endPos; } internal set { endPos = value;} }
         internal DaggerfallTravelMapWindow TravelWindow { get { return travelWindow; } set { travelWindow = value; } }
+        public bool SpeedCautious { get { return speedCautious;} set {speedCautious = value; } }
+        public bool TravelShip { get { return travelShip;} set { travelShip = value;} }
+        public bool SleepModeInn { get { return sleepModeInn; } set { sleepModeInn = value; } }
 
         #endregion
 
@@ -196,6 +199,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 else
                 {
                     doFastTravel = false;
+                    DaggerfallUI.Instance.FadeBehaviour.SmashHUDToBlack();
                     performFastTravel();
                 }
 
@@ -246,7 +250,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if ((travelTimeMinutes % 1440) > 0)
                 travelTimeDaysTotal += 1;
 
-            tripCost = travelTimeCalculator.CalculateTripCost(
+            travelTimeCalculator.CalculateTripCost(
                 travelTimeMinutes,
                 sleepModeInn,
                 hasShip,
@@ -254,7 +258,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 );
 
             travelTimeLabel.Text = string.Format("{0}", travelTimeDaysTotal);
-            tripCostLabel.Text = tripCost.ToString();
+            tripCostLabel.Text = travelTimeCalculator.TotalCost.ToString();
 
             countdownValueTravelTimeDays = travelTimeDaysTotal;
         }
@@ -280,13 +284,19 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         // perform fast travel actions
         private void performFastTravel()
         {
-            GameManager.Instance.StreamingWorld.TeleportToCoordinates((int)endPos.X, (int)endPos.Y, StreamingWorld.RepositionMethods.RandomStartMarker);
+            RaiseOnPreFastTravelEvent();
+
+            // Cache scene first, if fast travelling while on ship.
+            if (GameManager.Instance.TransportManager.IsOnShip())
+                SaveLoadManager.CacheScene(GameManager.Instance.StreamingWorld.SceneName);
+            GameManager.Instance.StreamingWorld.TeleportToCoordinates((int)endPos.X, (int)endPos.Y, StreamingWorld.RepositionMethods.DirectionFromStartMarker);
 
             if (speedCautious)
             {
                 GameManager.Instance.PlayerEntity.CurrentHealth = GameManager.Instance.PlayerEntity.MaxHealth;
                 GameManager.Instance.PlayerEntity.CurrentFatigue = GameManager.Instance.PlayerEntity.MaxFatigue;
-                GameManager.Instance.PlayerEntity.CurrentMagicka = GameManager.Instance.PlayerEntity.MaxMagicka;
+                if (!GameManager.Instance.PlayerEntity.Career.NoRegenSpellPoints)
+                    GameManager.Instance.PlayerEntity.CurrentMagicka = GameManager.Instance.PlayerEntity.MaxMagicka;
             }
 
             DaggerfallUnity.WorldTime.DaggerfallDateTime.RaiseTime(travelTimeMinutes * 60);
@@ -294,10 +304,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Halt random enemy spawns for next playerEntity update so player isn't bombarded by spawned enemies at the end of a long trip
             GameManager.Instance.PlayerEntity.PreventEnemySpawns = true;
 
-            // Raise arrival time to just after 7am if cautious travel would otherwise arrive at night
-            // Increasing this from 6am to 7am as game is quite dark on at 6am (in Daggerfall Unity, Daggerfall is lighter)
-            // Will consider retuning lighting so this can be like classic, although +1 hours to travel time isn't likely to be a problem for now
-            if (speedCautious)
+            // Vampires and characters with Damage from Sunlight disadvantage always arrive just after 6pm regardless of travel type
+            // Otherwise raise arrival time to just after 7am if cautious travel would arrive at night
+            if (GameManager.Instance.PlayerEffectManager.HasVampirism() || GameManager.Instance.PlayerEntity.Career.DamageFromSunlight)
+            {
+                DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.RaiseTime((DaggerfallDateTime.DuskHour - DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.Hour) * 3600);
+            }
+            else if (speedCautious)
             {
                 if ((DaggerfallUnity.WorldTime.DaggerfallDateTime.Hour < 7)
                     || ((DaggerfallUnity.WorldTime.DaggerfallDateTime.Hour == 7) && (DaggerfallUnity.WorldTime.DaggerfallDateTime.Minute < 10)))
@@ -319,12 +332,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             DaggerfallUI.Instance.UserInterfaceManager.PopWindow();
             travelWindow.CloseTravelWindows(true);
             GameManager.Instance.PlayerEntity.RaiseSkills();
+            DaggerfallUI.Instance.FadeBehaviour.FadeHUDFromBlack();
+
+            RaiseOnPostFastTravelEvent();
         }
 
         // Return whether player has enough gold for the selected travel options
+        // Taverns only accept gold pieces
         bool enoughGoldCheck()
         {
-            return (GameManager.Instance.PlayerEntity.GoldPieces >= tripCost);
+            return (GameManager.Instance.PlayerEntity.GetGoldAmount() >= travelTimeCalculator.TotalCost) &&
+                   (GameManager.Instance.PlayerEntity.GoldPieces >= travelTimeCalculator.PiecesCost);
         }
 
         void showNotEnoughGoldPopup()
@@ -351,7 +369,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             Refresh();
 
             // Warns player if they have a disease
-            if (GameManager.Instance.PlayerEffectManager.DiseaseCount > 0)
+            if (GameManager.Instance.PlayerEffectManager.DiseaseCount > 0 || GameManager.Instance.PlayerEffectManager.PoisonCount > 0)
             {
                 DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
                 TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRandomTokens(1010);
@@ -365,6 +383,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 CallFastTravelGoldCheck();
             }
+        }
+
+        public override void CancelWindow()
+        {
+            doFastTravel = false;
+            base.CancelWindow();
         }
 
         /// <summary>
@@ -390,13 +414,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 return;
             }
             else
-                GameManager.Instance.PlayerEntity.GoldPieces -= tripCost;
+            {
+                GameManager.Instance.PlayerEntity.GoldPieces -= travelTimeCalculator.PiecesCost;
+                GameManager.Instance.PlayerEntity.DeductGoldAmount(travelTimeCalculator.TotalCost - travelTimeCalculator.PiecesCost);
+            }
 
             doFastTravel = true; // initiate fast travel (Update() function will perform fast travel when this flag is true)
         }
 
         public void ExitButtonOnClickHandler(BaseScreenComponent sender, Vector2 position)
         {
+            doFastTravel = false;
             DaggerfallUI.Instance.UserInterfaceManager.PopWindow();
         }
 
@@ -416,6 +444,25 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             sleepModeInn = !sleepModeInn;
             Refresh();
+        }
+
+        /// <summary>
+        /// Raised before a fast travel is performed.
+        /// </summary>
+        public static event Action<DaggerfallTravelPopUp> OnPreFastTravel;
+        void RaiseOnPreFastTravelEvent()
+        {
+            if (OnPreFastTravel != null)
+                OnPreFastTravel(this);
+        }
+
+        // OnPostFastTravel
+        public delegate void OnOnPostFastTravelEventHandler();
+        public static event OnOnPostFastTravelEventHandler OnPostFastTravel;
+        void RaiseOnPostFastTravelEvent()
+        {
+            if (OnPostFastTravel != null)
+                OnPostFastTravel();
         }
 
         #endregion

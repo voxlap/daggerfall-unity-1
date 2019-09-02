@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -127,6 +127,24 @@ namespace DaggerfallWorkshop.Utility
         public Seasons SeasonValue
         {
             get { return GetSeasonValue(); }
+        }
+
+        /// <summary>
+        /// Gets current lunar phase for Massar.
+        /// Uses same logic as Enhanced Sky mod so phases should be in sync.
+        /// </summary>
+        public LunarPhases MassarLunarPhase
+        {
+            get { return GetLunarPhase(true); }
+        }
+
+        /// <summary>
+        /// Gets current lunar phase for Secunda.
+        /// Uses same logic as Enhanced Sky mod so phases should be in sync.
+        /// </summary>
+        public LunarPhases SecundaLunarPhase
+        {
+            get { return GetLunarPhase(false); }
         }
 
         /// <summary>
@@ -386,11 +404,21 @@ namespace DaggerfallWorkshop.Utility
         }
 
         /// <summary>
-        /// Gets a long date time string of HH:MM:SS on Dayname of MonthName, 3EYYY
+        /// Gets a long date time string of "HH:MM:SS on Dayname, xth of MonthName, 3EYYY"
         /// </summary>
         public string LongDateTimeString()
         {
-            return string.Format("{0:00}:{1:00}:{2:00} on {3}, {4:00} of {5:00}, 3E{6}", Hour, Minute, Second, DayName, Day + 1, MonthName, Year);
+            string suffix = GetSuffix(Day + 1);
+            return string.Format("{0:00}:{1:00}:{2:00} on {3}, {4}{5} of {6:00}, 3E{7}", Hour, Minute, Second, DayName, Day + 1, suffix, MonthName, Year);
+        }
+
+        /// <summary>
+        /// Gets a date time string of "HH:MM:SS on xth of MonthName, 3EYYY"
+        /// </summary>
+        public string DateTimeString()
+        {
+            string suffix = GetSuffix(Day + 1);
+            return string.Format("{0:00}:{1:00}:{2:00} on {3}{4} of {5:00}, 3E{6}", Hour, Minute, Second, Day + 1, suffix, MonthName, Year);
         }
 
         /// <summary>
@@ -628,6 +656,44 @@ namespace DaggerfallWorkshop.Utility
                 suffix = "rd";
 
             return suffix;
+        }
+
+        // Borrowed this code from Lypyl's Enhanched Sky mod and cleaned up just to return phase value
+        // This should return same value for lunar phases as Enhanced Sky so lycanthropes will see full moon on days they are forced to change
+        // Moon phases are also used by "extra spell pts" item power during "full moon", "half moon", "new moon"
+        private LunarPhases GetLunarPhase(bool isMasser)
+        {
+            // Validate
+            if (Year < 0)
+            {
+                Debug.LogError("GetLunarPhase: Year < 0 not supported.");
+                return LunarPhases.None;
+            }
+
+            // 3 aligns full moon with vanilla DF for Masser, -1 for secunda
+            int offset = (isMasser) ? 3 : -1;
+
+            // Find the lunar phase for current day
+            int moonRatio = (Day + offset) % 32;
+            LunarPhases phase = LunarPhases.None;
+            if (moonRatio == 0)
+                phase = LunarPhases.Full;
+            else if (moonRatio == 16)
+                phase = LunarPhases.New;
+            else if (moonRatio <= 5)
+                phase = LunarPhases.ThreeWane;
+            else if (moonRatio <= 10)
+                phase = LunarPhases.HalfWane;
+            else if (moonRatio <= 15)
+                phase = LunarPhases.OneWane;
+            else if (moonRatio <= 22)
+                phase = LunarPhases.OneWax;
+            else if (moonRatio <= 28)
+                phase = LunarPhases.HalfWax;
+            else if (moonRatio <= 31)
+                phase = LunarPhases.ThreeWax;
+
+            return phase;
         }
 
         #endregion

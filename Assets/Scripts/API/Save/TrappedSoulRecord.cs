@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,13 +9,7 @@
 // Notes:
 //
 
-using System;
-using System.Text;
 using System.IO;
-using System.Collections;
-using System.Collections.Generic;
-using DaggerfallConnect.Utility;
-using UnityEngine;
 
 namespace DaggerfallConnect.Save
 {
@@ -71,8 +65,8 @@ namespace DaggerfallConnect.Save
 
         void ReadNativeContainerData()
         {
-            // Must be a trapped soul type
-            if (recordType != RecordTypes.TrappedSoul)
+            // Must be a trapped soul type and record must not be failed
+            if (recordType != RecordTypes.TrappedSoul || IsFailedRecord)
                 return;
 
             // Prepare stream
@@ -81,7 +75,7 @@ namespace DaggerfallConnect.Save
 
             // Read container data - seems always is a single byte value = 150, use unknown
             parsedData = new TrappedSoulRecordData();
-            parsedData.unknown = reader.ReadBytes(RecordLength);    
+            parsedData.unknown = reader.ReadBytes(RecordLength);
 
             // Close stream
             reader.Close();

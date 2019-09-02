@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,7 +12,6 @@
 #region Using Statements
 using System;
 using System.IO;
-using System.Text;
 using DaggerfallConnect.Utility;
 #endregion
 
@@ -34,7 +33,7 @@ namespace DaggerfallConnect
         /// <summary>
         /// Array of 256x RGB values. Includes 8-byte header for supporting .COL files.
         /// </summary>
-        private byte[] paletteBuffer = new byte[776];
+        private readonly byte[] paletteBuffer = new byte[776];
 
         #endregion
 
@@ -79,6 +78,20 @@ namespace DaggerfallConnect
         }
 
         /// <summary>
+        /// Copy constructor.
+        /// </summary>
+        /// <param name="other">Palette to copy from.</param>
+        public DFPalette(DFPalette other)
+        {
+            if (other != null && other.PaletteBuffer != null && other.paletteBuffer.Length != 0)
+            {
+                headerLength = other.HeaderLength;
+                paletteBuffer = new byte[other.PaletteBuffer.Length];
+                Array.Copy(other.PaletteBuffer, paletteBuffer, other.PaletteBuffer.Length);
+            }
+        }
+
+        /// <summary>
         /// Loads a Daggerfall palette file (supports both .PAL and .COL files).
         /// </summary>
         /// <param name="FilePath">Absolute path to palette file.</param>
@@ -100,7 +113,7 @@ namespace DaggerfallConnect
 
             // Read palette
             BinaryReader reader = fileProxy.GetReader();
-            if (fileProxy.Length != reader.Read(paletteBuffer, 0, (int)fileProxy.Length))
+            if (fileProxy.Length != reader.Read(paletteBuffer, 0, fileProxy.Length))
                 return false;
 
             // Multiply MAP.PAL
@@ -156,6 +169,21 @@ namespace DaggerfallConnect
                 paletteBuffer[offset++] = (byte)i;
                 paletteBuffer[offset++] = (byte)i;
                 paletteBuffer[offset++] = (byte)i;
+            }
+        }
+
+        /// <summary>
+        /// Fills entire palette with random values.
+        /// </summary>
+        public void MakeRandom()
+        {
+            Random rnd = new Random();
+            int offset = headerLength;
+            for (int i = 0; i < 256; i++)
+            {
+                paletteBuffer[offset++] = (byte)(rnd.Next() % 255);
+                paletteBuffer[offset++] = (byte)(rnd.Next() % 255);
+                paletteBuffer[offset++] = (byte)(rnd.Next() % 255);
             }
         }
 
@@ -267,7 +295,7 @@ namespace DaggerfallConnect
             int offset = headerLength + Index * 3;
             paletteBuffer[offset] = R;
             paletteBuffer[offset + 1] = G;
-            paletteBuffer[offset + 2]  = B;
+            paletteBuffer[offset + 2] = B;
         }
 
         /// <summary>
@@ -298,7 +326,7 @@ namespace DaggerfallConnect
                 // Check for match
                 if (paletteBuffer[offset] == R && paletteBuffer[offset + 1] == G && paletteBuffer[offset + 2] == B)
                     return i;
-                
+
                 // Increment offset
                 offset += 3;
             }

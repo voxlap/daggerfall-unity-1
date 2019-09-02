@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,20 +10,19 @@
 //
 
 using UnityEngine;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using DaggerfallConnect;
-using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Formulas;
-using DaggerfallWorkshop.Game.Player;
+using DaggerfallConnect.Save;
+using DaggerfallConnect.FallExe;
+using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
+using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Game.Items;
 
 namespace DaggerfallWorkshop.Game.Entity
 {
     /// <summary>
     /// Implements DaggerfallEntity with properties specific to enemies.
-    /// Currently enemy setup is bridging between old "demo" components and newer "game" systems.
-    /// TODO: Migrate completely to "game" methods and simplify enemy instantiation and setup.
     /// </summary>
     public class EnemyEntity : DaggerfallEntity
     {
@@ -33,6 +32,8 @@ namespace DaggerfallWorkshop.Game.Entity
         EntityTypes entityType = EntityTypes.None;
         MobileEnemy mobileEnemy;
         bool pickpocketByPlayerAttempted = false;
+        int questFoeSpellQueueIndex = -1;
+        int questFoeItemQueueIndex = -1;
 
         // From FALL.EXE offset 0x1C0F14
         static byte[] ImpSpells            = { 0x07, 0x0A, 0x1D, 0x2C };
@@ -75,6 +76,31 @@ namespace DaggerfallWorkshop.Game.Entity
             set { pickpocketByPlayerAttempted = value; }
         }
 
+        public int QuestFoeSpellQueueIndex
+        {
+            get { return questFoeSpellQueueIndex; }
+            set { questFoeSpellQueueIndex = value; }
+        }
+
+        public int QuestFoeItemQueueIndex
+        {
+            get { return questFoeItemQueueIndex; }
+            set { questFoeItemQueueIndex = value; }
+        }
+
+        public bool SoulTrapActive { get; set; }
+
+        public bool WabbajackActive { get; set; }
+
+        #endregion
+
+        #region Constructors
+
+        public EnemyEntity(DaggerfallEntityBehaviour entityBehaviour)
+            : base(entityBehaviour)
+        {
+        }
+
         #endregion
 
         #region Public Methods
@@ -87,13 +113,98 @@ namespace DaggerfallWorkshop.Game.Entity
         }
 
         /// <summary>
+        /// Custom handling of SetHealth() for enemies to support soul trap.
+        /// </summary>
+        public override int SetHealth(int amount, bool restoreMode = false)
+        {
+            // Just do base if no soul trap active
+            if (!SoulTrapActive)
+                return base.SetHealth(amount, restoreMode);
+
+            // Reduce health
+            currentHealth = Mathf.Clamp(amount, 0, MaxHealth);
+            if (currentHealth <= 0)
+            {
+                // Attempt soul trap and allow entity to die based on outcome
+                if (AttemptSoulTrap())
+                    return base.SetHealth(amount, restoreMode);
+            }
+
+            return currentHealth;
+        }
+
+        /// <summary>
+        /// Attempt to trap a soul.
+        /// </summary>
+        /// <returns>True if entity is allowed to die after trap attempt.</returns>
+        bool AttemptSoulTrap()
+        {
+            // Must have a peered DaggerfallEntityBehaviour and EntityEffectManager
+            EntityEffectManager manager = (EntityBehaviour) ? EntityBehaviour.GetComponent<EntityEffectManager>() : null;
+            if (!manager)
+                return true;
+
+            // Find the soul trap incumbent
+            SoulTrap soulTrapEffect = (SoulTrap)manager.FindIncumbentEffect<SoulTrap>();
+            if (soulTrapEffect == null)
+                return true;
+
+            // Roll chance for trap, or always succeed if Azura's Star is equipped.
+            // If trap fails then entity should die as normal without trapping a soul
+            // If trap succeeds and player has a free soul gem then entity should die after storing soul
+            // If trap succeeds and player has no free soul gems then entity will not die until effect expires or fails
+            bool azurasStarEquipped = false;
+            DaggerfallUnityItem azurasStar = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.Amulet0);
+            if (azurasStar != null && azurasStar.ContainsEnchantment(EnchantmentTypes.SpecialArtifactEffect, (short)ArtifactsSubTypes.Azuras_Star))
+            {
+                azurasStarEquipped = true;
+            }
+            else
+            {
+                azurasStar = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(Game.Items.EquipSlots.Amulet1);
+                if (azurasStar != null && azurasStar.ContainsEnchantment(EnchantmentTypes.SpecialArtifactEffect, (short)ArtifactsSubTypes.Azuras_Star))
+                    azurasStarEquipped = true;
+            }
+
+            if (azurasStarEquipped || soulTrapEffect.RollTrapChance())
+            {
+                // Attempt to fill an empty soul trap
+                if (soulTrapEffect.FillEmptyTrapItem((MobileTypes)mobileEnemy.ID))
+                {
+                    // Trap filled, allow entity to die normally
+                    DaggerfallUI.AddHUDText(TextManager.Instance.GetText("ClassicEffects", "trapSuccess"), 1.5f);
+                    return true;
+                }
+                else
+                {
+                    // No empty gems, keep entity tethered to life - player is alerted so they know what's happening
+                    currentHealth = 1;
+                    DaggerfallUI.AddHUDText(TextManager.Instance.GetText("ClassicEffects", "trapNoneEmpty"));
+                    return false;
+                }
+            }
+            else
+            {
+                // Trap failed
+                DaggerfallUI.AddHUDText(TextManager.Instance.GetText("ClassicEffects", "trapFail"), 1.5f);
+                return true;
+            }
+        }
+
+        public override void ClearConstantEffects()
+        {
+            base.ClearConstantEffects();
+            SoulTrapActive = false;
+        }
+
+        /// <summary>
         /// Sets enemy career and prepares entity settings.
         /// </summary>
         public void SetEnemyCareer(MobileEnemy mobileEnemy, EntityTypes entityType)
         {
             if (entityType == EntityTypes.EnemyMonster)
             {
-                careerIndex = (int)mobileEnemy.ID;
+                careerIndex = mobileEnemy.ID;
                 career = GetMonsterCareerTemplate((MonsterCareers)careerIndex);
                 stats.SetPermanentFromCareer(career);
 
@@ -108,7 +219,7 @@ namespace DaggerfallWorkshop.Game.Entity
             }
             else if (entityType == EntityTypes.EnemyClass)
             {
-                careerIndex = (int)mobileEnemy.ID - 128;
+                careerIndex = mobileEnemy.ID - 128;
                 career = GetClassCareerTemplate((ClassCareers)careerIndex);
                 stats.SetPermanentFromCareer(career);
 
@@ -131,6 +242,7 @@ namespace DaggerfallWorkshop.Game.Entity
             this.entityType = entityType;
             name = career.Name;
             minMetalToHit = mobileEnemy.MinMetalToHit;
+            team = mobileEnemy.Team;
 
             short skillsLevel = (short)((level * 5) + 30);
             if (skillsLevel > 100)
@@ -165,33 +277,36 @@ namespace DaggerfallWorkshop.Game.Entity
             }
 
             // Assign spell lists
-            if (careerIndex == (int)MonsterCareers.Imp)
-                SetEnemySpells(ImpSpells);
-            else if (careerIndex == (int)MonsterCareers.Ghost)
-                SetEnemySpells(GhostSpells);
-            else if (careerIndex == (int)MonsterCareers.OrcShaman)
-                SetEnemySpells(OrcShamanSpells);
-            else if (careerIndex == (int)MonsterCareers.Wraith)
-                SetEnemySpells(WraithSpells);
-            else if (careerIndex == (int)MonsterCareers.FrostDaedra)
-                SetEnemySpells(FrostDaedraSpells);
-            else if (careerIndex == (int)MonsterCareers.FireDaedra)
-                SetEnemySpells(FireDaedraSpells);
-            else if (careerIndex == (int)MonsterCareers.Daedroth)
-                SetEnemySpells(DaedrothSpells);
-            else if (careerIndex == (int)MonsterCareers.Vampire)
-                SetEnemySpells(VampireSpells);
-            else if (careerIndex == (int)MonsterCareers.DaedraSeducer)
-                SetEnemySpells(SeducerSpells);
-            else if (careerIndex == (int)MonsterCareers.VampireAncient)
-                SetEnemySpells(VampireAncientSpells);
-            else if (careerIndex == (int)MonsterCareers.DaedraLord)
-                SetEnemySpells(DaedraLordSpells);
-            else if (careerIndex == (int)MonsterCareers.Lich)
-                SetEnemySpells(LichSpells);
-            else if (careerIndex == (int)MonsterCareers.AncientLich)
-                SetEnemySpells(AncientLichSpells);
-            else if (entityType == EntityTypes.EnemyClass && mobileEnemy.CastsMagic)
+            if (entityType == EntityTypes.EnemyMonster)
+            {
+                if (careerIndex == (int)MonsterCareers.Imp)
+                    SetEnemySpells(ImpSpells);
+                else if (careerIndex == (int)MonsterCareers.Ghost)
+                    SetEnemySpells(GhostSpells);
+                else if (careerIndex == (int)MonsterCareers.OrcShaman)
+                    SetEnemySpells(OrcShamanSpells);
+                else if (careerIndex == (int)MonsterCareers.Wraith)
+                    SetEnemySpells(WraithSpells);
+                else if (careerIndex == (int)MonsterCareers.FrostDaedra)
+                    SetEnemySpells(FrostDaedraSpells);
+                else if (careerIndex == (int)MonsterCareers.FireDaedra)
+                    SetEnemySpells(FireDaedraSpells);
+                else if (careerIndex == (int)MonsterCareers.Daedroth)
+                    SetEnemySpells(DaedrothSpells);
+                else if (careerIndex == (int)MonsterCareers.Vampire)
+                    SetEnemySpells(VampireSpells);
+                else if (careerIndex == (int)MonsterCareers.DaedraSeducer)
+                    SetEnemySpells(SeducerSpells);
+                else if (careerIndex == (int)MonsterCareers.VampireAncient)
+                    SetEnemySpells(VampireAncientSpells);
+                else if (careerIndex == (int)MonsterCareers.DaedraLord)
+                    SetEnemySpells(DaedraLordSpells);
+                else if (careerIndex == (int)MonsterCareers.Lich)
+                    SetEnemySpells(LichSpells);
+                else if (careerIndex == (int)MonsterCareers.AncientLich)
+                    SetEnemySpells(AncientLichSpells);
+            }
+            else if (entityType == EntityTypes.EnemyClass && (mobileEnemy.CastsMagic))
             {
                 int spellListLevel = level / 3;
                 if (spellListLevel > 6)
@@ -217,9 +332,14 @@ namespace DaggerfallWorkshop.Game.Entity
         {
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             int itemLevel = player.Level;
-            Genders gender = player.Gender;
+            Genders playerGender = player.Gender;
             Races race = player.Race;
             int chance = 0;
+
+            // City watch never have items above iron or steel
+            if (entityType == EntityTypes.EnemyClass && mobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
+                itemLevel = 1;
+
             if (variant == 0)
             {
                 // right-hand weapon
@@ -232,14 +352,14 @@ namespace DaggerfallWorkshop.Game.Entity
 
                 // left-hand shield
                 item = UnityEngine.Random.Range((int)Game.Items.Armor.Buckler, (int)(Game.Items.Armor.Round_Shield) + 1);
-                if (UnityEngine.Random.Range(1, 101) <= chance)
+                if (Dice100.SuccessRoll(chance))
                 {
-                    Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, (Items.Armor)item, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                    Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, (Items.Armor)item, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                     ItemEquipTable.EquipItem(armor, true, false);
                     items.AddItem(armor);
                 }
                 // left-hand weapon
-                else if (UnityEngine.Random.Range(1, 101) <= chance)
+                else if (Dice100.SuccessRoll(chance))
                 {
                     item = UnityEngine.Random.Range((int)Game.Items.Weapons.Dagger, (int)(Game.Items.Weapons.Shortsword) + 1);
                     weapon = Game.Items.ItemBuilder.CreateWeapon((Items.Weapons)item, Game.Items.ItemBuilder.RandomMaterial(itemLevel));
@@ -261,44 +381,44 @@ namespace DaggerfallWorkshop.Game.Entity
                     chance = 90;
             }
             // helm
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Helm, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Helm, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
             // right pauldron
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Right_Pauldron, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Right_Pauldron, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
             // left pauldron
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Left_Pauldron, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Left_Pauldron, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
             // cuirass
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Cuirass, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Cuirass, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
             // greaves
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Greaves, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Greaves, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
             // boots
-            if (UnityEngine.Random.Range(1, 101) <= chance)
+            if (Dice100.SuccessRoll(chance))
             {
-                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(gender, race, Game.Items.Armor.Boots, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
+                Items.DaggerfallUnityItem armor = Game.Items.ItemBuilder.CreateArmor(playerGender, race, Game.Items.Armor.Boots, Game.Items.ItemBuilder.RandomArmorMaterial(itemLevel));
                 ItemEquipTable.EquipItem(armor, true, false);
                 items.AddItem(armor);
             }
@@ -345,11 +465,31 @@ namespace DaggerfallWorkshop.Game.Entity
                     }
                 }
             }
+
+            // Chance for poisoned weapon
+            if (player.Level > 1)
+            {
+                Items.DaggerfallUnityItem weapon = ItemEquipTable.GetItem(Game.Items.EquipSlots.RightHand);
+                if (weapon != null && (entityType == EntityTypes.EnemyClass || mobileEnemy.ID == (int)MobileTypes.Orc
+                        || mobileEnemy.ID == (int)MobileTypes.Centaur || mobileEnemy.ID == (int)MobileTypes.OrcSergeant))
+                {
+                    int chanceToPoison = 5;
+                    if (mobileEnemy.ID == (int)MobileTypes.Assassin)
+                        chanceToPoison = 60;
+
+                    if (Dice100.SuccessRoll(chanceToPoison))
+                    {
+                        // Apply poison
+                        weapon.poisonType = (Items.Poisons)UnityEngine.Random.Range(128, 135 + 1);
+                    }
+                }
+            }
         }
 
         public void SetEnemySpells(byte[] spellList)
         {
-            //MaxMagicka = 10 * level + 100; TODO: Enemies should be able to set maximum spell points independent of the rules used by the player.
+            // Enemies don't follow same rule as player for maximum spell points
+            MaxMagicka = 10 * level + 100;
             currentMagicka = MaxMagicka;
             skills.SetPermanentSkillValue(DFCareer.Skills.Destruction, 80);
             skills.SetPermanentSkillValue(DFCareer.Skills.Restoration, 80);
@@ -358,9 +498,25 @@ namespace DaggerfallWorkshop.Game.Entity
             skills.SetPermanentSkillValue(DFCareer.Skills.Thaumaturgy, 80);
             skills.SetPermanentSkillValue(DFCareer.Skills.Mysticism, 80);
 
-            // Iterate over spellList and assign data from SPELLS.STD
+            // Add spells to enemy from standard list
+            foreach (byte spellID in spellList)
+            {
+                SpellRecord.SpellRecordData spellData;
+                GameManager.Instance.EntityEffectBroker.GetClassicSpellRecord(spellID, out spellData);
+                if (spellData.index == -1)
+                {
+                    Debug.LogError("Failed to locate enemy spell in standard spells list.");
+                    continue;
+                }
 
-            return;
+                EffectBundleSettings bundle;
+                if (!GameManager.Instance.EntityEffectBroker.ClassicSpellRecordDataToEffectBundleSettings(spellData, BundleTypes.Spell, out bundle))
+                {
+                    Debug.LogError("Failed to create effect bundle for enemy spell: " + spellData.spellName);
+                    continue;
+                }
+                AddSpell(bundle);
+            }
         }
 
         public DFCareer.EnemyGroups GetEnemyGroup()

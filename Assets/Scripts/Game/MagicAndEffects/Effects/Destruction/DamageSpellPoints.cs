@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,7 +9,6 @@
 // Notes:
 //
 
-using UnityEngine;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 
@@ -20,9 +19,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     /// </summary>
     public class DamageSpellPoints : BaseEntityEffect
     {
+        public static readonly string EffectKey = "Damage-SpellPoints";
+
         public override void SetProperties()
         {
-            properties.Key = "Damage-SpellPoints";
+            properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(4, 2);
             properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "damage");
             properties.SubGroupName = TextManager.Instance.GetText("ClassicEffects", "spellPoints");
@@ -47,7 +48,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
             // Damage spell points on target
             int magnitude = GetMagnitude(caster);
-            entityBehaviour.Entity.DecreaseMagicka(magnitude);
+            entityBehaviour.DamageMagickaFromSource(this, magnitude);
             PlayerAggro();
         }
     }

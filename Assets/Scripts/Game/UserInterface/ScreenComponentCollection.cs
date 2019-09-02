@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -20,7 +20,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
     /// A list of screen components with events.
     /// The order components are added in determines the order they are updated and drawn.
     /// </summary>
-    public class ScreenComponentCollection : IEnumerable
+    public class ScreenComponentCollection : IEnumerable<BaseScreenComponent>
     {
         #region Fields
 
@@ -103,14 +103,23 @@ namespace DaggerfallWorkshop.Game.UserInterface
         #endregion
 
         #region IEnumerable
+        /// <summary>
+        /// Gets IEnumerator<BaseComponent> for the component collection
+        /// for use with foreach.
+        /// </summary>
+        /// <returns>IEnumerator<BaseComponent></returns>
+        public IEnumerator<BaseScreenComponent> GetEnumerator()
+        {
+            return components.GetEnumerator();
+        }
 
         /// <summary>
         /// Gets IEnumerator for the component collection.
         /// </summary>
         /// <returns>IEnumerator object.</returns>
-        public IEnumerator GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator()
         {
-            return (components as IEnumerable).GetEnumerator();
+            return components.GetEnumerator();
         }
 
         #endregion

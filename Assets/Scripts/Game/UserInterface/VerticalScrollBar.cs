@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -144,9 +144,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             base.MouseClick(clickPosition);
 
             if (clickPosition.y < thumbRect.yMin)
-                ScrollIndex -= 1;
+                ScrollIndex -= displayUnits;
             else if (clickPosition.y > thumbRect.yMax)
-                ScrollIndex += 1;
+                ScrollIndex += displayUnits;
         }
 
         protected override void MouseScrollUp()

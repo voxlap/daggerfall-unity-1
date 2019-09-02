@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -29,18 +29,15 @@ namespace DaggerfallWorkshop.Game.UserInterface
     /// </summary>
     public class SkillsRollout : Panel
     {
-        // This value is normally 6
-        // Increased to 10 temporarily to compensate for biography bonuses
-        // This will be reverted to 6 once biographies implemented
-        const int bonusPoolPerSkillGroup = 10;
+        const int bonusPoolPerSkillGroup = 6;
 
         const int minPrimarySkill = 28;
         const int minMajorSkill = 18;
-        const int minMinorSkill = 12;
+        const int minMinorSkill = 13;
         const int minPrimaryBonusRoll = 0;
         const int maxPrimaryBonusRoll = 3;
         const int minMajorBonusRoll = 0;
-        const int maxMajorBonusRoll = 4;
+        const int maxMajorBonusRoll = 3;
         const int minMinorBonusRoll = 0;
         const int maxMinorBonusRoll = 3;
 

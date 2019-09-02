@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,6 +11,7 @@
 
 using UnityEngine;
 using System.Collections;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -30,6 +31,7 @@ namespace DaggerfallWorkshop.Game
         public SoundClips MoveSound;
         public SoundClips BarkSound;
         public SoundClips AttackSound;
+        public Entity.Races RaceForSounds;
 
         AudioClip moveClip;
         AudioClip barkClip;
@@ -45,7 +47,7 @@ namespace DaggerfallWorkshop.Game
         float waitCounter;
         float volumeScale = 1f;
 
-        void Start()
+        void Awake()
         {
             // Save references
             dfAudioSource = GetComponent<DaggerfallAudioSource>();
@@ -66,7 +68,9 @@ namespace DaggerfallWorkshop.Game
                 AttackSound = (SoundClips)mobile.Summary.Enemy.AttackSound;
             }
 
-            // Start attrack timer
+            RaceForSounds = (Entity.Races)Random.Range(1, 5 + 1);
+
+            // Start attract timer
             StartWaiting();
         }
 
@@ -104,7 +108,7 @@ namespace DaggerfallWorkshop.Game
 
                 // Play attack sound only about half the time
                 if (Random.value > 0.5f)
-                    dfAudioSource.AudioSource.PlayOneShot(attackClip);
+                    dfAudioSource.AudioSource.PlayOneShot(attackClip, volumeScale * DaggerfallUnity.Settings.SoundVolume);
             }
         }
 
@@ -135,14 +139,6 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
-        public void PlayArrowSound()
-        {
-            if (IsReady())
-            {
-                dfAudioSource.PlayOneShot(SoundClips.ArrowHit, 1, 1.1f);
-            }
-        }
-
         public void PlayMissSound(Items.DaggerfallUnityItem weapon)
         {
             if (IsReady())
@@ -155,6 +151,27 @@ namespace DaggerfallWorkshop.Game
                 {
                     dfAudioSource.PlayOneShot(SoundClips.SwingHighPitch);
                 }
+            }
+        }
+
+        public void PlayCombatVoice(Entity.Genders gender, bool isAttack, bool heavyDamage = false)
+        {
+            // Male high elf sounds sound odd when coming from NPCs. Switch out for wood elf.
+            if (gender == Entity.Genders.Male && RaceForSounds == Entity.Races.HighElf)
+                RaceForSounds = Entity.Races.WoodElf;
+
+            if (IsReady())
+            {
+                SoundClips sound;
+                if (isAttack)
+                    sound = Entity.DaggerfallEntity.GetRaceGenderAttackSound(RaceForSounds, gender);
+                else
+                    sound = Entity.DaggerfallEntity.GetRaceGenderPainSound(RaceForSounds, gender, heavyDamage);
+
+                float pitch = dfAudioSource.AudioSource.pitch;
+                dfAudioSource.AudioSource.pitch = pitch + Random.Range(0, 0.3f);
+                dfAudioSource.PlayOneShot(sound);
+                dfAudioSource.AudioSource.pitch = pitch;
             }
         }
 
@@ -178,7 +195,7 @@ namespace DaggerfallWorkshop.Game
         private void StartWaiting()
         {
             // Reset countdown to next sound
-            waitTime = Random.Range(MinAttractDelay, MaxAttractDelay);
+            waitTime = Random.Range(MinAttractDelay, MaxAttractDelay + 1);
             waitCounter = 0;
         }
 
@@ -193,9 +210,9 @@ namespace DaggerfallWorkshop.Game
 
             // Random chance favors bark sound
             if (Random.value > 0.8f)
-                dfAudioSource.AudioSource.PlayOneShot(moveClip, volumeScale);
+                dfAudioSource.AudioSource.PlayOneShot(moveClip, volumeScale * DaggerfallUnity.Settings.SoundVolume);
             else
-                dfAudioSource.AudioSource.PlayOneShot(barkClip, volumeScale);
+                dfAudioSource.AudioSource.PlayOneShot(barkClip, volumeScale * DaggerfallUnity.Settings.SoundVolume);
         }
 
         private bool IgnoreHumanSounds()
@@ -226,7 +243,7 @@ namespace DaggerfallWorkshop.Game
                 DaggerfallActionDoor door = hit.transform.GetComponent<DaggerfallActionDoor>();
 
                 // Dampen based on hit
-                if (hit.transform.gameObject.isStatic || door)
+                if (GameObjectHelper.IsStaticGeometry(hit.transform.gameObject) || door)
                     volumeScale = 0.25f;
             }
         }

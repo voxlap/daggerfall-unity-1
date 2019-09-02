@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -8,11 +8,6 @@
 // 
 // Notes:
 //
-
-using UnityEngine;
-using DaggerfallConnect;
-using DaggerfallWorkshop.Game.Entity;
-using FullSerializer;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -24,7 +19,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     {
         protected override bool IsLikeKind(IncumbentEffect other)
         {
-            return (other is TransferEffect && (other as TransferEffect).drainStat == drainStat) ? true : false;
+            return (other is TransferEffect && (other as TransferEffect).drainStat == drainStat);
         }
 
         protected override void BecomeIncumbent()
@@ -43,9 +38,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         {
             if (caster)
             {
-                DrainEffect incumbentDrain = caster.GetComponent<EntityEffectManager>().FindDrainStatIncumbent(drainStat);
-                if (incumbentDrain != null)
-                    incumbentDrain.Heal(lastMagnitudeIncreaseAmount);
+                caster.GetComponent<EntityEffectManager>().HealAttribute(drainStat, lastMagnitudeIncreaseAmount);
             }
         }
     }

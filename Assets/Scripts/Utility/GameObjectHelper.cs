@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -83,6 +83,11 @@ namespace DaggerfallWorkshop.Utility
             return materials;
         }
 
+        public static string GetGoModelName(uint modelID)
+        {
+            return string.Format("DaggerfallMesh [ID={0}]", modelID);
+        }
+
         /// <summary>
         /// Adds a single DaggerfallMesh game object to scene.
         /// </summary>
@@ -102,11 +107,10 @@ namespace DaggerfallWorkshop.Utility
             DaggerfallUnity dfUnity = DaggerfallUnity.Instance;
 
             // Create gameobject
-            string name = string.Format("DaggerfallMesh [ID={0}]", modelID);
             GameObject go = (useExistingObject != null) ? useExistingObject : new GameObject();
             if (parent != null)
                 go.transform.parent = parent;
-            go.name = name;
+            go.name = GetGoModelName(modelID);
 
             // Add DaggerfallMesh component
             DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
@@ -152,7 +156,7 @@ namespace DaggerfallWorkshop.Utility
 
             // Assign static
             if (makeStatic)
-                go.isStatic = true;
+                TagStaticGeometry(go);
 
             return go;
         }
@@ -194,7 +198,7 @@ namespace DaggerfallWorkshop.Utility
             }
 
             // Update name
-            dfMesh.name = string.Format("DaggerfallMesh [ID={0}]", newModelID);
+            dfMesh.name = GetGoModelName(newModelID);
         }
 
         public static GameObject CreateCombinedMeshGameObject(
@@ -249,7 +253,7 @@ namespace DaggerfallWorkshop.Utility
 
             // Assign static
             if (makeStatic)
-                go.isStatic = true;
+                TagStaticGeometry(go);
 
             return go;
         }
@@ -325,6 +329,56 @@ namespace DaggerfallWorkshop.Utility
 #endif
 
             return go;
+        }
+
+        /// <summary>
+        /// Gets best parent for an object at spawn time.
+        /// Objects should always be placed to some child object in world rather than directly into root of scene.
+        /// </summary>
+        /// <returns>Best parent transform, or null as fallback.</returns>
+        public static Transform GetBestParent()
+        {
+            PlayerEnterExit playerEnterExit = GameManager.Instance.PlayerEnterExit;
+
+            // Place in world near player depending on local area
+            if (playerEnterExit.IsPlayerInsideBuilding)
+            {
+                return playerEnterExit.Interior.transform;
+            }
+            else if (playerEnterExit.IsPlayerInsideDungeon)
+            {
+                return playerEnterExit.Dungeon.transform;
+            }
+            else if (!playerEnterExit.IsPlayerInside && GameManager.Instance.PlayerGPS.IsPlayerInLocationRect)
+            {
+                return GameManager.Instance.StreamingWorld.CurrentPlayerLocationObject.transform;
+            }
+            else if (!playerEnterExit.IsPlayerInside)
+            {
+                return GameManager.Instance.StreamingTarget.transform;
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        public static void TagStaticGeometry(GameObject go)
+        {
+            if (go)
+            {
+                go.tag = DaggerfallUnity.staticGeometryTag;
+            }
+        }
+
+        public static bool IsStaticGeometry(GameObject go)
+        {
+            if (go)
+            {
+                return go.CompareTag(DaggerfallUnity.staticGeometryTag);
+            }
+
+            return false;
         }
 
         #region RMB & RDB Block Helpers
@@ -503,7 +557,7 @@ namespace DaggerfallWorkshop.Utility
             // Add enemies
             if (importEnemies)
             {
-                RDBLayout.AddFixedEnemies(go, editorObjects, ref blockData);
+                RDBLayout.AddFixedEnemies(go, editorObjects, ref blockData, startMarkers);
                 RDBLayout.AddRandomEnemies(go, editorObjects, dungeonType, monsterPower, ref blockData, startMarkers, monsterVariance, seed);
             }
 
@@ -798,11 +852,11 @@ namespace DaggerfallWorkshop.Utility
                 // Helps ensure a resource is not injected twice
                 QuestResourceBehaviour[] resourceBehaviours = Resources.FindObjectsOfTypeAll<QuestResourceBehaviour>();
 
-                // Get selected spawn QuestMarker for this Place
-                QuestMarker spawnMarker = place.SiteDetails.questSpawnMarkers[place.SiteDetails.selectedQuestSpawnMarker];
-                if (spawnMarker.targetResources != null)
+                // Get selected marker for this place
+                QuestMarker selectedMarker = place.SiteDetails.selectedMarker;
+                if (selectedMarker.targetResources != null)
                 {
-                    foreach (Symbol target in spawnMarker.targetResources)
+                    foreach (Symbol target in selectedMarker.targetResources)
                     {
                         // Get target resource
                         QuestResource resource = quest.GetResource(target);
@@ -816,37 +870,17 @@ namespace DaggerfallWorkshop.Utility
                         // Inject to scene based on resource type
                         if (resource is Person && enableNPCs)
                         {
-                            AddQuestNPC(siteType, quest, spawnMarker, (Person)resource, parent);
+                            AddQuestNPC(siteType, quest, selectedMarker, (Person)resource, parent);
                         }
                         else if (resource is Foe && enableFoes)
                         {
                             Foe foe = (Foe)resource;
                             if (foe.KillCount < foe.SpawnCount)
-                                AddQuestFoe(siteType, quest, spawnMarker, foe, parent);
+                                AddQuestFoe(siteType, quest, selectedMarker, foe, parent);
                         }
-                    }
-                }
-
-                // Get selected item QuestMarker for this Place
-                if (enableItems && place.SiteDetails.questItemMarkers != null)
-                {
-                    QuestMarker itemMarker = place.SiteDetails.questItemMarkers[place.SiteDetails.selectedQuestItemMarker];
-                    if (itemMarker.targetResources != null)
-                    {
-                        foreach (Symbol target in itemMarker.targetResources)
+                        else if (resource is Item)
                         {
-                            // Get target resource
-                            QuestResource resource = quest.GetResource(target);
-                            if (resource == null)
-                                continue;
-
-                            // Skip resources already injected into scene
-                            if (IsAlreadyInjected(resourceBehaviours, resource))
-                                continue;
-
-                            // Inject into scene
-                            if (resource is Item)
-                                AddQuestItem(siteType, quest, itemMarker, (Item)resource, parent);
+                            AddQuestItem(siteType, quest, selectedMarker, (Item)resource, parent);
                         }
                     }
                 }
@@ -866,7 +900,7 @@ namespace DaggerfallWorkshop.Utility
 
             foreach (QuestResourceBehaviour resourceBehaviour in resourceBehaviours)
             {
-                if (resourceBehaviour.TargetResource == resource)
+                if (resourceBehaviour.TargetSymbol == resource.Symbol)
                     return true;
             }
 
@@ -935,9 +969,16 @@ namespace DaggerfallWorkshop.Utility
             if (SaveLoadManager.Instance.LoadInProgress)
                 return;
 
+            // Get foe gender
+            MobileGender mobileGender = MobileGender.Unspecified;
+            if (foe.Gender == Genders.Male)
+                mobileGender = MobileGender.Male;
+            else if (foe.Gender == Genders.Female)
+                mobileGender = MobileGender.Female;
+
             // Create enemy GameObject
             Vector3 dungeonBlockPosition = new Vector3(marker.dungeonX * RDBLayout.RDBSide, 0, marker.dungeonZ * RDBLayout.RDBSide);
-            GameObject go = CreateEnemy("Quest Foe", foe.FoeType, dungeonBlockPosition + marker.flatPosition, parent);
+            GameObject go = CreateEnemy("Quest Foe", foe.FoeType, dungeonBlockPosition + marker.flatPosition, mobileGender, parent);
 
             // Assign loadID and custom spawn
             DaggerfallEnemy enemy = go.GetComponent<DaggerfallEnemy>();
@@ -995,7 +1036,7 @@ namespace DaggerfallWorkshop.Utility
             go.transform.localPosition = position;
 
             // Parent to scene marker (if any)
-            // This ensures mobile ques objects parented to action marker translates correctly
+            // This ensures mobile quest objects parented to action marker translates correctly
             DaggerfallMarker sceneMarker = GetDaggerfallMarker(marker.markerID);
             if (sceneMarker)
                 go.transform.parent = sceneMarker.transform;
@@ -1017,14 +1058,27 @@ namespace DaggerfallWorkshop.Utility
         /// </summary>
         static DaggerfallMarker GetDaggerfallMarker(ulong markerID)
         {
+            DaggerfallMarker result = null;
             DaggerfallMarker[] markers = GameObject.FindObjectsOfType<DaggerfallMarker>();
             foreach(DaggerfallMarker marker in markers)
             {
                 if (marker.MarkerID == markerID)
-                    return marker;
+                {
+                    // Workaround for edge case of duplicate markerIDs in existing saves
+                    // When same block used more than once in dungeon it becomes possible to have duplicate marker IDs for quest placement
+                    // The below ensures marker is always unique or null to prevent bad parenting behaviour
+                    // Only real impact of this change is that quest items will not translate with parent marker object if action record present on marker
+                    // This is a very rare situation and mainly used when raising treasure room cage for totem in Daggerfall castle (a unique block)
+                    // In vast majority of cases parenting is not even required, so minimal harm just filtering duplicates here
+                    // The way marker IDs are generated should still be improved in future
+                    if (result == null)
+                        result = marker;
+                    else
+                        return null;
+                }
             }
 
-            return null;
+            return result;
         }
 
         #endregion
@@ -1034,7 +1088,7 @@ namespace DaggerfallWorkshop.Utility
         /// <summary>
         /// Create an enemy in the world and perform common setup tasks.
         /// </summary>
-        public static GameObject CreateEnemy(string name, MobileTypes mobileType, Vector3 localPosition, Transform parent = null, MobileReactions mobileReaction = MobileReactions.Hostile)
+        public static GameObject CreateEnemy(string name, MobileTypes mobileType, Vector3 localPosition, MobileGender mobileGender = MobileGender.Unspecified, Transform parent = null, MobileReactions mobileReaction = MobileReactions.Hostile)
         {
             // Create target GameObject
             string displayName = string.Format("{0} [{1}]", name, mobileType.ToString());
@@ -1044,13 +1098,20 @@ namespace DaggerfallWorkshop.Utility
             // Set position
             go.transform.localPosition = localPosition;
 
-            // Assign humanoid gender randomly
+            // Assign humanoid gender randomly if unspecfied
             // This does not affect monsters like rats, bats, etc
             MobileGender gender;
-            if (UnityEngine.Random.Range(0f, 1f) < 0.5f)
-                gender = MobileGender.Male;
+            if (mobileGender == MobileGender.Unspecified)
+            {
+                if (UnityEngine.Random.Range(0f, 1f) < 0.5f)
+                    gender = MobileGender.Male;
+                else
+                    gender = MobileGender.Female;
+            }
             else
-                gender = MobileGender.Female;
+            {
+                gender = mobileGender;
+            }
 
             // Configure enemy
             setupEnemy.ApplyEnemySettings(mobileType, mobileReaction, gender);
@@ -1071,7 +1132,7 @@ namespace DaggerfallWorkshop.Utility
         /// </summary>
         /// <param name="reaction">Foe is hostile by default but can optionally set to passive.</param>
         /// <returns>GameObject[] array of 1-N foes. Array can be null or empty if create fails.</returns>
-        public static GameObject[] CreateFoeGameObjects(Vector3 position, MobileTypes foeType, int spawnCount = 1, MobileReactions reaction = MobileReactions.Hostile, Foe foeResource = null)
+        public static GameObject[] CreateFoeGameObjects(Vector3 position, MobileTypes foeType, int spawnCount = 1, MobileReactions reaction = MobileReactions.Hostile, Foe foeResource = null, bool alliedToPlayer = false)
         {
             List<GameObject> gameObjects = new List<GameObject>();
 
@@ -1083,7 +1144,7 @@ namespace DaggerfallWorkshop.Utility
             {
                 // Generate enemy
                 string name = string.Format("DaggerfallEnemy [{0}]", foeType.ToString());
-                GameObject go = GameObjectHelper.InstantiatePrefab(DaggerfallUnity.Instance.Option_EnemyPrefab.gameObject, name, null, position);
+                GameObject go = GameObjectHelper.InstantiatePrefab(DaggerfallUnity.Instance.Option_EnemyPrefab.gameObject, name, GetBestParent(), position);
                 SetupDemoEnemy setupEnemy = go.GetComponent<SetupDemoEnemy>();
                 if (setupEnemy != null)
                 {
@@ -1095,7 +1156,7 @@ namespace DaggerfallWorkshop.Utility
                         gender = MobileGender.Female;
 
                     // Configure enemy
-                    setupEnemy.ApplyEnemySettings(foeType, reaction, gender);
+                    setupEnemy.ApplyEnemySettings(foeType, reaction, gender, alliedToPlayer: alliedToPlayer);
 
                     // Align non-flying units with ground
                     DaggerfallMobileUnit mobileUnit = setupEnemy.GetMobileBillboardChild();
@@ -1115,7 +1176,8 @@ namespace DaggerfallWorkshop.Utility
                 if (enemy)
                 {
                     enemy.LoadID = DaggerfallUnity.NextUID;
-                    enemy.QuestSpawn = true;
+                    if (foeResource != null)
+                        enemy.QuestSpawn = true;
                 }
 
                 // Disable GameObject, caller must set active when ready
@@ -1139,7 +1201,7 @@ namespace DaggerfallWorkshop.Utility
         /// <param name="maxDistance">Maximum distance from player.</param>
         /// <param name="parent">Parent GameObject. If none specified the most suitable parent will be selected automatically.</param>
         /// <returns>FoeSpawner GameObject.</returns>
-        public static GameObject CreateFoeSpawner(bool lineOfSightCheck = true, MobileTypes foeType = MobileTypes.None, int spawnCount = 0, int minDistance = 4, int maxDistance = 20, Transform parent = null)
+        public static GameObject CreateFoeSpawner(bool lineOfSightCheck = true, MobileTypes foeType = MobileTypes.None, int spawnCount = 0, float minDistance = 4, float maxDistance = 20, Transform parent = null, bool alliedToPlayer = false)
         {
             // Create new foe spawner
             GameObject go = new GameObject();
@@ -1150,6 +1212,7 @@ namespace DaggerfallWorkshop.Utility
             spawner.MinDistance = minDistance;
             spawner.MaxDistance = maxDistance;
             spawner.Parent = parent;
+            spawner.AlliedToPlayer = alliedToPlayer;
 
             // Assign position on top of player
             // Spawner can be placed anywhere to work, but rest system considers a spawner to be an enemy "in potentia" for purposes of breaking rest and travel

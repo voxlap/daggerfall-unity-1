@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,10 +11,10 @@
 
 using UnityEngine;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Save;
+using DaggerfallWorkshop.Game.Guilds;
 
 namespace DaggerfallWorkshop.Game.Player
 {
@@ -34,9 +34,8 @@ namespace DaggerfallWorkshop.Game.Player
         const int minPower = 1;
         const int maxPower = 100;
 
-        // TEMP: Faction IDs for curated quest givers
-        public const int fightersGuildQuestorFactionID = (int)FactionFile.FactionIDs.Fighter_Questers;
-        public const int magesGuildQuestorFactionID = (int)FactionFile.FactionIDs.The_Mercenary_Mages;
+        static readonly HashSet<GuildNpcServices> questorIds = new HashSet<GuildNpcServices>()
+            { GuildNpcServices.MG_Quests, GuildNpcServices.FG_Quests, GuildNpcServices.TG_Quests, GuildNpcServices.DB_Quests, GuildNpcServices.T_Quests, GuildNpcServices.KO_Quests };
 
         Dictionary<int, FactionFile.FactionData> factionDict = new Dictionary<int, FactionFile.FactionData>();
         Dictionary<string, int> factionNameToIDDict = new Dictionary<string, int>();
@@ -50,7 +49,7 @@ namespace DaggerfallWorkshop.Game.Player
         // so the first entry (Alik'r Desert's border regions) is unused and the last region (Cybiades) uses out-of-range data.
 
                                                                              // Borders of:
-        byte[] borderRegions = { 44, 45, 47, 21, 56, 48, 49,  2, 55, 12, 57, // Alik'r Desert
+        readonly byte[] borderRegions = { 44, 45, 47, 21, 56, 48, 49,  2, 55, 12, 57, // Alik'r Desert
                                   1, 49, 55, 12, 54, 53, 52, 50, 23, 10,  0, // Dragontail Mountains
                                  22, 40, 39, 17, 38, 37, 10,  0,  0,  0,  0, // Dwynnen
                                   6, 37, 36, 35, 34, 24, 51, 23,  2,  0,  0, // Isle of Balfiera
@@ -186,7 +185,7 @@ namespace DaggerfallWorkshop.Game.Player
             List<FactionFile.FactionData> factionDataList = new List<FactionFile.FactionData>();
 
             // Match faction items
-            foreach(FactionFile.FactionData item in factionDict.Values)
+            foreach (FactionFile.FactionData item in factionDict.Values)
             {
                 bool match = true;
 
@@ -222,10 +221,10 @@ namespace DaggerfallWorkshop.Game.Player
         /// faction exists for the region, Random Ruler (region -1) is returned.
         /// </summary>
         /// <param name="type">Type to match.</param>
-        /// <param name="oneBasedRegionIndex">Region index to match. Must be ONE-BASED region index used by FACTION.TXT.</param>
-        /// <param name="factionDataOut">Receives faction data.</param>
+        /// <param name="regionIndex">Zero-based region index to find in persistent faction data.</param>
+        /// <param name="factionDataOut">Receives faction data out.</param>
         /// <returns>True if successful.</returns>
-        public bool FindFactionByTypeAndRegion(int type, int oneBasedRegionIndex, out FactionFile.FactionData factionDataOut)
+        public bool FindFactionByTypeAndRegion(int type, int regionIndex, out FactionFile.FactionData factionDataOut)
         {
             bool foundPartialMatch = false;
             factionDataOut = new FactionFile.FactionData();
@@ -234,7 +233,7 @@ namespace DaggerfallWorkshop.Game.Player
             // Match faction items
             foreach (FactionFile.FactionData item in factionDict.Values)
             {
-                if (type == item.type && oneBasedRegionIndex == item.region)
+                if (type == item.type && regionIndex == item.region)
                 {
                     factionDataOut = item;
                     return true;
@@ -256,6 +255,29 @@ namespace DaggerfallWorkshop.Game.Player
         }
 
         /// <summary>
+        /// Gets the faction data corresponding to the given region index.
+        /// </summary>
+        /// <param name="regionIndex">The index of the region to get faction data of.</param>
+        /// <param name="factionData">Receives faction data.</param>
+        /// <param name="duplicateException">Throw exception if duplicate region faction found, otherwise just log warning.</param>
+        public void GetRegionFaction(int regionIndex, out FactionFile.FactionData factionData, bool duplicateException = true)
+        {
+            FactionFile.FactionData[] factions = GameManager.Instance.PlayerEntity.FactionData.FindFactions(
+                (int)FactionFile.FactionTypes.Province, -1, -1, regionIndex);
+
+            // Should always find a single region
+            if (factions == null || factions.Length != 1)
+            {
+                if (duplicateException)
+                    throw new Exception(string.Format("GetRegionFaction() found more than 1 matching NPC faction for region {0}.", regionIndex));
+                else
+                    Debug.LogWarningFormat("GetRegionFaction() found more than 1 matching NPC faction for region {0}.", regionIndex);
+            }
+
+            factionData = factions[0];
+        }
+
+        /// <summary>
         /// Gets faction ID from name. Experimental.
         /// </summary>
         /// <param name="name">Name of faction to get ID of.</param>
@@ -266,6 +288,19 @@ namespace DaggerfallWorkshop.Game.Player
                 return factionNameToIDDict[name];
 
             return -1;
+        }
+
+        /// <summary>
+        /// Gets faction name from id.
+        /// </summary>
+        /// <param name="id">ID of faction to get name of.</param>
+        /// <returns>Faction name if name found, otherwise an empty string.</returns>
+        public string GetFactionName(int id)
+        {
+            if (factionDict.ContainsKey(id))
+                return factionDict[id].name;
+
+            return string.Empty;
         }
 
         /// <summary>
@@ -336,24 +371,80 @@ namespace DaggerfallWorkshop.Game.Player
         }
 
         /// <summary>
-        /// Change reputation value by amount.
+        /// Change reputation value by amount. Propagation is matched to classic.
         /// </summary>
+        /// <param name="factionID">Faction ID of faction initiate reputation change.</param>
+        /// <param name="amount">Amount to change reputation, positive or negative.</param>
+        /// <param name="propagate">True if reputation change should propagate to affiliated factions and allies/enemies.</param>
+        /// <returns></returns>
         public bool ChangeReputation(int factionID, int amount, bool propagate = false)
         {
             if (factionDict.ContainsKey(factionID))
             {
                 FactionFile.FactionData factionData = factionDict[factionID];
-                factionData.rep = Mathf.Clamp(factionData.rep + amount, minReputation, maxReputation);
-                factionDict[factionID] = factionData;
+
+                if (!propagate)
+                {
+                    factionData.rep = Mathf.Clamp(factionData.rep + amount, minReputation, maxReputation);
+                    factionDict[factionID] = factionData;
+                }
+                else
+                {
+                    // If a knightly order faction, propagate rep for the generic order only
+                    // (this is what classic does - assume due to all affiliated nobles being aloof from such matters..)
+                    if (factionData.ggroup == (int)FactionFile.GuildGroups.KnightlyOrder)
+                    {
+                        ChangeReputation(factionID, amount, false);
+                        // Note: classic doesn't propagate to the generic child factions (smiths etc) which is an (assumed) bug so is done here.
+                        ChangeReputation((int)FactionFile.FactionIDs.Generic_Knightly_Order, amount, true);
+                    }
+                    else
+                    {
+                        // Change ally and enemy faction reputations first (for guild faction or social questgiver npc)
+                        int[] allies = { factionData.ally1, factionData.ally2, factionData.ally3 };
+                        int[] enemies = { factionData.enemy1, factionData.enemy2, factionData.enemy3 };
+                        for (int i = 0; i < 3; ++i)
+                        {
+                            ChangeReputation(allies[i], amount / 2);
+                            ChangeReputation(enemies[i], -amount / 2);
+                        }
+
+                        // Navigate up to the root faction (treat Dark Brotherhood faction as a root faction)
+                        while (factionDict.ContainsKey(factionData.parent) && factionData.id != (int)FactionFile.FactionIDs.The_Dark_Brotherhood)
+                            factionData = factionDict[factionData.parent];
+
+                        // Propagate reputation changes for all children of the root, or just the sindle faction
+                        if (factionData.children != null)
+                            PropagateReputationChange(factionData, factionID, amount);
+                        else
+                            ChangeReputation(factionID, amount);
+
+                        // If a temple deity faction, also propagate rep for generic temple faction hierarchy
+                        if (factionData.type == (int)FactionFile.FactionTypes.God)
+                            ChangeReputation((int)FactionFile.FactionIDs.Generic_Temple, amount, true);
+                    }
+                }
                 return true;
             }
-
-            if (propagate)
-            {
-                // TODO: Propagate reputation changes to related factions
-            }
-
             return false;
+        }
+
+        /// <summary>
+        /// Recursively propagate reputation changes to affiliated factions using parent/child faction relationships.
+        /// </summary>
+        /// <param name="factionData">Faction data of parent faction node to change rep for it and children.</param>
+        /// <param name="factionID">Faction ID of faction where rep change was initiated.</param>
+        /// <param name="amount">Amount to change reputation. (half applied to all but init and questor factions)</param>
+        public void PropagateReputationChange(FactionFile.FactionData factionData, int factionID, int amount)
+        {
+            // Do full reputation change for specific faction, a root parent, and questor npcs. Then half reputation change for all other factions in hierarchy
+            ChangeReputation(factionData.id, (factionData.id == factionID || factionData.parent == 0 || questorIds.Contains((GuildNpcServices)factionData.id)) ? amount : amount / 2);
+
+            // Recursively propagate reputation changes to all child factions
+            if (factionData.children != null)
+                foreach (int id in factionData.children)
+                    if (factionDict.ContainsKey(id))
+                        PropagateReputationChange(factionDict[id], factionID, amount);
         }
 
         /// <summary>
@@ -370,6 +461,32 @@ namespace DaggerfallWorkshop.Game.Player
             {
                 player.RegionData[i].LegalRep = 0;
             }
+        }
+
+        #endregion
+
+        #region Flags
+
+        public bool GetFlag(int factionID, FactionFile.Flags flag)
+        {
+            if (factionDict.ContainsKey(factionID))
+            {
+                FactionFile.FactionData factionData = factionDict[factionID];
+                return (factionData.flags & (int) flag) > 0;
+            }
+            return false;
+        }
+
+        public bool SetFlag(int factionID, FactionFile.Flags flag)
+        {
+            if (factionDict.ContainsKey(factionID))
+            {
+                FactionFile.FactionData factionData = factionDict[factionID];
+                factionData.flags |= (int)flag;
+                factionDict[factionID] = factionData;
+                return true;
+            }
+            return false;
         }
 
         #endregion
@@ -493,7 +610,7 @@ namespace DaggerfallWorkshop.Game.Player
                 if (factionDict.ContainsKey(factionData1.parent))
                 {
                     FactionFile.FactionData parentData = factionDict[factionData1.parent];
-                    if (parentData.children.Contains(factionID2))
+                    if (parentData.children != null && parentData.children.Contains(factionID2))
                         return 2;
                 }
 
@@ -530,6 +647,9 @@ namespace DaggerfallWorkshop.Game.Player
                 else if (factionData2.ally3 == 0)
                     factionData2.ally3 = factionID1;
 
+                factionDict[factionID1] = factionData1;
+                factionDict[factionID2] = factionData2;
+
                 return true;
             }
 
@@ -559,6 +679,9 @@ namespace DaggerfallWorkshop.Game.Player
                     factionData2.ally2 = 0;
                 if (factionData2.ally3 == factionID1)
                     factionData2.ally3 = 0;
+
+                factionDict[factionID1] = factionData1;
+                factionDict[factionID2] = factionData2;
 
                 return true;
             }
@@ -591,6 +714,9 @@ namespace DaggerfallWorkshop.Game.Player
                 else if (factionData2.enemy3 == 0)
                     factionData2.enemy3 = factionID1;
 
+                factionDict[factionID1] = factionData1;
+                factionDict[factionID2] = factionData2;
+
                 return true;
             }
 
@@ -621,6 +747,9 @@ namespace DaggerfallWorkshop.Game.Player
                 if (factionData2.enemy3 == factionID1)
                     factionData2.enemy3 = 0;
 
+                factionDict[factionID1] = factionData1;
+                factionDict[factionID2] = factionData2;
+
                 return true;
             }
 
@@ -648,7 +777,7 @@ namespace DaggerfallWorkshop.Game.Player
             {
                 for (int i = 0; i < 11; ++i)
                 {
-                    if (borderRegions[11 * (faction1.region - 1) + i] == faction2.region)
+                    if (borderRegions[(11 * faction1.region) + i] == faction2.region)
                         return true;
                 }
             }
@@ -663,6 +792,7 @@ namespace DaggerfallWorkshop.Game.Player
                 faction.rulerPowerBonus = DFRandom.random_range_inclusive(0, 50) + 20;
                 uint random = DFRandom.rand() << 16;
                 faction.rulerNameSeed = DFRandom.rand() | random;
+                factionDict[factionID] = faction;
 
                 return true;
             }

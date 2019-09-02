@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -30,7 +30,7 @@ namespace DaggerfallWorkshop
                 books = new List<int>();
                 for (int i=0; i<10; i++)
                 {
-                    int bookNum = Random.Range(0, 111);
+                    int bookNum = DaggerfallUnity.Settings.CustomBooksImport ? DaggerfallUnity.Instance.ItemHelper.GetRandomBookID() : Random.Range(0, 111);
                     string bookName = DaggerfallUnity.Instance.ItemHelper.getBookNameByID(bookNum, string.Empty);
                     if (bookName != string.Empty)
                         books.Add(bookNum);
@@ -42,9 +42,8 @@ namespace DaggerfallWorkshop
         {
             // Check permission to access bookshelf if inside a guild or temple
             PlayerGPS.DiscoveredBuilding buildingData = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData;
-            // TODO: Faction membership check here when implemented, just check building type for now..
             int factionID = buildingData.factionID;
-            Debug.Log("Faction ID = " + factionID);
+            Debug.Log("Bookshelf access, Faction ID = " + factionID);
             Guild guild = GameManager.Instance.GuildManager.GetGuild(factionID);
             if ((buildingData.buildingType == DFLocation.BuildingTypes.GuildHall ||
                  buildingData.buildingType == DFLocation.BuildingTypes.Temple) &&
@@ -72,7 +71,7 @@ namespace DaggerfallWorkshop
 
         public void BookShelf_OnItemPicked(int index, string bookName)
         {
-            DaggerfallUnity.Instance.TextProvider.OpenBook(books[index]);
+            DaggerfallUI.Instance.BookReaderWindow.OpenBook(books[index]);
             DaggerfallUI.UIManager.PopWindow();
             DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenBookReaderWindow);
         }

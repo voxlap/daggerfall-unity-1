@@ -1,19 +1,17 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Numidium
 // 
 // Notes:
 //
 
-using System;
-using System.IO;
 using DaggerfallConnect;
-using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Entity;
+using System.Collections.Generic;
 
 namespace DaggerfallWorkshop.Game.Player
 {
@@ -50,11 +48,19 @@ namespace DaggerfallWorkshop.Game.Player
         public uint lastTimePlayerBoughtTraining;
         public uint timeForThievesGuildLetter;
         public uint timeForDarkBrotherhoodLetter;
+        public byte vampireClan;
         public byte darkBrotherhoodRequirementTally;
         public byte thievesGuildRequirementTally;
         public uint timeToBecomeVampireOrWerebeast;
+        public byte hasStartedInitialVampireQuest;
+        public uint lastTimeVampireNeedToKillSatiated;
         public uint lastTimePlayerAteOrDrankAtTavern;
         public sbyte biographyReactionMod;
+        public List<string> biographyEffects;
+        public int classIndex;
+        public List<string> backStory;
+        public bool isCustom = false;
+        public Races classicTransformedRace = Races.None;
 
         public CharacterDocument()
         {
@@ -74,6 +80,8 @@ namespace DaggerfallWorkshop.Game.Player
             startingLevelUpSkillSum = 0;
             faceIndex = 0;
             skillUses = new short[DaggerfallSkills.Count];
+            skillsRaisedThisLevel1 = 0;
+            skillsRaisedThisLevel2 = 0;
             for (int i = 0; i < armorValues.Length; i++)
             {
                 armorValues[i] = 100;

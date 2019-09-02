@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:
+// Contributors:    Michael Rauter (Nystul)
 //
 // Notes:
 //
@@ -13,6 +13,7 @@ using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Weather;
 using DaggerfallWorkshop.Utility;
 using UnityEngine;
+using UnityEngine.PostProcessing;
 using DaggerfallConnect.Arena2;
 
 namespace DaggerfallWorkshop.Game
@@ -33,6 +34,8 @@ namespace DaggerfallWorkshop.Game
         public AmbientEffectsPlayer WeatherEffects;
 
         [Range(0, 1)]
+        public float OvercastSunlightScale = 0.65f;
+        [Range(0, 1)]
         public float RainSunlightScale = 0.45f;
         [Range(0, 1)]
         public float StormSunlightScale = 0.25f;
@@ -42,20 +45,50 @@ namespace DaggerfallWorkshop.Game
         public float WinterSunlightScale = 0.65f;
 
         [Range(0, 1)]
-        public float SunnyFogDensity = 0.00005f;
+        public float OvercastShadowStrength = 0.6f;
         [Range(0, 1)]
-        public float OvercastFogDensity = 0.00005f;
+        public float RainShadowStrength = 0.4f;
         [Range(0, 1)]
-        public float RainyFogDensity = 0.0001f;
+        public float StormShadowStrength = 0.4f;
         [Range(0, 1)]
-        public float SnowyFogDensity = 0.001f;
+        public float SnowShadowStrength = 0.25f;
         [Range(0, 1)]
-        public float HeavyFogDensity = 0.05f;
+        public float WinterShadowStrength = 0.8f;
+
+        [System.Serializable]
+        public struct FogSettings
+        {
+            public FogMode fogMode;
+            [Range(0, 1)]
+            public float density;
+            public float startDistance;
+            public float endDistance;
+            public bool excludeSkybox;
+        }
+
+        public FogSettings SunnyFogSettings = new FogSettings { fogMode = FogMode.Linear, density = 0.0f, startDistance = 0, endDistance = 2400, excludeSkybox = true };
+        public FogSettings OvercastFogSettings = new FogSettings { fogMode = FogMode.Linear, density = 0.0f, startDistance = 0, endDistance = 2400, excludeSkybox = true };
+        public FogSettings RainyFogSettings = new FogSettings { fogMode = FogMode.Exponential, density = 0.003f, startDistance = 0, endDistance = 0, excludeSkybox = true };
+        public FogSettings SnowyFogSettings = new FogSettings { fogMode = FogMode.Exponential, density = 0.005f, startDistance = 0, endDistance = 0, excludeSkybox = true };
+        public FogSettings HeavyFogSettings = new FogSettings { fogMode = FogMode.Exponential, density = 0.05f, startDistance = 0, endDistance = 0, excludeSkybox = false };
+
+        public FogSettings InteriorFogSettings = new FogSettings { fogMode = FogMode.Exponential, density = 0.001f, startDistance = 0, endDistance = 0, excludeSkybox = false };
+        public FogSettings DungeonFogSettings = new FogSettings { fogMode = FogMode.Exponential, density = 0.005f, startDistance = 0, endDistance = 0, excludeSkybox = false };
+
+        public FogSettings currentOutdoorFogSettings;
+        Color previousOutdoorFogColor;
+
+        // this is needed so weather from savegame load is not overwritten by code in StreamingWorld_OnInitWorld()
+        // e.g. weather fog, going to interior, saving, restarting, loading save, going outdoors -> fog should still be present (without this workaround it is not)
+        bool startedFromLoadedSaveGame; // needed to correctly restore fog after loading a savegame since StreamingWorld_OnInitWorld() happens after load event overwritting the values set there
 
         DaggerfallUnity _dfUnity;
         float _pollTimer;
         private WeatherTable _weatherTable;
         private float _pollWeatherInSeconds = 30f;
+
+        // used to set post processing fog settings (excludeSkybox setting)
+        private PostProcessingBehaviour postProcessingBehaviour;
 
         public bool IsRaining { get; private set; }
 
@@ -71,8 +104,22 @@ namespace DaggerfallWorkshop.Game
 
         void Awake()
         {
-            SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
             StreamingWorld.OnInitWorld += StreamingWorld_OnInitWorld;
+            SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;            
+            PlayerEnterExit.OnTransitionInterior += OnTransitionToInterior;
+            PlayerEnterExit.OnTransitionExterior += OnTransitionToExterior;
+            PlayerEnterExit.OnTransitionDungeonInterior += OnTransitionToDungeon;
+            PlayerEnterExit.OnTransitionDungeonExterior += OnTransitionToExterior;
+        }
+
+        void OnDestroy()
+        {
+            StreamingWorld.OnInitWorld -= StreamingWorld_OnInitWorld;
+            SaveLoadManager.OnLoad -= SaveLoadManager_OnLoad;
+            PlayerEnterExit.OnTransitionInterior -= OnTransitionToInterior;
+            PlayerEnterExit.OnTransitionExterior -= OnTransitionToExterior;
+            PlayerEnterExit.OnTransitionDungeonInterior -= OnTransitionToDungeon;
+            PlayerEnterExit.OnTransitionDungeonExterior -= OnTransitionToExterior;
         }
 
         void Start()
@@ -80,8 +127,19 @@ namespace DaggerfallWorkshop.Game
             _dfUnity = DaggerfallUnity.Instance;
             _weatherTable = WeatherTable.ParseJsonTable();
 
-            if (DaggerfallUnity.Settings.MeshAndTextureReplacement)
+            postProcessingBehaviour = Camera.main.GetComponent<PostProcessingBehaviour>();
+            if (postProcessingBehaviour != null)
+            {
+                var fogSettings = postProcessingBehaviour.profile.fog.settings;
+                fogSettings.excludeSkybox = true;
+                postProcessingBehaviour.profile.fog.settings = fogSettings;              
+            }
+            
+            if (DaggerfallUnity.Settings.AssetInjection)
                 AddWindZone();
+
+            // initialize with clear overcast sky (so that initial fog settings like exponential fog mode are set)
+            ClearOvercast();
         }
 
         void Update()
@@ -101,7 +159,7 @@ namespace DaggerfallWorkshop.Game
             if (DaggerfallSky)
                 DaggerfallSky.WeatherStyle = WeatherStyle.Normal;
             IsOvercast = false;
-            SetFog(false, SunnyFogDensity);
+            SetFog(SunnyFogSettings);
         }
 
         public void ClearAllWeather()
@@ -113,24 +171,52 @@ namespace DaggerfallWorkshop.Game
 
         #region Fog
 
-        public void SetFog(bool isFoggy, float density)
+        public void SetFog(FogSettings fogSettings, bool isInteriorOrDungeonFog = false)
         {
+            // if fog is a outdoor weather fog set currentOutdoorFogSettings so fog settings can be restored when player goes into an interior/dungeon and then back to exterior
+            if (isInteriorOrDungeonFog == false)
+            {
+                currentOutdoorFogSettings = fogSettings;
+            }
+            else // if in interior or dungeon
+            {
+                // set fog color to black
+                RenderSettings.fogColor = Color.black;
+            }
+
+            // set fog mode first
+            RenderSettings.fogMode = fogSettings.fogMode;
+            RenderSettings.fogDensity = fogSettings.density;
+            RenderSettings.fogStartDistance = fogSettings.startDistance;
+            RenderSettings.fogEndDistance = fogSettings.endDistance;
+
             // edit by Nystul: don't disable RenderSettings fog! Rendering Fog != Weather Fog
             //RenderSettings.fog = isFoggy;
 
-            if (isFoggy)
+            if (fogSettings.excludeSkybox == false)
             {
-                RenderSettings.fogDensity = density;
-//                RenderSettings.fogMode = FogMode.Exponential;
-//                RenderSettings.fogColor = Color.gray;
+                //                RenderSettings.fogColor = Color.gray;
+
+                if (postProcessingBehaviour != null)
+                {
+                    var fogPostProcess = postProcessingBehaviour.profile.fog.settings;
+                    fogPostProcess.excludeSkybox = false;
+                    postProcessingBehaviour.profile.fog.settings = fogPostProcess;
+                }
             }
             else
-            {
-                RenderSettings.fogDensity = SunnyFogDensity;
+            {                
                 // TODO set this based on ... something.
                 // ex. time of day/angle of sun so we can get nice sunset/rise atmospheric effects
                 // also blend with climate so climates end up having faint 'tints' to them
-//                RenderSettings.fogColor = Color.clear;
+                //                RenderSettings.fogColor = Color.clear;
+
+                if (postProcessingBehaviour != null)
+                {
+                    var fogPostProcess = postProcessingBehaviour.profile.fog.settings;
+                    fogPostProcess.excludeSkybox = true;
+                    postProcessingBehaviour.profile.fog.settings = fogPostProcess;
+                }
             }
         }
 
@@ -138,16 +224,22 @@ namespace DaggerfallWorkshop.Game
 
         #region Rain
 
+        public void SetOvercast()
+        {
+            SetFog(OvercastFogSettings);
+            IsOvercast = true;
+        }
+
         public void SetRainOvercast()
         {
             if (DaggerfallSky)
             {
-                if (Random.Range(0, 1) > 0.5f)
+                if (Random.Range(0f, 1f) > 0.5f)
                     DaggerfallSky.WeatherStyle = WeatherStyle.Rain1;
                 else
                     DaggerfallSky.WeatherStyle = WeatherStyle.Rain2;
             }
-            SetFog(true, RainyFogDensity);
+            SetFog(RainyFogSettings);
             IsOvercast = true;
         }
 
@@ -177,12 +269,12 @@ namespace DaggerfallWorkshop.Game
         {
             if (DaggerfallSky)
             {
-                if (Random.Range(0, 1) > 0.5f)
+                if (Random.Range(0f, 1f) > 0.5f)
                     DaggerfallSky.WeatherStyle = WeatherStyle.Snow1;
                 else
                     DaggerfallSky.WeatherStyle = WeatherStyle.Snow2;
             }
-            SetFog(true, SnowyFogDensity);
+            SetFog(SnowyFogSettings);
             IsOvercast = true;
         }
 
@@ -205,22 +297,45 @@ namespace DaggerfallWorkshop.Game
         {
             // Start with default scale
             float scale = SunlightManager.defaultScaleFactor;
+            float shadowStrength = SunlightManager.defaultShadowStrength;
 
             // Apply winter
             if (_dfUnity.WorldTime.Now.SeasonValue == DaggerfallDateTime.Seasons.Winter)
+            {
                 scale = WinterSunlightScale;
+                shadowStrength = WinterShadowStrength;
+            }
 
             // Apply rain, storm, snow light scale
             if (IsRaining && !IsStorming)
+            {
                 scale = RainSunlightScale;
+                shadowStrength = RainShadowStrength;
+            }
             else if (IsRaining && IsStorming)
+            {
                 scale = StormSunlightScale;
+                shadowStrength = StormShadowStrength;
+            }
             else if (IsSnowing)
+            {
                 scale = SnowSunlightScale;
+                shadowStrength = SnowShadowStrength;
+            }
+            else if (IsOvercast)
+            {
+                scale = OvercastSunlightScale;
+                shadowStrength = OvercastShadowStrength;
+            }
+
+            shadowStrength *= Mathf.Exp(-50f * currentOutdoorFogSettings.density);
 
             // Apply scale to sunlight manager
             if (SunlightManager)
+            {
                 SunlightManager.ScaleFactor = scale;
+                SunlightManager.ShadowStrength = shadowStrength;
+            }
         }
 
         void SetAmbientEffects()
@@ -319,16 +434,16 @@ namespace DaggerfallWorkshop.Game
             {
                 case WeatherType.Cloudy:
                     // TODO make skybox cloudy
-                    SetFog(true, SunnyFogDensity);
+                    SetFog(SunnyFogSettings);
                     break;
 
                 case WeatherType.Overcast:
-                    SetRainOvercast();
+                    SetOvercast();
                     break;
 
                 case WeatherType.Fog:
                     SetRainOvercast();
-                    SetFog(true, HeavyFogDensity);
+                    SetFog(HeavyFogSettings);
                     break;
 
                 case WeatherType.Rain:
@@ -364,17 +479,59 @@ namespace DaggerfallWorkshop.Game
 
         void SaveLoadManager_OnLoad(SaveData_v1 saveData)
         {
+            // first restore general outdoor weather (which sets fog)
             SetWeather(saveData.playerData.playerPosition.weather);
+
+            // then check if player is inside and set fog accordingly
+            if (GameManager.Instance.IsPlayerInsideBuilding)
+            {
+                SetFog(InteriorFogSettings, true);
+            }
+            else if (GameManager.Instance.IsPlayerInsideDungeon || GameManager.Instance.IsPlayerInsideCastle)
+            {
+                SetFog(DungeonFogSettings, true);
+            }
+
+            startedFromLoadedSaveGame = true; // needed so StreamingWorld_OnInitWorld() does not break stuff again (see details in comment at variable definition of startedFromLoadedSaveGame)
         }
 
         void StreamingWorld_OnInitWorld()
         {
-            // Clear weather when starting up world
-            ClearAllWeather();
+            // check if we did not just load a savegame (see details in comment at variable definition of startedFromLoadedSaveGame)            
+            if (startedFromLoadedSaveGame == false)
+            {
+                // Clear weather when starting up world
+                ClearAllWeather();
 
-            // Set weather in case we have loaded from a classic save.
-            // Currently loading a Unity save will replace this with its own weather value after this.
-            updateWeatherFromClimateArray = true;
+                // Set weather in case we have loaded from a classic save.
+                // Currently loading a Unity save will replace this with its own weather value after this.
+                updateWeatherFromClimateArray = true;
+
+                startedFromLoadedSaveGame = false;
+            }
+            else
+            {
+                // important so no weather update from climate array happens in case of loaded savegame 
+                updateWeatherFromClimateArray = false;
+            }
+        }
+
+        void OnTransitionToInterior(PlayerEnterExit.TransitionEventArgs args)
+        {
+            previousOutdoorFogColor = RenderSettings.fogColor;
+            SetFog(InteriorFogSettings, true);
+        }
+
+        void OnTransitionToDungeon(PlayerEnterExit.TransitionEventArgs args)
+        {
+            previousOutdoorFogColor = RenderSettings.fogColor;
+            SetFog(DungeonFogSettings, true);
+        }
+
+        void OnTransitionToExterior(PlayerEnterExit.TransitionEventArgs args)
+        {
+            SetFog(currentOutdoorFogSettings, false);
+            RenderSettings.fogColor = previousOutdoorFogColor;
         }
 
         #endregion

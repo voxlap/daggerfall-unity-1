@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -34,9 +34,9 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         #region Static Data
 
-        public static int[] rankReqReputation = new int[] {  0, 10, 20, 30, 40, 50, 60, 70, 80, 90 };
-        public static int[] rankReqSkillHigh = new int[]  { 22, 23, 31, 39, 47, 55, 63, 71, 79, 87 };
-        public static int[] rankReqSkillLow = new int[]   {  4,  5,  9, 13, 17, 21, 25, 29, 33, 37 };
+        public static int[] rankReqReputation = {  0, 10, 20, 30, 40, 50, 60, 70, 80, 90 };
+        public static int[] rankReqSkillHigh =  { 22, 23, 31, 39, 47, 55, 63, 71, 79, 87 };
+        public static int[] rankReqSkillLow =   {  4,  5,  9, 13, 17, 21, 25, 29, 33, 37 };
 
         #endregion
 
@@ -77,13 +77,14 @@ namespace DaggerfallWorkshop.Game.Guilds
                 int newRank = CalculateNewRank(playerEntity);
                 if (newRank != rank)
                 {
-                    if (newRank > rank)         // Promotion
+                    if (newRank > rank) {           // Promotion
                         tokens = TokensPromotion(newRank);
-                    else if (newRank < 0)       // Expulsion
+                    } else if (newRank < 0) {       // Expulsion
                         tokens = TokensExpulsion();
-                    else if (newRank < rank)    // Demotion
+                        GameManager.Instance.GuildManager.RemoveMembership(this);
+                    } else if (newRank < rank) {    // Demotion
                         tokens = TokensDemotion();
-
+                    }
                     rank = newRank;
                     lastRankChange = CalculateDaySinceZero(DaggerfallUnity.Instance.WorldTime.Now);
                 }
@@ -105,7 +106,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 if (rep < rankReqReputation[r] || high < 1 || low + high < 2)
                     break;
             }
-            Debug.LogFormat("rep: {0} high#: {1} low#: {2} new rank: {3}", rep, high, low, r-1);
+            Debug.LogFormat("rep: {0} high#: {1} low#: {2} new rank: {3}", rep, high, low, r - 1);
             return --r;
         }
 
@@ -193,6 +194,11 @@ namespace DaggerfallWorkshop.Game.Guilds
             return false;
         }
 
+        public virtual bool FreeMagickaRecharge()
+        {
+            return false;
+        }
+
         public virtual int ReducedRepairCost(int price)
         {
             return price;
@@ -257,6 +263,10 @@ namespace DaggerfallWorkshop.Game.Guilds
                 case GuildServices.Repair:
                     return IsMember();
                 case GuildServices.Identify:
+                    return true;
+                case GuildServices.BuySpells:
+                    return false;
+                case GuildServices.BuySpellsMages:
                     return true;
                 case GuildServices.Donate:
                     return true;
@@ -338,7 +348,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         /// </summary>
         protected class GuildMacroDataSource : MacroDataSource
         {
-            private Guild parent;
+            private readonly Guild parent;
             public GuildMacroDataSource(Guild guild)
             {
                 parent = guild;

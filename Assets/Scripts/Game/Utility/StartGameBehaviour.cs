@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,20 +11,19 @@
 
 using UnityEngine;
 using System;
-using System.IO;
-using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
 using DaggerfallConnect.Save;
-using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Player;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Questing;
+using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 
 namespace DaggerfallWorkshop.Game.Utility
 {
@@ -166,10 +165,20 @@ namespace DaggerfallWorkshop.Game.Utility
         void ApplyStartSettings()
         {
             // Resolution
-            Screen.SetResolution(
-                DaggerfallUnity.Settings.ResolutionWidth,
-                DaggerfallUnity.Settings.ResolutionHeight,
-                DaggerfallUnity.Settings.Fullscreen);
+            if (DaggerfallUnity.Settings.ExclusiveFullscreen && DaggerfallUnity.Settings.Fullscreen)
+            {
+                Screen.SetResolution(
+                    DaggerfallUnity.Settings.ResolutionWidth,
+                    DaggerfallUnity.Settings.ResolutionHeight,
+                    FullScreenMode.ExclusiveFullScreen);
+            }
+            else
+            {
+                Screen.SetResolution(
+                    DaggerfallUnity.Settings.ResolutionWidth,
+                    DaggerfallUnity.Settings.ResolutionHeight,
+                    DaggerfallUnity.Settings.Fullscreen);
+            }
 
             // Camera settings
             GameObject cameraObject = GameObject.FindGameObjectWithTag("MainCamera");
@@ -198,23 +207,8 @@ namespace DaggerfallWorkshop.Game.Utility
                     camera.renderingPath = RenderingPath.DeferredLighting;
             }
 
-            // Shadow Resoltion Mode
-            switch (DaggerfallUnity.Settings.ShadowResolutionMode)
-            {
-                case 0:
-                    QualitySettings.shadowResolution = ShadowResolution.Low;
-                    break;
-                case 1:
-                default:
-                    QualitySettings.shadowResolution = ShadowResolution.Medium;
-                    break;
-                case 2:
-                    QualitySettings.shadowResolution = ShadowResolution.High;
-                    break;
-                case 3:
-                    QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
-                    break;
-            }        
+            // Set shadow resolution
+            GameManager.UpdateShadowResolution();
 
             // VSync settings
             if (DaggerfallUnity.Settings.VSync)
@@ -322,13 +316,7 @@ namespace DaggerfallWorkshop.Game.Utility
         // Start new character to location specified in INI
         void StartNewCharacter()
         {
-            DaggerfallUnity.ResetUID();
-            QuestMachine.Instance.ClearState();
-            RaiseOnNewGameEvent();
-            DaggerfallUI.Instance.PopToHUD();
-            ResetWeaponManager();
-            SaveLoadManager.ClearSceneCache(true);
-            GameManager.Instance.GuildManager.ClearMembershipData();
+            NewCharacterCleanup();
 
             // Must have a character document
             if (characterDocument == null)
@@ -388,7 +376,17 @@ namespace DaggerfallWorkshop.Game.Utility
             }
 
             // Assign starting gear to player entity
-            DaggerfallUnity.Instance.ItemHelper.AssignStartingGear(playerEntity);
+            DaggerfallUnity.Instance.ItemHelper.AssignStartingGear(playerEntity, characterDocument.classIndex, characterDocument.isCustom);
+
+            // Assign starting spells to player entity
+            SetStartingSpells(playerEntity);
+
+            // Apply biography effects to player entity
+            BiogFile.ApplyEffects(characterDocument.biographyEffects, playerEntity);
+
+            // Assign starting level up skill sum
+            playerEntity.SetCurrentLevelUpSkillSum();
+            playerEntity.StartingLevelUpSkillSum = playerEntity.CurrentLevelUpSkillSum;
 
             // Setup bank accounts and houses
             Banking.DaggerfallBankManager.SetupAccounts();
@@ -407,8 +405,9 @@ namespace DaggerfallWorkshop.Game.Utility
 
             lastStartMethod = StartMethods.NewCharacter;
 
-            // Offer main quest during pre-alpha
-            QuestMachine.Instance.InstantiateQuest("__MQSTAGE00");
+            // Start main quest
+            QuestMachine.Instance.InstantiateQuest("_TUTOR__");
+            QuestMachine.Instance.InstantiateQuest("_BRISIEN");
 
             // Launch startup optional quest
             if (!string.IsNullOrEmpty(LaunchQuest))
@@ -421,6 +420,19 @@ namespace DaggerfallWorkshop.Game.Utility
 
             if (OnStartGame != null)
                 OnStartGame(this, null);
+        }
+
+        // Performs cleanup before starting a new character or loading a classic save
+        void NewCharacterCleanup()
+        {
+            DaggerfallUnity.ResetUID();
+            QuestMachine.Instance.ClearState();
+            DaggerfallUI.Instance.PopToHUD();
+            SaveLoadManager.ClearSceneCache(true);
+            GameManager.Instance.GuildManager.ClearMembershipData();
+            GameManager.Instance.PlayerGPS.ClearDiscoveryData();
+            RaiseOnNewGameEvent();
+            ResetWeaponManager();
         }
 
         #endregion
@@ -442,10 +454,7 @@ namespace DaggerfallWorkshop.Game.Utility
 
         void StartFromClassicSave()
         {
-            DaggerfallUnity.ResetUID();
-            QuestMachine.Instance.ClearState();
-            RaiseOnNewGameEvent();
-            ResetWeaponManager();
+            NewCharacterCleanup();
 
             // Save index must be in range
             if (classicSaveIndex < 0 || classicSaveIndex >= 6)
@@ -506,7 +515,8 @@ namespace DaggerfallWorkshop.Game.Utility
             }
 
             // Set whether the player's weapon is drawn
-            GameManager.Instance.WeaponManager.Sheathed = (!saveVars.WeaponDrawn);
+            WeaponManager weaponManager = GameManager.Instance.WeaponManager;
+            weaponManager.Sheathed = (!saveVars.WeaponDrawn);
 
             // Set game time
             DaggerfallUnity.Instance.WorldTime.Now.FromClassicDaggerfallTime(saveVars.GameTime);
@@ -516,13 +526,18 @@ namespace DaggerfallWorkshop.Game.Utility
             if (records.Count != 1)
                 throw new Exception("SaveTree CharacterRecord not found.");
 
+            // Assign diseases and poisons to player entity
+            LycanthropyTypes lycanthropyType;
+            PlayerEntity playerEntity = FindPlayerEntity();
+            playerEntity.AssignDiseasesAndPoisons(saveTree, out lycanthropyType);
+
             // Get prototypical character document data
             CharacterRecord characterRecord = (CharacterRecord)records[0];
-            characterDocument = characterRecord.ToCharacterDocument();
+            characterDocument = characterRecord.ToCharacterDocument(lycanthropyType);
 
             // Assign data to player entity
-            PlayerEntity playerEntity = FindPlayerEntity();
-            playerEntity.AssignCharacter(characterDocument, characterRecord.ParsedData.level, characterRecord.ParsedData.maxHealth, false);
+            playerEntity.AssignCharacter(characterDocument, characterRecord.ParsedData.level, characterRecord.ParsedData.baseHealth, false);
+            playerEntity.SetCurrentLevelUpSkillSum();
 
             // Assign biography modifiers
             playerEntity.BiographyResistDiseaseMod = saveVars.BiographyResistDiseaseMod;
@@ -540,17 +555,17 @@ namespace DaggerfallWorkshop.Game.Utility
             // Set time of last check for raising skills
             playerEntity.TimeOfLastSkillIncreaseCheck = saveVars.LastSkillCheckTime;
 
-            // Assign items to player entity
-            playerEntity.AssignItems(saveTree);
+            // Assign classic items and spells to player entity
+            playerEntity.AssignItemsAndSpells(saveTree);
 
             // Assign guild memberships
             playerEntity.AssignGuildMemberships(saveTree);
 
-            // Assign diseases and poisons to player entity
-            playerEntity.AssignDiseasesAndPoisons(saveTree);
-
             // Assign gold pieces
             playerEntity.GoldPieces = (int)characterRecord.ParsedData.physicalGold;
+
+            // Assign weapon hand being used
+            weaponManager.UsingRightHand = !saveVars.UsingLeftHandWeapon;
 
             // GodMode setting
             playerEntity.GodMode = saveVars.GodMode;
@@ -558,6 +573,9 @@ namespace DaggerfallWorkshop.Game.Utility
             // Setup bank accounts
             var bankRecords = saveTree.FindRecord(RecordTypes.BankAccount);
             Banking.DaggerfallBankManager.ReadNativeBankData(bankRecords);
+
+            // Ship ownership
+            Banking.DaggerfallBankManager.AssignShipToPlayer(saveVars.PlayerOwnedShip);
 
             // Get regional data.
             playerEntity.RegionData = saveVars.RegionData;
@@ -567,9 +585,6 @@ namespace DaggerfallWorkshop.Game.Utility
 
             // Get breath remaining if player was submerged (0 if they were not in the water)
             playerEntity.CurrentBreath = saveVars.BreathRemaining;
-
-            // TODO: Import classic spellbook
-            playerEntity.DeserializeSpellbook(null);
 
             // Get last type of crime committed
             playerEntity.CrimeCommitted = (PlayerEntity.Crimes)saveVars.CrimeCommitted;
@@ -590,6 +605,55 @@ namespace DaggerfallWorkshop.Game.Utility
             }
             GameManager.Instance.WeatherManager.PlayerWeather.ClimateWeathers = climateWeathers;
 
+            // Load character biography text
+            playerEntity.BackStory = saveGames.BioFile.Lines;
+
+            // Validate spellbook item
+            DaggerfallUnity.Instance.ItemHelper.ValidateSpellbookItem(playerEntity);
+
+            // Restore old class specials
+            RestoreOldClassSpecials(saveTree, characterDocument.classicTransformedRace, lycanthropyType);
+
+            // Restore vampirism if classic character was a vampire
+            if (characterDocument.classicTransformedRace == Races.Vampire)
+            {
+                // Restore effect
+                Debug.Log("Restoring vampirism to classic character.");
+                EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateVampirismCurse();
+                GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.BypassSavingThrows);
+
+                // Assign correct clan from classic save
+                VampirismEffect vampireEffect = (VampirismEffect)GameManager.Instance.PlayerEffectManager.FindIncumbentEffect<VampirismEffect>();
+                if (vampireEffect != null)
+                {
+                    Debug.LogFormat("Setting vampire clan to {0}", (VampireClans)characterDocument.vampireClan);
+                    vampireEffect.VampireClan = (VampireClans)characterDocument.vampireClan;
+                }
+            }
+
+            // Restore lycanthropy if classic character was a werewolf/wereboar
+            if (lycanthropyType != LycanthropyTypes.None)
+            {
+                // TODO: Restore lycanthropy effect
+                switch (lycanthropyType)
+                {
+                    case LycanthropyTypes.Werewolf:
+                        Debug.Log("Restoring lycanthropy (werewolf) to classic character.");
+                        break;
+                    case LycanthropyTypes.Wereboar:
+                        Debug.Log("Restoring lycanthropy (wereboar) to classic character.");
+                        break;
+                }
+                EntityEffectBundle bundle = GameManager.Instance.PlayerEffectManager.CreateLycanthropyCurse();
+                GameManager.Instance.PlayerEffectManager.AssignBundle(bundle, AssignBundleFlags.BypassSavingThrows);
+                LycanthropyEffect lycanthropyEffect = (LycanthropyEffect)GameManager.Instance.PlayerEffectManager.FindIncumbentEffect<LycanthropyEffect>();
+                if (lycanthropyEffect != null)
+                {
+                    lycanthropyEffect.InfectionType = lycanthropyType;
+                    GameManager.Instance.PlayerEntity.AssignPlayerLycanthropySpell();
+                }
+            }
+
             // Start game
             DaggerfallUI.Instance.PopToHUD();
             GameManager.Instance.PauseGame(false);
@@ -601,6 +665,43 @@ namespace DaggerfallWorkshop.Game.Utility
 
             if (OnStartGame != null)
                 OnStartGame(this, null);
+        }
+
+        void RestoreOldClassSpecials(SaveTree saveTree, Races classicTransformedRace, LycanthropyTypes lycanthropyType)
+        {
+            try
+            {
+                // Get old class record
+                SaveTreeBaseRecord oldClassRecord = saveTree.FindRecord(RecordTypes.OldClass);
+                if (oldClassRecord == null)
+                    return;
+
+                // Read old class data
+                System.IO.MemoryStream stream = new System.IO.MemoryStream(oldClassRecord.RecordData);
+                System.IO.BinaryReader reader = new System.IO.BinaryReader(stream);
+                ClassFile classFile = new ClassFile();
+                classFile.Load(reader);
+                reader.Close();
+
+                // Restore any specials set by transformed race
+                if (classicTransformedRace == Races.Vampire)
+                {
+                    // Restore pre-vampire specials
+                    characterDocument.career.DamageFromSunlight = classFile.Career.DamageFromSunlight;
+                    characterDocument.career.DamageFromHolyPlaces = classFile.Career.DamageFromHolyPlaces;
+                    characterDocument.career.Paralysis = classFile.Career.Paralysis;
+                    characterDocument.career.Disease = classFile.Career.Disease;
+                }
+                else if (lycanthropyType != LycanthropyTypes.None)
+                {
+                    // Restore pre-lycanthropy specials
+                    characterDocument.career.Disease = classFile.Career.Disease;
+                }
+            }
+            catch(Exception ex)
+            {
+                Debug.LogErrorFormat("Could not restore old class specials for vamp/were import. Error: '{0}'", ex.Message);
+            }
         }
 
         #endregion
@@ -647,6 +748,66 @@ namespace DaggerfallWorkshop.Game.Utility
             // Weapon hand and equip state not serialized currently
             // Interim measure is to reset weapon manager state on new game
             GameManager.Instance.WeaponManager.Reset();
+        }
+
+        void SetStartingSpells(PlayerEntity playerEntity)
+        {
+            if (characterDocument.classIndex > 6 && !characterDocument.isCustom) // Class does not have starting spells
+                return;
+
+            // Get starting set based on class
+            int spellSetIndex = -1;
+            if (characterDocument.isCustom)
+            {
+                DFCareer dfc = characterDocument.career;
+
+                // Custom class uses Spellsword starting spells if it has at least 1 primary or major magic skill
+                if (Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.PrimarySkill1) ||
+                    Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.PrimarySkill2) ||
+                    Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.PrimarySkill3) ||
+                    Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.MajorSkill1) ||
+                    Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.MajorSkill2) ||
+                    Enum.IsDefined(typeof(DFCareer.MagicSkills), (int)dfc.MajorSkill3))
+                {
+                    spellSetIndex = 1;
+                }
+            }
+            else
+            {
+                spellSetIndex = characterDocument.classIndex;
+            }
+
+            if (spellSetIndex == -1)
+                return;
+
+            // Get the set's spell indices
+            TextAsset spells = Resources.Load<TextAsset>("StartingSpells") as TextAsset;
+            List<CareerStartingSpells> startingSpells = SaveLoadManager.Deserialize(typeof(List<CareerStartingSpells>), spells.text) as List<CareerStartingSpells>;
+            List<StartingSpell> spellsToAdd = new List<StartingSpell>();
+            for (int i = 0; i < startingSpells[spellSetIndex].SpellsList.Length; i++)
+            {
+                spellsToAdd.Add(startingSpells[spellSetIndex].SpellsList[i]);
+            }
+
+            // Add spells to player from standard list
+            foreach (StartingSpell spell in spellsToAdd)
+            {
+                SpellRecord.SpellRecordData spellData;
+                GameManager.Instance.EntityEffectBroker.GetClassicSpellRecord(spell.SpellID, out spellData);
+                if (spellData.index == -1)
+                {
+                    Debug.LogError("Failed to locate starting spell in standard spells list.");
+                    continue;
+                }
+
+                EffectBundleSettings bundle;
+                if (!GameManager.Instance.EntityEffectBroker.ClassicSpellRecordDataToEffectBundleSettings(spellData, BundleTypes.Spell, out bundle))
+                {
+                    Debug.LogError("Failed to create effect bundle for starting spell.");
+                    continue;
+                }
+                playerEntity.AddSpell(bundle);
+            }
         }
 
         #endregion

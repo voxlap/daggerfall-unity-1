@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -77,6 +77,17 @@ namespace DaggerfallWorkshop.Game.Items
         #region Public Methods
 
         /// <summary>
+        /// Gets number of items in collection, including item stack sizes.
+        /// </summary>
+        public int GetNumItems()
+        {
+            int num = 0;
+            foreach (DaggerfallUnityItem item in items.Values)
+                num += item.stackCount;
+            return num;
+        }
+
+        /// <summary>
         /// Gets the combined weight of all the items in this collection. (ignoring arrows like classic)
         /// </summary>
         /// <returns>Weight in kg</returns>
@@ -85,13 +96,7 @@ namespace DaggerfallWorkshop.Game.Items
             float weight = 0;
             foreach (DaggerfallUnityItem item in items.Values)
             {
-                // Horses, carts and arrows are not counted against encumbrance.
-                if (item.ItemGroup != ItemGroups.Transportation && item.TemplateIndex != (int)Weapons.Arrow)
-                    weight += item.weightInKg * item.stackCount;
-
-                // Enemies carry around gold as an item, unlike the player
-                if (item.ItemGroup == ItemGroups.Currency)
-                    weight += item.stackCount / Banking.DaggerfallBankManager.gold1kg;
+                weight += item.stackCount * item.EffectiveUnitWeightInKg();
             }
             return weight;
         }
@@ -110,6 +115,35 @@ namespace DaggerfallWorkshop.Game.Items
                     amount += item.value;
             }
             return amount;
+        }
+
+        /// <summary>
+        /// Removes items that have expired. Used for magically-created items. Only for the player.
+        /// Note: Reverse-engineering suggests this was intended behavior in classic, but classic
+        /// does not correctly set the item flags so magically-created items never disappear.
+        /// </summary>
+        public void RemoveExpiredItems()
+        {
+            uint gameMinutes = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime();
+            List<DaggerfallUnityItem> itemsToRemove = new List<DaggerfallUnityItem>();
+
+            foreach (DaggerfallUnityItem item in items.Values)
+            {
+                if (item.TimeForItemToDisappear != 0 && item.TimeForItemToDisappear < gameMinutes)
+                {
+                    Entity.PlayerEntity player = GameManager.Instance.PlayerEntity;
+                    foreach (EquipSlots slotToCheck in Enum.GetValues(typeof(EquipSlots)))
+                    {
+                        if (player.ItemEquipTable.GetItem(slotToCheck) == item)
+                            player.ItemEquipTable.UnequipItem(slotToCheck);
+                    }
+                    itemsToRemove.Add(item);
+                }
+            }
+            foreach (DaggerfallUnityItem item in itemsToRemove)
+            {
+                RemoveItem(item);
+            }
         }
 
         /// <summary>
@@ -144,13 +178,11 @@ namespace DaggerfallWorkshop.Game.Items
         {
             foreach (DaggerfallUnityItem item in items.Values)
             {
-                if (item.IsQuestItem)
+                if (item.IsQuestItem &&
+                    item.QuestUID == questItem.ParentQuest.UID &&
+                    item.QuestItemSymbol.Equals(questItem.Symbol))
                 {
-                    if (item.QuestUID == questItem.ParentQuest.UID &&
-                        item.QuestItemSymbol.Equals(questItem.Symbol))
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
 
@@ -187,16 +219,19 @@ namespace DaggerfallWorkshop.Game.Items
             // Add the item based on stack behaviour
             // TODO: Look at implementing proper stacking with max limits, split, merge, etc.
             DaggerfallUnityItem stack = FindExistingStack(item);
-            if (stack != null && !item.IsQuestItem && !noStack)
+            if (stack != null && !noStack)
             {
                 // Add to stack count
                 stack.stackCount += item.stackCount;
             }
             else
             {
-                // Check duplicate key
+                // Log and exit if duplicate key found
                 if (items.Contains(item.UID))
-                    throw new Exception("AddItem() encountered a duplicate item UID for " + item.LongName);
+                {
+                    UnityEngine.Debug.LogError("AddItem() encountered a duplicate item UID for " + item.LongName);
+                    return;
+                }
 
                 // Add the item
                 switch (position)
@@ -215,6 +250,25 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
+        /// Remove some number of items from a stack, return the removed items or null if not possible.
+        /// </summary>
+        /// <returns>The items picked from stack.</returns>
+        /// <param name="stack">Source stack of items</param>
+        /// <param name="numberToPick">Number of items to pick</param>
+        public DaggerfallUnityItem SplitStack(DaggerfallUnityItem stack, int numberToPick) 
+        {
+            if (!stack.IsAStack() || numberToPick < 1 || numberToPick > stack.stackCount || !Contains(stack))
+                return null;
+            if (numberToPick == stack.stackCount)
+                return stack;
+            DaggerfallUnityItem pickedItems = new DaggerfallUnityItem(stack);
+            pickedItems.stackCount = numberToPick;
+            AddItem(pickedItems, noStack: true);
+            stack.stackCount -= numberToPick;
+            return pickedItems;
+        }
+
+        /// <summary>
         /// Removes an item from this collection.
         /// </summary>
         /// <param name="item">Item to remove. Must exist inside this collection.</param>
@@ -230,13 +284,33 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
+        /// Removes one item from this collection, decrementing stack count.
+        /// </summary>
+        /// <param name="item">Item to remove. Must exist inside this collection.</param>
+        public void RemoveOne(DaggerfallUnityItem item)
+        {
+            if (item == null)
+                return;
+
+            if (items.Contains(item.UID))
+            {
+                item.stackCount--;
+                if (item.stackCount <= 0)
+                    RemoveItem(item);
+            }
+        }
+
+        /// <summary>
         /// Reorders item in collection.
         /// </summary>
         /// <param name="item">Item to reorder. Must exist inside this collection.</param>
         /// <param name="position">Position to reorder to.</param>
         public void ReorderItem(DaggerfallUnityItem item, AddPosition position)
         {
-            if (!items.Contains(item.UID) || position == AddPosition.DontCare)
+            if (!items.Contains(item.UID))
+                return;
+            bool couldBeStacked = FindExistingStack(item) != null;
+            if (position == AddPosition.DontCare && !couldBeStacked)
                 return;
 
             RemoveItem(item);
@@ -382,6 +456,40 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
+        /// Adds items to this collection from an array of items.
+        /// Items in this collection will remain.
+        /// UIDs will be retained.
+        /// </summary>
+        /// <param name="items">Items array.</param>
+        public void AddItems(DaggerfallUnityItem[] items)
+        {
+            if (items == null || items.Length == 0)
+                return;
+
+            for (int i = 0; i < items.Length; i++)
+            {
+                AddItem(items[i]);
+            }
+        }
+
+        /// <summary>
+        /// Creates a clone of all items in this collection.
+        /// Items in this collection will remain.
+        /// Cloned items will have new UIDs.
+        /// </summary>
+        /// <returns>Array of cloned items.</returns>
+        public DaggerfallUnityItem[] CloneAll()
+        {
+            List<DaggerfallUnityItem> clonedItems = new List<DaggerfallUnityItem>();
+            foreach (DaggerfallUnityItem item in items.Values)
+            {
+                clonedItems.Add(item.Clone());
+            }
+
+            return clonedItems.ToArray();
+        }
+
+        /// <summary>
         /// Exports items from this collection to an array of items.
         /// Items in this collection will be destroyed.
         /// UIDs will be retained.
@@ -410,7 +518,7 @@ namespace DaggerfallWorkshop.Game.Items
             ItemData_v1[] itemArray = new ItemData_v1[Count];
 
             int index = 0;
-            foreach(DaggerfallUnityItem item in items.Values)
+            foreach (DaggerfallUnityItem item in items.Values)
             {
                 itemArray[index++] = item.GetSaveData();
             }
@@ -433,7 +541,7 @@ namespace DaggerfallWorkshop.Game.Items
                 return;
 
             // Add items to this collection
-            for(int i = 0; i < itemArray.Length; i++)
+            for (int i = 0; i < itemArray.Length; i++)
             {
                 if (itemArray[i].className != null)
                 {
@@ -441,8 +549,7 @@ namespace DaggerfallWorkshop.Game.Items
                     customItems.TryGetValue(itemArray[i].className, out itemClassType);
                     if (itemClassType != null)
                     {
-                        DaggerfallUnityItem modItem = (DaggerfallUnityItem) Activator.CreateInstance(itemClassType);
-                        bool ench = modItem.IsEnchanted;
+                        DaggerfallUnityItem modItem = (DaggerfallUnityItem)Activator.CreateInstance(itemClassType);
                         modItem.FromItemData(itemArray[i]);
                         AddItem(modItem, AddPosition.DontCare, true);
                         continue;
@@ -486,12 +593,11 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
-        /// Removes any orphaned quest items from this collection.
-        /// This method can be removed in future.
+        /// Removes any orphaned items from this collection.
         /// </summary>
-        public int RemoveOrphanedQuestItems()
+        public int RemoveOrphanedItems()
         {
-            // Schedule removal if item relates to a null or tombstoned quest
+            // Schedule removal if item relates to a null or tombstoned quest, or has an invalid template
             List<DaggerfallUnityItem> itemsToRemove = new List<DaggerfallUnityItem>();
             foreach (DaggerfallUnityItem item in items.Values)
             {
@@ -503,10 +609,14 @@ namespace DaggerfallWorkshop.Game.Items
                     else if (quest.QuestTombstoned)
                         itemsToRemove.Add(item);
                 }
+                else if (string.IsNullOrEmpty(item.shortName))
+                {
+                    itemsToRemove.Add(item);
+                }
             }
 
             // Remove scheduled items
-            foreach(DaggerfallUnityItem item in itemsToRemove)
+            foreach (DaggerfallUnityItem item in itemsToRemove)
             {
                 RemoveItem(item);
             }
@@ -532,7 +642,11 @@ namespace DaggerfallWorkshop.Game.Items
             int groupIndex = item.GroupIndex;
             foreach (DaggerfallUnityItem checkItem in items.Values)
             {
-                if (checkItem.ItemGroup == itemGroup && checkItem.GroupIndex == groupIndex)
+                if (checkItem != item && 
+                    checkItem.ItemGroup == itemGroup && checkItem.GroupIndex == groupIndex &&
+                    checkItem.PotionRecipeKey == item.PotionRecipeKey &&
+                    checkItem.IsSummoned == item.IsSummoned &&
+                    checkItem.IsStackable())
                     return checkItem;
             }
 

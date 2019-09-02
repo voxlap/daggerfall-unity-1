@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -106,6 +106,18 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             this.facePicker.FaceIndex = characterDocument.faceIndex;
             this.facePicker.SetFaceTextures(characterDocument.raceTemplate, characterDocument.gender);
             this.reflexPicker.PlayerReflexes = characterDocument.reflexes;
+        }
+
+        public CharacterDocument GetUpdatedCharacterDocument()
+        {
+            characterDocument.name = textBox.Text;
+            characterDocument.startingStats = statsRollout.StartingStats;
+            characterDocument.workingStats = statsRollout.WorkingStats;
+            characterDocument.startingSkills = skillsRollout.StartingSkills;
+            characterDocument.workingSkills = skillsRollout.WorkingSkills;
+            characterDocument.faceIndex = facePicker.FaceIndex;
+            characterDocument.reflexes = reflexPicker.PlayerReflexes;
+            return characterDocument;
         }
 
         #endregion

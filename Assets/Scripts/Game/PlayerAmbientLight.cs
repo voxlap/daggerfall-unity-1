@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -75,7 +75,7 @@ namespace DaggerfallWorkshop.Game
                     else if (playerEnterExit.IsPlayerInsideSpecialArea)
                         targetAmbientLight = SpecialAreaLight;
                     else
-                        targetAmbientLight = DungeonAmbientLight;
+                        targetAmbientLight = DungeonAmbientLight * DaggerfallUnity.Settings.DungeonAmbientLightScale;
                 }
 
                 yield return new WaitForSeconds(pollSpeed);
@@ -84,27 +84,36 @@ namespace DaggerfallWorkshop.Game
 
         IEnumerator ChangeAmbientLight()
         {
-            fadeRunning = true;
-
-            float progress = 0;
-            float increment = FadeStep / FadeDuration;
-            Color startColor = UnityEngine.RenderSettings.ambientLight;
-            while (progress < 1)
+            if (!playerEnterExit.IsPlayerInsideDungeon)
             {
-                UnityEngine.RenderSettings.ambientLight = Color.Lerp(startColor, targetAmbientLight, progress);
-                progress += increment;
-                yield return new WaitForSeconds(FadeStep);
+                // Do not smoothly change ambient light outside of dungeons
+                fadeRunning = false;
+                RenderSettings.ambientLight = targetAmbientLight;
+                yield break;
             }
-
-            UnityEngine.RenderSettings.ambientLight = targetAmbientLight;
-            fadeRunning = false;
+            else
+            {
+                // Smoothly lerp ambient light inside dungeons when target ambient level changes
+                fadeRunning = true;
+                float progress = 0;
+                float increment = FadeStep / FadeDuration;
+                Color startColor = RenderSettings.ambientLight;
+                while (progress < 1)
+                {
+                    RenderSettings.ambientLight = Color.Lerp(startColor, targetAmbientLight, progress);
+                    progress += increment;
+                    yield return new WaitForSeconds(FadeStep);
+                }
+                RenderSettings.ambientLight = targetAmbientLight;
+                fadeRunning = false;
+            }
         }
 
         Color CalcDaytimeAmbientLight()
         {
             float scale = sunlightManager.DaylightScale * sunlightManager.ScaleFactor;
-
-            return Color.Lerp(ExteriorNightAmbientLight, ExteriorNoonAmbientLight, scale);
+            Color startColor = ExteriorNightAmbientLight * DaggerfallUnity.Settings.NightAmbientLightScale;
+            return Color.Lerp(startColor, ExteriorNoonAmbientLight, scale);
         }
     }
 }

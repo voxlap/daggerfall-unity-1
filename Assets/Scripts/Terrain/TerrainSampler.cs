@@ -1,20 +1,16 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Michael Rauter (Nystul)
 // 
 // Notes:
 //
 
-using UnityEngine;
-using System.Collections;
-using DaggerfallConnect;
-using DaggerfallConnect.Arena2;
-using DaggerfallWorkshop;
-using DaggerfallWorkshop.Utility;
+using System;
+using Unity.Jobs;
 
 namespace DaggerfallWorkshop
 {
@@ -43,6 +39,13 @@ namespace DaggerfallWorkshop
         float MaxTerrainHeight { get; set; }
 
         /// <summary>
+        /// Mean scale factor of terrain height. This should return the mean value of the scale factor for terrain heights
+        /// (e.g. multiplication factor of low resolution height map values + multiplication factor of detailed height map values).
+        /// This value can/will be used by terrain-related mods.
+        /// </summary>
+        float MeanTerrainHeightScale { get; set; }        
+
+        /// <summary>
         /// Sea level. Use for clamping min height and texturing with ocean.
         /// </summary>
         float OceanElevation { get; set; }
@@ -53,10 +56,28 @@ namespace DaggerfallWorkshop
         float BeachElevation { get; set; }
 
         /// <summary>
+        /// get terrain height scale for given x and y position on the world map
+        /// </summary>
+        /// <param name="x">world map x position</param>
+        /// <param name="y">world map y position</param>
+        /// <returns></returns>
+        float TerrainHeightScale(int x, int y);
+
+        /// <summary>
         /// Populates a MapPixelData struct using custom height sample generator.
         /// </summary>
         /// <param name="mapPixel">MapPixelData struct.</param>
         void GenerateSamples(ref MapPixelData mapPixel);
+
+        /// <summary>
+        /// Populates a MapPixelData struct using custom height sample generator implemented using Unity Jobs system.
+        /// The Dispose() method should be called after the jobs are completed to free any allocated memory.
+        /// NOTE: Backwards compatible with implementations that only implement GenerateSamples, and will call that then
+        /// convert the output before returning. (reduces performance a little)
+        /// </summary>
+        /// <param name="mapPixel">MapPixelData struct.</param>
+        /// <returns>JobHandle of the scheduled job.</returns>
+        JobHandle ScheduleGenerateSamplesJob(ref MapPixelData mapPixel);
     }
 
     /// <summary>
@@ -68,11 +89,32 @@ namespace DaggerfallWorkshop
         protected int defaultHeightmapDimension = 129;
 
         public abstract int Version { get; }
-        public virtual int HeightmapDimension { get; set; }
+        public virtual int HeightmapDimension { get; set; }        
         public virtual float MaxTerrainHeight { get; set; }
+        public virtual float MeanTerrainHeightScale { get; set; }
         public virtual float OceanElevation { get; set; }
         public virtual float BeachElevation { get; set; }
+        
+        //this function may be overriden if terrain sampler implementation creates different height scales for different map pixels
+        public virtual float TerrainHeightScale(int x, int y) { return MeanTerrainHeightScale; } // default implementation returns MeanTerrainHeightScale for every world map position
 
         public abstract void GenerateSamples(ref MapPixelData mapPixel);
+
+        // Makes terrain sampler implementations backwards compatible with jobs system terrain data generation.
+        public virtual JobHandle ScheduleGenerateSamplesJob(ref MapPixelData mapPixel)
+        {
+            GenerateSamples(ref mapPixel);
+
+            // Convert generated samples to the flattened native array used by jobs.
+            int hDim = HeightmapDimension;
+            for (int y = 0; y < hDim; y++)
+            {
+                for (int x = 0; x < hDim; x++)
+                {
+                    mapPixel.heightmapData[JobA.Idx(y, x, hDim)] = mapPixel.heightmapSamples[y, x];
+                }
+            }
+            return new JobHandle();
+        }
     }
 }

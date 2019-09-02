@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,6 +10,7 @@
 //
 
 using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using DaggerfallWorkshop.Utility;
@@ -19,6 +20,7 @@ using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -29,7 +31,7 @@ namespace DaggerfallWorkshop.Game
     public class PlayerEnterExit : MonoBehaviour
     {
         const HideFlags defaultHideFlags = HideFlags.None;
-
+        UnderwaterFog underwaterFog;
         DaggerfallUnity dfUnity;
         CharacterController controller;
         bool isPlayerInside = false;
@@ -39,8 +41,11 @@ namespace DaggerfallWorkshop.Game
         bool isPlayerInsideOpenShop = false;
         bool isPlayerSwimming = false;
         bool isPlayerSubmerged = false;
+        bool isPlayerInSunlight = false;
+        bool isPlayerInHolyPlace = false;
         bool isRespawning = false;
         bool lastInteriorStartFlag;
+        bool displayAfloatMessage = false;
         DaggerfallInterior interior;
         DaggerfallDungeon dungeon;
         StreamingWorld world;
@@ -63,7 +68,7 @@ namespace DaggerfallWorkshop.Game
         ushort factionID = 0;
         PlayerGPS.DiscoveredBuilding buildingDiscoveryData;
 
-        DFLocation holidayTextLocation;
+        DaggerfallLocation holidayTextLocation;
         bool holidayTextPrimed = false;
         float holidayTextTimer = 0f;
 
@@ -142,6 +147,7 @@ namespace DaggerfallWorkshop.Game
         public bool IsPlayerSwimming
         {
             get { return isPlayerSwimming; }
+            set { isPlayerSwimming = value; }
         }
 
         /// <summary>
@@ -150,6 +156,34 @@ namespace DaggerfallWorkshop.Game
         public bool IsPlayerSubmerged
         {
             get { return isPlayerSubmerged; }
+        }
+
+        /// <summary>
+        /// True when player is in sunlight.
+        /// </summary>
+        public bool IsPlayerInSunlight
+        {
+            get { return isPlayerInSunlight; }
+        }
+
+        /// <summary>
+        /// True when player is in darkness.
+        /// Same as !IsPlayerInSunlight.
+        /// </summary>
+        public bool IsPlayerInDarkness
+        {
+            get { return !isPlayerInSunlight; }
+        }
+
+        /// <summary>
+        /// True when player is in a holy place.
+        /// Holy places include all Temples and guildhalls of the Fighter Trainers (faction #849)
+        /// https://en.uesp.net/wiki/Daggerfall:ClassMaker#Special_Disadvantages
+        /// Refreshed once per game minute.
+        /// </summary>
+        public bool IsPlayerInHolyPlace
+        {
+            get { return isPlayerInHolyPlace; }
         }
 
         /// <summary>
@@ -241,7 +275,9 @@ namespace DaggerfallWorkshop.Game
         {
             // Wire event for when player enters a new location
             PlayerGPS.OnEnterLocationRect += PlayerGPS_OnEnterLocationRect;
+            EntityEffectBroker.OnNewMagicRound += EntityEffectBroker_OnNewMagicRound;
             levitateMotor = GetComponent<LevitateMotor>();
+            underwaterFog = new UnderwaterFog();
         }
 
         void Update()
@@ -268,6 +304,16 @@ namespace DaggerfallWorkshop.Game
                     }
                     //Debug.Log(string.Format("Player is now inside block {0}", playerDungeonBlockData.BlockName));
                 }
+                if (playerBlockIndex != -1)
+                {
+                    underwaterFog.UpdateFog(blockWaterLevel);
+                }
+            }
+
+            if (holidayTextPrimed && holidayTextLocation != GameManager.Instance.StreamingWorld.CurrentPlayerLocationObject)
+            {
+                holidayTextTimer = 0;
+                holidayTextPrimed = false;
             }
 
             // Count down holiday text display
@@ -296,6 +342,17 @@ namespace DaggerfallWorkshop.Game
                     levitateMotor.IsSwimming = true;
                 }
 
+                bool overEncumbered = (GameManager.Instance.PlayerEntity.CarriedWeight * 4 > 250);
+                if ((overEncumbered && levitateMotor.IsSwimming) && !displayAfloatMessage && !GameManager.Instance.PlayerEntity.IsWaterWalking)
+                {
+                    DaggerfallUI.AddHUDText(HardStrings.cannotFloat, 1.75f);
+                    displayAfloatMessage = true;
+                }
+                else if ((!overEncumbered || !levitateMotor.IsSwimming) && displayAfloatMessage)
+                {
+                    displayAfloatMessage = false;
+                }
+
                 // Check if player is submerged and needs to start holding breath
                 if (blockWaterLevel == 10000 || (player.transform.position.y + (76 * MeshReader.GlobalScale) - 0.95f) >= (blockWaterLevel * -1 * MeshReader.GlobalScale))
                 {
@@ -307,10 +364,15 @@ namespace DaggerfallWorkshop.Game
             else
             {
                 // Clear flags when not in a dungeon
-                isPlayerSwimming = false;
+                // don't clear swimming if we're outside on a water tile - MeteoricDragon
+                if (GameManager.Instance.StreamingWorld.PlayerTileMapIndex != 0)
+                    isPlayerSwimming = false;
                 isPlayerSubmerged = false;
                 levitateMotor.IsSwimming = false;
             }
+
+            // Player in sunlight or darkness
+            isPlayerInSunlight = DaggerfallUnity.Instance.WorldTime.Now.IsDay && !IsPlayerInside;
         }
 
         #region Public Methods
@@ -365,6 +427,10 @@ namespace DaggerfallWorkshop.Game
             // Wait for end of frame so existing world data can be removed
             yield return new WaitForEndOfFrame();
 
+            // Store if player was inside a dungeon or building before respawning
+            bool playerWasInDungeon = IsPlayerInsideDungeon;
+            bool playerWasInBuilding = IsPlayerInsideBuilding;
+
             // Reset dungeon block on new spawn
             lastPlayerDungeonBlockIndex = -1;
             playerDungeonBlockData = new DFLocation.DungeonBlock();
@@ -406,6 +472,13 @@ namespace DaggerfallWorkshop.Game
                 // Wait until world is ready
                 while (world.IsInit)
                     yield return new WaitForEndOfFrame();
+
+                // Raise transition exterior event if player was inside a dungeon or building
+                // This helps inform other systems player has transitioned to exterior without clicking a door or reloading game
+                if (playerWasInDungeon)
+                    RaiseOnTransitionDungeonExteriorEvent();
+                else if (playerWasInBuilding)
+                    RaiseOnTransitionExteriorEvent();
             }
             else if (hasLocation && insideDungeon)
             {
@@ -444,7 +517,8 @@ namespace DaggerfallWorkshop.Game
             const int holidaysStartID = 8349;
 
             uint minutes = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime();
-            int holidayId = Formulas.FormulaHelper.GetHolidayId(minutes, holidayTextLocation.RegionIndex);
+            int holidayId = Formulas.FormulaHelper.GetHolidayId(minutes, GameManager.Instance.PlayerGPS.CurrentRegionIndex);
+
             if (holidayId != 0)
             {
                 DaggerfallMessageBox messageBox = new DaggerfallMessageBox(DaggerfallUI.UIManager);
@@ -465,7 +539,7 @@ namespace DaggerfallWorkshop.Game
         /// </summary>
         /// <param name="playerPosition">Player position data.</param>
         /// <param name="start">Use true if this is a load/start operation, otherwise false.</param>
-        public void RestorePositionHelper(PlayerPositionData_v1 playerPosition, bool start)
+        public void RestorePositionHelper(PlayerPositionData_v1 playerPosition, bool start, bool importEnemies)
         {
             // Raise reposition flag if terrain sampler changed
             // This is required as changing terrain samplers will invalidate serialized player coordinates
@@ -503,7 +577,7 @@ namespace DaggerfallWorkshop.Game
                     playerPosition.worldPosX,
                     playerPosition.worldPosZ,
                     true,
-                    false);
+                    importEnemies);
             }
             else if (playerPosition.insideBuilding && hasExteriorDoors && !repositionPlayer)
             {
@@ -593,9 +667,10 @@ namespace DaggerfallWorkshop.Game
             {
                 interior.DoLayout(doorOwner, door, climateBase, buildingDiscoveryData);
             }
-            catch
+            catch (Exception e)
             {
                 DaggerfallUI.AddHUDText(HardStrings.thisHouseHasNothingOfValue);
+                Debug.LogException(e);
                 Destroy(newInterior);
                 return;
             }
@@ -605,13 +680,33 @@ namespace DaggerfallWorkshop.Game
             interior.transform.position = door.ownerPosition + (Vector3)door.buildingMatrix.GetColumn(3);
             interior.transform.rotation = GameObjectHelper.QuaternionFromMatrix(door.buildingMatrix);
 
-            // Position player above closest enter marker
-            Vector3 marker;
-            if (!interior.FindClosestEnterMarker(transform.position, out marker))
+            // Find closest enter marker to exterior door position within building interior
+            // If a marker is found, it will be used as the new check position to find actual interior door
+            Vector3 closestEnterMarkerPosition;
+            Vector3 checkPosition = DaggerfallStaticDoors.GetDoorPosition(door);
+            if (interior.FindClosestEnterMarker(checkPosition, out closestEnterMarkerPosition))
+                checkPosition = closestEnterMarkerPosition;
+
+            // Position player in front of closest interior door
+            Vector3 landingPosition = Vector3.zero;
+            Vector3 foundDoorNormal = Vector3.zero;
+            if (interior.FindClosestInteriorDoor(checkPosition, out landingPosition, out foundDoorNormal))
             {
-                // Could not find an enter marker, probably not a valid interior
-                Destroy(newInterior);
-                return;
+                landingPosition += foundDoorNormal * (GameManager.Instance.PlayerController.radius + 0.4f);
+            }
+            else
+            {
+                // If no door found position player above closest enter marker
+                if (interior.FindClosestEnterMarker(checkPosition, out landingPosition))
+                {
+                    landingPosition += Vector3.up * (controller.height * 0.6f);
+                }
+                else
+                {
+                    // Could not find an door or enter marker, probably not a valid interior
+                    Destroy(newInterior);
+                    return;
+                }
             }
 
             // Enumerate all exterior doors belonging to this building
@@ -640,9 +735,8 @@ namespace DaggerfallWorkshop.Game
             buildingType = interior.BuildingData.BuildingType;
             factionID = interior.BuildingData.FactionId;
 
-            // Set player to marker position
-            // TODO: Find closest door for player facing
-            transform.position = marker + Vector3.up * (controller.height * 0.6f);
+            // Set player to landng position
+            transform.position = landingPosition;
             SetStanding();
 
             EnableInteriorParent();
@@ -815,6 +909,9 @@ namespace DaggerfallWorkshop.Game
             if (!ReferenceComponents())
                 return;
 
+            // Raise event
+            RaiseOnPreTransitionEvent(TransitionType.ToDungeonInterior);
+
             // Layout dungeon
             GameObject newDungeon = GameObjectHelper.CreateDaggerfallDungeonGameObject(location, DungeonParent.transform, importEnemies);
             newDungeon.hideFlags = defaultHideFlags;
@@ -903,6 +1000,8 @@ namespace DaggerfallWorkshop.Game
             world.suppressWorld = false;
             isPlayerInside = false;
             isPlayerInsideDungeon = false;
+
+            GameManager.UpdateShadowDistance();
         }
 
         /// <summary>
@@ -919,6 +1018,8 @@ namespace DaggerfallWorkshop.Game
 
             isPlayerInside = true;
             isPlayerInsideDungeon = false;
+
+            GameManager.UpdateShadowDistance();
         }
 
         /// <summary>
@@ -935,6 +1036,8 @@ namespace DaggerfallWorkshop.Game
 
             isPlayerInside = true;
             isPlayerInsideDungeon = true;
+
+            GameManager.UpdateShadowDistance();
         }
 
         public void MovePlayerToMarker(GameObject marker)
@@ -1208,7 +1311,7 @@ namespace DaggerfallWorkshop.Game
                         holidayTextTimer = 2.5f; // Short delay to give save game fade-in time to finish
                         holidayTextPrimed = true;
                     }
-                    holidayTextLocation = location;
+                    holidayTextLocation = GameManager.Instance.StreamingWorld.CurrentPlayerLocationObject;
 
                     // note Nystul: this next line is not enough to manage questor dictionary update since player might load a savegame in an interior -
                     // so this never gets triggered and questor list is rebuild always as a consequence
@@ -1217,6 +1320,18 @@ namespace DaggerfallWorkshop.Game
                     // fixed this in TalkManager class
                     // TalkManager.Instance.LastExteriorEntered = location.LocationIndex;
                 }
+            }
+        }
+
+        private void EntityEffectBroker_OnNewMagicRound()
+        {
+            // Player in holy place
+            isPlayerInHolyPlace = false;
+            if (WorldContext == WorldContext.Interior && interior != null)
+            {
+                if (interior.BuildingData.BuildingType == DFLocation.BuildingTypes.Temple ||
+                    interior.BuildingData.FactionId == (int)FactionFile.FactionIDs.Fighter_Trainers)
+                    isPlayerInHolyPlace = true;
             }
         }
 

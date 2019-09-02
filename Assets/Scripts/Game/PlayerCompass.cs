@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -27,18 +27,18 @@ namespace DaggerfallWorkshop.Game
     public class PlayerCompass : MonoBehaviour
     {
         DaggerfallUnity dfUnity;
-        Camera mainCamera;
         Texture2D compassTexture;
         Texture2D compassBoxTexture;
 
         int scale = 2;
         bool assetsLoaded = false;
 
+        Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
+
         void Start()
         {
             // Reference components
             dfUnity = DaggerfallUnity.Instance;
-            mainCamera = Camera.main;
 
             // Adjust scale based on resolution
             // You can plug in your own UI scaling here instead

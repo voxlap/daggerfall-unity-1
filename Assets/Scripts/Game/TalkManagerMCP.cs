@@ -1,19 +1,14 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Michael Rauter (Nystul)
 // Contributors:    Numidium
 
-using System;
 using DaggerfallWorkshop.Utility;
-using DaggerfallConnect.Arena2;
-using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
-using UnityEngine;
-using DaggerfallConnect.FallExe;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -66,7 +61,16 @@ namespace DaggerfallWorkshop.Game
                 this.parent = context;
             }
 
-            public override string LocationDirection()
+            public override string Name()
+            {
+                // Used for greeting messages only: 7215, 7216, 7217
+                if (GameManager.Instance.TalkManager.IsGreeting)
+                    return GameManager.Instance.TalkManager.NameNPC;
+                else
+                    return null;
+            }
+
+            public override string Direction()
             {
                 if (parent.currentQuestionListItem.questionType == QuestionType.LocalBuilding || parent.currentQuestionListItem.questionType == QuestionType.Person)
                 {
@@ -79,7 +83,7 @@ namespace DaggerfallWorkshop.Game
             {
                 if (parent.currentQuestionListItem.questionType == QuestionType.LocalBuilding)
                 {
-                    return GameManager.Instance.TalkManager.GetKeySubjectLocationHint();
+                    return GameManager.Instance.TalkManager.GetKeySubjectBuildingHint();
                 }
                 else if (parent.currentQuestionListItem.questionType == QuestionType.Person)
                 {
@@ -100,7 +104,7 @@ namespace DaggerfallWorkshop.Game
             {
                 if (parent.currentQuestionListItem.questionType == QuestionType.LocalBuilding)
                 {
-                    return GameManager.Instance.TalkManager.GetKeySubjectLocationHint();
+                    return GameManager.Instance.TalkManager.GetKeySubjectBuildingHint();
                 }
                 else if (parent.currentQuestionListItem.questionType == QuestionType.Person)
                 {
@@ -142,13 +146,9 @@ namespace DaggerfallWorkshop.Game
                     case Races.Redguard:
                         whichOath = RacialOaths.Redguard;
                         break;
-                    case Races.Vampire:
-                        whichOath = RacialOaths.Dunmer;
-                        break;
-                    case Races.Wereboar:
-                    case Races.Werewolf:
-                        whichOath = RacialOaths.None;
-                        break;
+                    //case Races.Vampire:                       // TODO: Restore this via racial override effect
+                    //    whichOath = RacialOaths.Dunmer;
+                    //    break;
                     case Races.WoodElf:
                         whichOath = RacialOaths.Bosmer;
                         break;

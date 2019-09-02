@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,6 +10,7 @@
 //
 
 using UnityEngine;
+using UnityEngine.Rendering;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
@@ -85,11 +86,15 @@ namespace DaggerfallWorkshop.Utility
                 makeNoLongerReadable = false;
             }
 
+            // Disable mipmaps in retro mode
+            if (DaggerfallUnity.Settings.RetroRenderingMode > 0 && !DaggerfallUnity.Settings.UseMipMapsInRetroMode)
+                createMipMaps = false;
+
             Texture2D texture;
-            if (TextureReplacement.TryImportImage(image.FileName, out texture))
+            if (TextureReplacement.TryImportImage(image.FileName, makeNoLongerReadable, out texture))
                 return texture;
 
-            if (TextureReplacement.TryImportCifRci(image.FileName, record, frame, out texture))
+            if (TextureReplacement.TryImportCifRci(image.FileName, record, frame, makeNoLongerReadable, out texture))
                 return texture;
 
             DFSize sz;
@@ -110,6 +115,10 @@ namespace DaggerfallWorkshop.Utility
             {
                 makeNoLongerReadable = false;
             }
+
+            // Disable mipmaps in retro mode
+            if (DaggerfallUnity.Settings.RetroRenderingMode > 0 && !DaggerfallUnity.Settings.UseMipMapsInRetroMode)
+                createMipMaps = false;
 
             Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, createMipMaps);
             Color32[] colors = new Color32[width * height];
@@ -162,12 +171,12 @@ namespace DaggerfallWorkshop.Utility
         /// </summary>
         /// <param name="settings">Get texture settings.</param>
         /// <param name="alphaTextureFormat">Alpha TextureFormat.</param>
-        /// <param name="allowImport">Import texture from disk if present.</param>
+        /// <param name="textureImport">Options for import of custom textures.</param>
         /// <returns>GetTextureResults.</returns>
         public GetTextureResults GetTexture2D(
             GetTextureSettings settings,
             SupportedAlphaTextureFormats alphaTextureFormat = SupportedAlphaTextureFormats.ARGB32,
-            bool allowImport = true)
+            TextureImport textureImport = TextureImport.None)
         {
             GetTextureResults results = new GetTextureResults();
 
@@ -180,6 +189,10 @@ namespace DaggerfallWorkshop.Utility
             {
                 settings.stayReadable = true;
             }
+
+            // Disable mipmaps in retro mode
+            if (DaggerfallUnity.Settings.RetroRenderingMode > 0 && !DaggerfallUnity.Settings.UseMipMapsInRetroMode)
+                mipMaps = false;
 
             // Assign texture file
             TextureFile textureFile;
@@ -207,7 +220,7 @@ namespace DaggerfallWorkshop.Utility
 
             // Set albedo texture
             Texture2D albedoMap;
-            if (!allowImport || !TextureReplacement.TryImportTextureFromLooseFiles(settings.archive, settings.record, settings.frame, TextureMap.Albedo, out albedoMap))
+            if (!TextureReplacement.TryImportTexture(settings.archive, settings.record, settings.frame, TextureMap.Albedo, textureImport, !settings.stayReadable, out albedoMap))
             {
                 // Create albedo texture
                 albedoMap = new Texture2D(sz.Width, sz.Height, ParseTextureFormat(alphaTextureFormat), MipMaps);
@@ -215,9 +228,15 @@ namespace DaggerfallWorkshop.Utility
                 albedoMap.Apply(true, !settings.stayReadable);
             }
 
+            // Adjust mipmap bias of albedo map when retro mode rendering is enabled
+            if (albedoMap && DaggerfallUnity.Settings.RetroRenderingMode > 0)
+            {
+                albedoMap.mipMapBias = -0.75f;
+            }
+
             // Set normal texture (always import normal if present on disk)
             Texture2D normalMap = null;
-            bool normalMapImported = allowImport && TextureReplacement.TryImportTextureFromLooseFiles(settings.archive, settings.record, settings.frame, TextureMap.Normal, out normalMap);
+            bool normalMapImported = TextureReplacement.TryImportTexture(settings.archive, settings.record, settings.frame, TextureMap.Normal, textureImport, !settings.stayReadable, out normalMap);
             if (!normalMapImported && settings.createNormalMap && textureFile.SolidType == TextureFile.SolidTypes.None)
             {
                 // Create normal texture - must be ARGB32
@@ -233,7 +252,7 @@ namespace DaggerfallWorkshop.Utility
             // Import emission map or create basic emissive texture
             Texture2D emissionMap = null;
             bool resultEmissive = false;
-            if (allowImport && TextureReplacement.TryImportTextureFromLooseFiles(settings.archive, settings.record, settings.frame, TextureMap.Emission, out emissionMap))
+            if (TextureReplacement.TryImportTexture(settings.archive, settings.record, settings.frame, TextureMap.Emission, textureImport, !settings.stayReadable, out emissionMap))
             {
                 // Always import emission if present on disk
                 resultEmissive = true;
@@ -265,8 +284,8 @@ namespace DaggerfallWorkshop.Utility
                     // For the unlit flats we create a null-emissive black texture
                     if (!isEmissive)
                     {
-                        Color32[] emissionColors = new Color32[sz.Width * sz.Height];
-                        emissionMap = new Texture2D(sz.Width, sz.Height, ParseTextureFormat(alphaTextureFormat), MipMaps);
+                        Color32[] emissionColors = new Color32[albedoMap.width * albedoMap.height];
+                        emissionMap = new Texture2D(albedoMap.width, albedoMap.height, ParseTextureFormat(alphaTextureFormat), MipMaps);
                         emissionMap.SetPixels32(emissionColors);
                         emissionMap.Apply(true, !settings.stayReadable);
                         resultEmissive = true;
@@ -333,7 +352,7 @@ namespace DaggerfallWorkshop.Utility
             bool hasNormalMaps = false;
             bool hasEmissionMaps = false;
             bool hasAnimation = false;
-            bool allowImport = (settings.atlasMaxSize == 4096);
+            var textureImport = settings.atlasMaxSize == 4096 ? TextureImport.AllLocations : TextureImport.None;
             List<Texture2D> albedoTextures = new List<Texture2D>();
             List<Texture2D> normalTextures = new List<Texture2D>();
             List<Texture2D> emissionTextures = new List<Texture2D>();
@@ -345,6 +364,10 @@ namespace DaggerfallWorkshop.Utility
                 int frames = textureFile.GetFrameCount(record);
                 if (frames > 1)
                     hasAnimation = true;
+
+                // Disable mipmaps in retro mode
+                if (DaggerfallUnity.Settings.RetroRenderingMode > 0 && !DaggerfallUnity.Settings.UseMipMapsInRetroMode)
+                    mipMaps = false;
 
                 // Get record information
                 DFSize size = textureFile.GetSize(record);
@@ -361,16 +384,28 @@ namespace DaggerfallWorkshop.Utility
                 for (int frame = 0; frame < frames; frame++)
                 {
                     settings.frame = frame;
-                    GetTextureResults nextTextureResults = GetTexture2D(settings, alphaTextureFormat, allowImport);
+                    GetTextureResults nextTextureResults = GetTexture2D(settings, alphaTextureFormat, textureImport);
 
                     albedoTextures.Add(nextTextureResults.albedoMap);
                     if (nextTextureResults.normalMap != null)
                     {
+                        if (nextTextureResults.normalMap.width != nextTextureResults.albedoMap.width || nextTextureResults.normalMap.height != nextTextureResults.albedoMap.height)
+                        {
+                            Debug.LogErrorFormat("The size of atlased normal map for {0}-{1} must be equal to the size of main texture.", settings.archive, settings.record);
+                            nextTextureResults.normalMap = nextTextureResults.albedoMap;
+                        }
+
                         normalTextures.Add(nextTextureResults.normalMap);
                         hasNormalMaps = true;
                     }
                     if (nextTextureResults.emissionMap != null)
                     {
+                        if (nextTextureResults.emissionMap.width != nextTextureResults.albedoMap.width || nextTextureResults.emissionMap.height != nextTextureResults.albedoMap.height)
+                        {
+                            Debug.LogErrorFormat("The size of atlased emission map for {0}-{1} must be equal to the size of main texture.", settings.archive, settings.record);
+                            nextTextureResults.emissionMap = nextTextureResults.albedoMap;
+                        }
+
                         emissionTextures.Add(nextTextureResults.emissionMap);
                         hasEmissionMaps = true;
                     }
@@ -637,8 +672,10 @@ namespace DaggerfallWorkshop.Utility
             }
 
             Texture2DArray textureArray;
-            Texture2D albedoMap;
+            if (!stayReadable && TextureReplacement.TryImportTextureArray(archive, numSlices, TextureMap.Albedo, null, out textureArray))
+                return textureArray;
 
+            Texture2D albedoMap;
             if (TextureReplacement.TryImportTexture(archive, 0, 0, out albedoMap))
             {
                 textureArray = new Texture2DArray(albedoMap.width, albedoMap.height, numSlices, TextureFormat.ARGB32, MipMaps);
@@ -703,12 +740,15 @@ namespace DaggerfallWorkshop.Utility
             }
 
             Texture2DArray textureArray;
+            if (!stayReadable && TextureReplacement.TryImportTextureArray(archive, numSlices, TextureMap.Normal, null, out textureArray))
+                return textureArray;
+
             int width;
             int height;
 
             // try to import first replacement texture for tile archive to determine width and height of replacement texture set (must be the same for all replacement textures for Texture2DArray)
             Texture2D normalMap;
-            if (TextureReplacement.TryImportTexture(archive, 0, 0, TextureMap.Normal, out normalMap))
+            if (TextureReplacement.TryImportTexture(archive, 0, 0, TextureMap.Normal, false, out normalMap))
             {
                 width = normalMap.width;
                 height = normalMap.height;
@@ -724,7 +764,7 @@ namespace DaggerfallWorkshop.Utility
             for (int record = 0; record < textureFile.RecordCount; record++)
             {
                 // Import custom texture(s)
-                if (!TextureReplacement.TryImportTexture(archive, record, 0, TextureMap.Normal, out normalMap))
+                if (!TextureReplacement.TryImportTexture(archive, record, 0, TextureMap.Normal, false, out normalMap))
                 {
                     // if current texture does not exist
                     Debug.LogErrorFormat("Terrain: imported archive {0} does not contain normal for record {1}.", archive, record);
@@ -761,6 +801,7 @@ namespace DaggerfallWorkshop.Utility
             int archive,
             bool stayReadable = false)
         {
+            Color32 defaultMetallicGlossColor = new Color32(0, 0, 0, 255);
             Color32[] defaultMetallicGlossMap;
 
             // Load texture file and check count matches terrain tiles
@@ -776,12 +817,15 @@ namespace DaggerfallWorkshop.Utility
             }
 
             Texture2DArray textureArray;
+            if (!stayReadable && TextureReplacement.TryImportTextureArray(archive, numSlices, TextureMap.MetallicGloss, defaultMetallicGlossColor, out textureArray))
+                return textureArray;
+
             int width;
             int height;
 
             // try to import first replacement texture for tile archive to determine width and height of replacement texture set (must be the same for all replacement textures for Texture2DArray)
             Texture2D metallicGlossMap;
-            if (TextureReplacement.TryImportTexture(archive, 0, 0, TextureMap.MetallicGloss, out metallicGlossMap))
+            if (TextureReplacement.TryImportTexture(archive, 0, 0, TextureMap.MetallicGloss, false, out metallicGlossMap))
             {                
                 width = metallicGlossMap.width;
                 height = metallicGlossMap.height;                
@@ -798,14 +842,14 @@ namespace DaggerfallWorkshop.Utility
             defaultMetallicGlossMap = new Color32[width*height];
             for (int i = 0; i < width * height; i++)
             {
-                defaultMetallicGlossMap[i] = new Color32(0, 0, 0, 255);
+                defaultMetallicGlossMap[i] = defaultMetallicGlossColor;
             }        
 
             // Rollout tiles into texture array
             for (int record = 0; record < textureFile.RecordCount; record++)
             {
                 // Import custom texture(s)
-                if (!TextureReplacement.TryImportTexture(archive, record, 0, TextureMap.MetallicGloss, out metallicGlossMap))
+                if (!TextureReplacement.TryImportTexture(archive, record, 0, TextureMap.MetallicGloss, false, out metallicGlossMap))
                 {
                     metallicGlossMap = new Texture2D(width, height, TextureFormat.ARGB32, MipMaps);
                     metallicGlossMap.SetPixels32(defaultMetallicGlossMap);

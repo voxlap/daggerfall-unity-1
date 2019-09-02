@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,7 +9,6 @@
 // Notes:
 //
 
-using System;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallConnect;
@@ -27,8 +26,8 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
     {
         #region Fields
 
-        const int permanentDiseaseValue = 0xff;
-        const int completedDiseaseValue = 0xfe;
+        protected const int permanentDiseaseValue = 0xff;
+        protected const int completedDiseaseValue = 0xfe;
 
         protected int forcedRoundsRemaining = 1;
         protected Diseases classicDiseaseType = Diseases.None;
@@ -41,6 +40,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         #endregion
 
         #region Properties
+
+        public Diseases ClassicDiseaseType
+        {
+            get { return classicDiseaseType; }
+        }
 
         public bool IncubationOver
         {
@@ -84,11 +88,11 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
         public override void Start(EntityEffectManager manager, DaggerfallEntityBehaviour caster = null)
         {
-            // Player must be greater than level 1 to acquire a disease
+            // Target must be player entity greater than level 1 to acquire a disease
             DaggerfallEntityBehaviour host = GetPeeredEntityBehaviour(manager);
-            if (host.EntityType == EntityTypes.Player && host.Entity.Level < 2)
+            if (host.EntityType != EntityTypes.Player || host.Entity.Level < 2)
             {
-                forcedRoundsRemaining = 0;
+                EndDisease();
                 return;
             }
 
@@ -105,7 +109,8 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
         protected override void AddState(IncumbentEffect incumbent)
         {
-            // Host cannot catch same disease twice so do nothing further here
+            // The player can catch multiple instances of the same disease in classic, but
+            // in Daggerfall Unity host cannot catch same disease twice so do nothing further here.
             // Specific diseases can override and do something else if they require
         }
 
@@ -154,13 +159,10 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             lastDay = currentDay;
 
             // Count down days remaining
-            if (!IsDiseasePermanent())
+            if (!IsDiseasePermanent() && (daysOfSymptomsLeft -= daysPast) <= 0)
             {
-                if ((daysOfSymptomsLeft -= daysPast) <= 0)
-                {
-                    daysOfSymptomsLeft = 0;
-                    EndDisease();
-                }
+                daysOfSymptomsLeft = 0;
+                EndDisease();
             }
 
             // Output alert text
@@ -216,8 +218,8 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 return new DiseaseData();
 
             // Disease data. Found in FALL.EXE (1.07.213) from offset 0x1C0053.
-            DiseaseData[] diseaseDataSources = new DiseaseData[]
-            {                                //  STR  INT  WIL  AGI  END  PER  SPD  LUC  HEA  FAT  SPL MIND  MAXD  MINS  MAXS
+            DiseaseData[] diseaseDataSources =
+            {              //  STR  INT  WIL  AGI  END  PER  SPD  LUC  HEA  FAT  SPL MIND  MAXD  MINS  MAXS
                 new DiseaseData( 1,   0,   0,   0,   1,   0,   0,   0,   1,   0,   0,   2,   10, 0xFF, 0xFF), // Witches' Pox
                 new DiseaseData( 1,   0,   1,   1,   1,   1,   1,   1,   1,   1,   1,   3,   30, 0xFF, 0xFF), // Plague
                 new DiseaseData( 0,   0,   1,   0,   1,   0,   0,   0,   1,   0,   0,   5,   10, 0xFF, 0xFF), // Yellow Fever
@@ -270,6 +272,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             public bool incubationOver;
             public uint lastDay;
             public int daysOfSymptomsLeft;
+            public object customDiseaseData;
         }
 
         public override object GetSaveData()
@@ -279,6 +282,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             data.incubationOver = incubationOver;
             data.lastDay = lastDay;
             data.daysOfSymptomsLeft = daysOfSymptomsLeft;
+            data.customDiseaseData = GetCustomDiseaseSaveData();
 
             return data;
         }
@@ -293,6 +297,16 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             incubationOver = data.incubationOver;
             lastDay = data.lastDay;
             daysOfSymptomsLeft = data.daysOfSymptomsLeft;
+            RestoreCustomDiseaseSaveData(data.customDiseaseData);
+        }
+
+        protected virtual object GetCustomDiseaseSaveData()
+        {
+            return null;
+        }
+
+        protected virtual void RestoreCustomDiseaseSaveData(object dataIn)
+        {
         }
 
         #endregion

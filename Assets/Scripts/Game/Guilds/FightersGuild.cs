@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -23,13 +23,13 @@ namespace DaggerfallWorkshop.Game.Guilds
         protected const int WelcomeMsgId = 684;
         protected const int PromotionMsgId = 686;
 
-        private const int factionId = (int) FactionFile.FactionIDs.The_Fighters_Guild;
+        private const int factionId = (int)FactionFile.FactionIDs.The_Fighters_Guild;
 
         #endregion
 
         #region Properties & Data
 
-        static string[] rankTitles = new string[] {
+        static string[] rankTitles = {
                 "Apprentice", "Journeyman", "Swordsman", "Protector", "Defender", "Warder", "Guardian", "Champion", "Warrior", "Master"
         };
 

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -29,7 +29,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         protected const int PromotionSpymasterId = 6614;
         protected const int BribesJudgeId = 551;
 
-        private const int factionId = (int) FactionFile.FactionIDs.The_Dark_Brotherhood;
+        private const int factionId = (int)FactionFile.FactionIDs.The_Dark_Brotherhood;
 
         private DFLocation revealedDungeon;
 
@@ -37,10 +37,10 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         #region Properties & Data
 
-        static string[] rankTitles = new string[] {
+        static string[] rankTitles = {
                 "Apprentice", "Journeyman", "Operator", "Slayer", "Executioner", "Punisher", "Terminator", "Assassin", "Dark Brother", "Master Assassin"
         };
-        
+
         static List<DFCareer.Skills> guildSkills = new List<DFCareer.Skills>() {
                 DFCareer.Skills.Archery,
                 DFCareer.Skills.Backstabbing,
@@ -101,9 +101,8 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         public override string GetTitle()
         {
-            if (GameManager.Instance.PlayerEntity.Gender == Genders.Female)
-                if (rank == 8)
-                    return "Dark Sister";        // Not calling female chars 'Brother'!
+            if (GameManager.Instance.PlayerEntity.Gender == Genders.Female && rank == 8)
+                return "Dark Sister";        // Not calling female chars 'Brother'!
 
             return IsMember() ? rankTitles[rank] : "non-member";
         }
@@ -117,10 +116,15 @@ namespace DaggerfallWorkshop.Game.Guilds
             return DaggerfallUnity.Instance.TextProvider.GetRandomTokens(GetPromotionMsgId(newRank));
         }
 
-        private int GetPromotionMsgId(int rank)
+        private int GetPromotionMsgId(int newRank)
         {
             revealedDungeon = GameManager.Instance.PlayerGPS.DiscoverRandomLocation();
-            switch (rank)
+            if (!string.IsNullOrEmpty(revealedDungeon.Name))
+            {
+                GameManager.Instance.PlayerEntity.Notebook.AddNote(
+                   TextManager.Instance.GetText("DaggerfallUI", "readMapDB").Replace("%map", revealedDungeon.Name));
+            }
+            switch (newRank)
             {
                 case 1:
                     return PromotionBuyPotionsId;
@@ -240,7 +244,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         /// </summary>
         protected class DarkBrotherhoodMacroDataSource : GuildMacroDataSource
         {
-            private DarkBrotherhood parent;
+            private readonly DarkBrotherhood parent;
             public DarkBrotherhoodMacroDataSource(DarkBrotherhood guild) : base(guild)
             {
                 parent = guild;

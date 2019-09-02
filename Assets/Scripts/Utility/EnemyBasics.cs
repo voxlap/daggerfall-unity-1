@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -29,20 +29,20 @@ namespace DaggerfallWorkshop.Utility
         public static int PrimaryAttackAnimSpeed = 10;
         public static int HurtAnimSpeed = 4;
         public static int IdleAnimSpeed = 4;
-        public static int RangedAttack1AnimSpeed = 6;
-        public static int RangedAttack2AnimSpeed = 6;
+        public static int RangedAttack1AnimSpeed = 10;
+        public static int RangedAttack2AnimSpeed = 10;
 
-        // Move animations (double as idle animations for swimming and flying mobs)
+        // Move animations (double as idle animations for swimming and flying enemies, and enemies without idle animations)
         public static MobileAnimation[] MoveAnims = new MobileAnimation[]
         {
-            new MobileAnimation() {Record = 0, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing south (front facing player)
-            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing south-west
-            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing west
-            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing north-west
-            new MobileAnimation() {Record = 4, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing north (back facing player)
-            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},              // Facing north-east
-            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},              // Facing east
-            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},              // Facing south-east
+            new MobileAnimation() {Record = 0, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing south (front facing player)
+            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing south-west
+            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing west
+            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing north-west
+            new MobileAnimation() {Record = 4, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing north (back facing player)
+            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing north-east
+            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing east
+            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing south-east
         };
 
         // PrimaryAttack animations
@@ -110,6 +110,58 @@ namespace DaggerfallWorkshop.Utility
             new MobileAnimation() {Record = 26, FramePerSecond = RangedAttack2AnimSpeed, FlipLeftRight = true},    // Facing south-east
         };
 
+        // Female thief idle animations
+        public static MobileAnimation[] FemaleThiefIdleAnims = new MobileAnimation[]
+        {
+            new MobileAnimation() {Record = 15, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing south (front facing player)
+            new MobileAnimation() {Record = 11, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing south-west
+            new MobileAnimation() {Record = 17, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing west
+            new MobileAnimation() {Record = 18, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing north-west
+            new MobileAnimation() {Record = 19, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing north (back facing player)
+            new MobileAnimation() {Record = 18, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing north-east
+            new MobileAnimation() {Record = 17, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing east
+            new MobileAnimation() {Record = 11, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing south-east
+        };
+
+        // Rat idle animations
+        public static MobileAnimation[] RatIdleAnims = new MobileAnimation[]
+        {
+            new MobileAnimation() {Record = 15, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing south (front facing player)
+            new MobileAnimation() {Record = 16, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing south-west
+            new MobileAnimation() {Record = 17, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing west
+            new MobileAnimation() {Record = 18, FramePerSecond = IdleAnimSpeed, FlipLeftRight = true},             // Facing north-west
+            new MobileAnimation() {Record = 19, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing north (back facing player)
+            new MobileAnimation() {Record = 18, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing north-east
+            new MobileAnimation() {Record = 17, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing east
+            new MobileAnimation() {Record = 16, FramePerSecond = IdleAnimSpeed, FlipLeftRight = false},            // Facing south-east
+        };
+
+        // Wraith and ghost idle/move animations
+        public static MobileAnimation[] GhostWraithMoveAnims = new MobileAnimation[]
+        {
+            new MobileAnimation() {Record = 0, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing south (front facing player)
+            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing south-west
+            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing west
+            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing north-west
+            new MobileAnimation() {Record = 4, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing north (back facing player)
+            new MobileAnimation() {Record = 3, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing north-east
+            new MobileAnimation() {Record = 2, FramePerSecond = MoveAnimSpeed, FlipLeftRight = false},             // Facing east
+            new MobileAnimation() {Record = 1, FramePerSecond = MoveAnimSpeed, FlipLeftRight = true},              // Facing south-east
+        };
+
+        // Ghost and Wraith attack animations
+        public static MobileAnimation[] GhostWraithAttackAnims = new MobileAnimation[]
+        {
+            new MobileAnimation() {Record = 5, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = false},    // Facing south (front facing player)
+            new MobileAnimation() {Record = 6, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = false},    // Facing south-west
+            new MobileAnimation() {Record = 7, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = true},     // Facing west
+            new MobileAnimation() {Record = 8, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = false},    // Facing north-west
+            new MobileAnimation() {Record = 9, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = false},    // Facing north (back facing player)
+            new MobileAnimation() {Record = 8, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = true},     // Facing north-east
+            new MobileAnimation() {Record = 7, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = false},    // Facing east
+            new MobileAnimation() {Record = 6, FramePerSecond = PrimaryAttackAnimSpeed, FlipLeftRight = true},     // Facing south-east
+        };
+
         // TODO: Seducer special animations
 
         #endregion
@@ -146,8 +198,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 2,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4, 5 },
+                Team = MobileTeams.Vermin,
             },
 
             // Imp
@@ -176,9 +229,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 3,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 3,
                 Weight = 40,
+                SeesThroughInvisibility = true,
                 LootTableKey = "D",
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 1 },
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 1 },
+                Team = MobileTeams.Magic,
             },
 
             // Spriggan
@@ -211,9 +268,11 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -4,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 240,
                 LootTableKey = "B",
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 3, 3 },
+                Team = MobileTeams.Spriggans,
             },
 
             // Giant Bat
@@ -241,8 +300,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 2,
                 Weight = 80,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3 },
+                Team = MobileTeams.Vermin,
             },
 
             // Grizzly Bear
@@ -274,8 +334,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 0 },
+                Team = MobileTeams.Bears,
             },
 
             // Sabertooth Tiger
@@ -307,8 +368,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4, 5 },
+                Team = MobileTeams.Tigers,
             },
 
             // Spider
@@ -336,8 +398,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 5,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 400,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                Team = MobileTeams.Spiders,
             },
 
             // Orc
@@ -366,9 +429,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 7,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 600,
                 LootTableKey = "A",
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 4, -1, 5, 0 },
+                Team = MobileTeams.Orcs,
             },
 
             // Centaur
@@ -397,9 +464,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = true,
                 MapChance = 1,
-                HitFrame = 3,
                 Weight = 1200,
                 LootTableKey = "C",
+                SoulPts = 3000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 1, 1, 2, -1, 3, 3, 4 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, 1, 1, 2, -1, 3, 3, 2, 1, 1, -1, 2, 3, 3, 4 },
+                Team = MobileTeams.Centaurs,
             },
 
             // Werewolf
@@ -432,8 +503,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 5,
                 MapChance = 0,
                 ParrySounds = false,
-                HitFrame = 2,
                 Weight = 480,
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, -1, 2 },
+                Team = MobileTeams.Werecreatures,
             },
 
             // Nymph
@@ -462,9 +535,11 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 5,
                 Weight = 200,
                 LootTableKey = "C",
+                SoulPts = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, 3, 4, -1, 5 },
+                Team = MobileTeams.Nymphs,
             },
 
             // Slaughterfish
@@ -492,8 +567,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 5,
                 Weight = 400,
+                PrimaryAttackAnimFrames = new int[] { 0, -1, 1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 3, -1, 5, 4, 3, 3, -1, 5, 4, 3, -1, 5, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 3, -1, 5, 0 },
+                Team = MobileTeams.Aquatic,
             },
 
             // Orc Sergeant
@@ -522,9 +602,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 5,
                 ParrySounds = true,
                 MapChance = 1,
-                HitFrame = 2,
                 Weight = 600,
                 LootTableKey = "A",
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, -1, 1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 5, 4, 3, -1, 2, 1, 0 },
+                Team = MobileTeams.Orcs,
             },
 
             // Harpy
@@ -553,9 +637,11 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 2,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 200,
                 LootTableKey = "D",
+                SoulPts = 3000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3 },
+                Team = MobileTeams.Harpies,
             },
 
             // Wereboar
@@ -588,8 +674,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 3,
                 MapChance = 0,
                 ParrySounds = false,
-                HitFrame = 3,
                 Weight = 560,
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, -1, 1, 2, 2 },
+                Team = MobileTeams.Werecreatures,
             },
 
             // Skeletal Warrior
@@ -619,9 +707,11 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 2,
                 ParrySounds = true,
                 MapChance = 1,
-                HitFrame = 4,
                 Weight = 80,
+                SeesThroughInvisibility = true,
                 LootTableKey = "H",
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, 3, -1, 4, 5 },
+                Team = MobileTeams.Undead,
             },
 
             // Giant
@@ -651,8 +741,10 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 MapChance = 1,
                 LootTableKey = "F",
-                HitFrame = 3,
                 Weight = 3000,
+                SoulPts = 3000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5 },
+                Team = MobileTeams.Giants,
             },
 
             // Zombie
@@ -681,9 +773,12 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 3,
                 Weight = 4000,
                 LootTableKey = "G",
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 2, -1, 3, 4 },
+                Team = MobileTeams.Undead,
             },
 
             // Ghost
@@ -713,9 +808,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 3,
                 Weight = 0,
+                SeesThroughInvisibility = true,
                 LootTableKey = "I",
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3 },
+                SpellAnimFrames = new int[] { 0, 0, 0, 0, 0, 0 },
+                Team = MobileTeams.Undead,
             },
 
             // Mummy
@@ -745,9 +844,12 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 2,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 4,
                 Weight = 300,
+                SeesThroughInvisibility = true,
                 LootTableKey = "E",
+                SoulPts = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4 },
+                Team = MobileTeams.Undead,
             },
 
             // Giant Scorpion
@@ -775,8 +877,9 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 ArmorValue = 0,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 600,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 3, 2, 1, 0 },
+                Team = MobileTeams.Scorpions,
             },
 
             // Orc Shaman
@@ -805,9 +908,21 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 7,
                 ParrySounds = true,
                 MapChance = 3,
-                HitFrame = 3,
                 Weight = 400,
                 LootTableKey = "U",
+                SoulPts = 3000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 3, 2, 1, 0 },
+                ChanceForAttack2 = 20,
+                PrimaryAttackAnimFrames2 = new int[] { 0, -1, 4, 5, 0 },
+                ChanceForAttack3 = 20,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 1, -1, 3, 2, 1, 0, -1, 4, 5, 0 },
+                ChanceForAttack4 = 20,
+                PrimaryAttackAnimFrames4 = new int[] { 0, 1, -1, 3, 2, -1, 3, 2, 1, 0 }, // Not used in classic. Fight stance used instead.
+                ChanceForAttack5 = 20,
+                PrimaryAttackAnimFrames5 = new int[] { 0, -1, 4, 5, -1, 4, 5, 0 }, // Not used in classic. Spell animation played instead.
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 0, 1, 2, 3, 3, 3 },
+                Team = MobileTeams.Orcs,
             },
 
             // Gargoyle
@@ -827,7 +942,7 @@ namespace DaggerfallWorkshop.Utility
                 MoveSound = (int)SoundClips.EnemyGargoyleMove,
                 BarkSound = (int)SoundClips.EnemyGargoyleBark,
                 AttackSound = (int)SoundClips.EnemyGargoyleAttack,
-                MinMetalToHit = Game.Items.WeaponMaterialTypes.Mithril,
+                MinMetalToHit = WeaponMaterialTypes.Mithril,
                 MinDamage = 10,
                 MaxDamage = 15,
                 MinHealth = 19,
@@ -836,8 +951,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 MapChance = 0,
                 ParrySounds = false,
-                HitFrame = 3,
                 Weight = 300,
+                SoulPts = 3000,
+                PrimaryAttackAnimFrames = new int[] { 0, 2, 1, 2, 3, -1, 4, 0 },
+                Team = MobileTeams.Magic,
             },
 
             // Wraith
@@ -867,9 +984,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 3,
                 Weight = 0,
+                SeesThroughInvisibility = true,
                 LootTableKey = "I",
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3 },
+                SpellAnimFrames = new int[] { 0, 0, 0, 0, 0 },
+                Team = MobileTeams.Undead,
             },
 
             // Orc Warlord
@@ -898,9 +1019,15 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 0,
                 ParrySounds = true,
                 MapChance = 2,
-                HitFrame = 3,
                 Weight = 700,
                 LootTableKey = "T",
+                SoulPts = 1000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, -1, 5, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 1, -1, 2, 3, 4 -1, 5, 0, 4, -1, 5, 0 },
+                Team = MobileTeams.Orcs,
             },
 
             // Frost Daedra
@@ -929,9 +1056,15 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -5,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 800,
+                SeesThroughInvisibility = true,
                 LootTableKey = "J",
+                SoulPts = 50000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, -1, 4, 5, 0 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { -1, 4, 5, 0 },
+                SpellAnimFrames = new int[] { 1, 1, 3, 3 },
+                Team = MobileTeams.Daedra,
             },
 
             // Fire Daedra
@@ -960,9 +1093,15 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 1,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 2,
                 Weight = 800,
+                SeesThroughInvisibility = true,
                 LootTableKey = "J",
+                SoulPts = 50000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, -1, 4 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 3, -1, 4 },
+                SpellAnimFrames = new int[] { 1, 1, 3, 3 },
+                Team = MobileTeams.Daedra,
             },
 
             // Daedroth
@@ -991,9 +1130,17 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 1,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 400,
+                SeesThroughInvisibility = true,
                 LootTableKey = "E",
+                SoulPts = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, -1, 5, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0, 4, -1, 5, 0 },
+                SpellAnimFrames = new int[] { 1, 1, 3, 3 },
+                Team = MobileTeams.Daedra,
             },
 
             // Vampire
@@ -1022,9 +1169,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -2,
                 ParrySounds = false,
                 MapChance = 3,
-                HitFrame = 4,
                 Weight = 400,
+                SeesThroughInvisibility = true,
                 LootTableKey = "Q",
+                SoulPts = 70000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, 3, -1, 4, 5 },
+                SpellAnimFrames = new int[] { 1, 1, 5, 5 },
+                Team = MobileTeams.Undead,
             },
 
             // Daedra Seducer
@@ -1053,9 +1204,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 1,
                 ParrySounds = false,
                 MapChance = 1,
-                HitFrame = 2,
                 Weight = 200,
+                SeesThroughInvisibility = true,
                 LootTableKey = "Q",
+                SoulPts = 150000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2 },
+                SpellAnimFrames = new int[] { 0, 1, 2 },
+                Team = MobileTeams.Daedra,
             },
 
             // Vampire Ancient
@@ -1084,9 +1239,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -5,
                 ParrySounds = false,
                 MapChance = 3,
-                HitFrame = 3,
                 Weight = 400,
+                SeesThroughInvisibility = true,
                 LootTableKey = "Q",
+                SoulPts = 100000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, 3, -1, 4, 5 },
+                SpellAnimFrames = new int[] { 1, 1, 5, 5 },
+                Team = MobileTeams.Undead,
             },
 
             // Daedra Lord
@@ -1115,9 +1274,17 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -10,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                SeesThroughInvisibility = true,
                 LootTableKey = "S",
+                SoulPts = 800000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, -1, 4 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 3, -1, 4, 0, -1, 4, 3, -1, 4, 0, -1, 4, 3 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 1, -1, 2, 1, 0, 1, -1, 2, 1, 0 },
+                SpellAnimFrames = new int[] { 1, 1, 3, 3 },
+                Team = MobileTeams.Daedra,
             },
 
             // Lich
@@ -1147,9 +1314,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -10,
                 ParrySounds = false,
                 MapChance = 4,
-                HitFrame = 3,
                 Weight = 300,
+                SeesThroughInvisibility = true,
                 LootTableKey = "S",
+                SoulPts = 100000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 1, 2, -1, 3, 4, 4 },
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 4 },
+                Team = MobileTeams.Undead,
             },
 
             // Ancient Lich
@@ -1179,12 +1350,13 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = -12,
                 ParrySounds = false,
                 MapChance = 4,
-                HitFrame = 3,
                 Weight = 300,
                 LootTableKey = "S",
+                SoulPts = 250000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 1, 2, -1, 3, 4, 4 },
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 4 },
+                Team = MobileTeams.Undead,
             },
-
-            // TODO: Figure out weights for monsters from here onward.
 
             // Dragonling
             new MobileEnemy()
@@ -1211,8 +1383,9 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 2,
                 Weight = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3 },
+                Team = MobileTeams.Dragonlings,
             },
 
             // Fire Atronach
@@ -1241,8 +1414,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, -1, 1, 2, 3, 4 },
+                Team = MobileTeams.Magic,
             },
 
             // Iron Atronach
@@ -1271,8 +1446,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4 },
+                Team = MobileTeams.Magic,
             },
 
             // Flesh Atronach
@@ -1301,8 +1478,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4 },
+                Team = MobileTeams.Magic,
             },
 
             // Ice Atronach
@@ -1331,8 +1510,24 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 Weight = 1000,
+                SoulPts = 30000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 0, -1, 3, 4 },
+                Team = MobileTeams.Magic,
+            },
+
+            // Weights in classic (From offset 0x1BD8D9 in FALL.EXE) only have entries
+            // up through Horse. Dragonling, Dreugh and Lamia use nonsense values from
+            // the adjacent data. For Daggerfall Unity, using values inferred from
+            // other enemy types.
+
+            // Horse (unused, but can appear in merchant-sold soul traps)
+            new MobileEnemy()
+            {
+                ID = 39,
+                Name = "Horse",
             },
 
             // Dragonling
@@ -1360,7 +1555,10 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 2,
+                Weight = 10000, // Using same value as other dragonling
+                SoulPts = 500000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3 },
+                Team = MobileTeams.Dragonlings,
             },
 
             // Dreugh
@@ -1389,8 +1587,15 @@ namespace DaggerfallWorkshop.Utility
                 ArmorValue = 6,
                 ParrySounds = false,
                 MapChance = 0,
-                HitFrame = 3,
+                Weight = 600, // Using same value as orc
                 LootTableKey = "R",
+                SoulPts = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, 3, -1, 4, 5, -1, 6, 7 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, 2, 3, -1, 4 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 5, -1, 6, 7 },
+                Team = MobileTeams.Aquatic,
             },
 
             // Lamia
@@ -1420,7 +1625,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 MapChance = 0,
                 LootTableKey = "R",
-                HitFrame = 4,
+                Weight = 200, // Using same value as nymph
+                SoulPts = 10000,
+                PrimaryAttackAnimFrames = new int[] { 0, -1, 1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 3, -1, 5, 4, 3, 3, -1, 5, 4, 3, -1, 5, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 3, -1, 5, 0 },
+                Team = MobileTeams.Aquatic,
             },
 
             // Mage
@@ -1443,8 +1655,15 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 MapChance = 3,
                 LootTableKey = "U",
-                HitFrame = 3,
                 CastsMagic = true,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 3, 2, 1, 0, -1, 5, 4, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 3, 2, 1, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, -1, 5, 4, 0 },
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Spellsword
@@ -1467,8 +1686,16 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "P",
-                HitFrame = 3,
                 CastsMagic = true,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 5, 4, 3, -1, 2, 1, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, 1, -1, 2, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Battlemage
@@ -1491,8 +1718,16 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 2,
                 LootTableKey = "U",
-                HitFrame = 3,
                 CastsMagic = true,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Sorcerer
@@ -1515,8 +1750,12 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 MapChance = 3,
                 LootTableKey = "U",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, 2, -1, 3, 4, 5 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 5, -1, 3, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Healer
@@ -1539,8 +1778,15 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = false,
                 MapChance = 1,
                 LootTableKey = "U",
-                HitFrame = 3,
                 CastsMagic = true,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 3, 2, 1, 0, -1, 5, 4, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 3, 2, 1, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 0, -1, 5, 4, 0 },
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Nightblade
@@ -1563,8 +1809,16 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "U",
-                HitFrame = 3,
                 CastsMagic = true,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                HasSpellAnimation = true,
+                SpellAnimFrames = new int[] { 0, 1, 2, 3, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Bard
@@ -1587,8 +1841,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 2,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Burglar
@@ -1611,8 +1871,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Rogue
@@ -1635,8 +1901,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Acrobat
@@ -1659,8 +1931,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 0,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Thief
@@ -1683,8 +1961,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 2,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Assassin
@@ -1707,8 +1991,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 0,
                 LootTableKey = "O",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 4, 4, -1, 5, 0, 0 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 4, -1, 5, 0, 0, 1, -1, 2, 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Monk
@@ -1731,8 +2021,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "T",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 0, 1, -1, 2, 2, 1, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 5, 5, 3, -1, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Archer
@@ -1756,8 +2052,12 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 0,
                 LootTableKey = "C",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Ranger
@@ -1780,8 +2080,12 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "C",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4, -1, 5 },
+                ChanceForAttack2 = 50,
+                PrimaryAttackAnimFrames2 = new int[] { 3, 4, -1, 5, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Barbarian
@@ -1804,8 +2108,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 0,
                 LootTableKey = "T",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 0, 1, -1, 2, 2, 1, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 5, 5, 3, -1, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.Criminals,
             },
 
             // Warrior
@@ -1828,8 +2138,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 0,
                 LootTableKey = "T",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 0, 1, -1, 2, 2, 1, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 5, 5, 3, -1, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // Knight
@@ -1852,8 +2168,14 @@ namespace DaggerfallWorkshop.Utility
                 ParrySounds = true,
                 MapChance = 1,
                 LootTableKey = "T",
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 0, 1, -1, 2, 2, 1, 0 },
+                ChanceForAttack2 = 33,
+                PrimaryAttackAnimFrames2 = new int[] { 0, 1, -1, 2, 3, 4, 5 },
+                ChanceForAttack3 = 33,
+                PrimaryAttackAnimFrames3 = new int[] { 5, 5, 3, -1, 2, 1, 0 },
+                RangedAttackAnimFrames = new int[] { 3, 2, 0, 0, 0, -1, 1, 1, 2, 3 },
+                Team = MobileTeams.KnightsAndMages,
             },
 
             // City Watch - The Haltmeister
@@ -1875,8 +2197,9 @@ namespace DaggerfallWorkshop.Utility
                 AttackSound = (int)SoundClips.None,
                 ParrySounds = true,
                 MapChance = 0,
-                HitFrame = 3,
                 CastsMagic = false,
+                PrimaryAttackAnimFrames = new int[] { 0, 1, -1, 2, 3, 4 },
+                Team = MobileTeams.CityWatch,
             },
         };
 

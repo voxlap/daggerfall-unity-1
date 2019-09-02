@@ -1,17 +1,16 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Ferital (ferital@yahoo.fr)
 // 
 // Notes:
 //
 
 #region Using Statements
 using System;
-using System.Text;
 using System.Collections.Generic;
 using System.IO;
 using DaggerfallConnect.Utility;
@@ -33,7 +32,7 @@ namespace DaggerfallConnect.Arena2
         private const int subMeshBufferLength = 32;
         private const int planeBufferLength = 512;
         private const int pointBufferLength = 16;
-        private const int indexBufferLength = 16;
+        //private const int indexBufferLength = 16;
         private const int calculatedUVBufferLength = 24;
 
         // Divisors for points and textures
@@ -41,15 +40,15 @@ namespace DaggerfallConnect.Arena2
         private const float textureDivisor = 16.0f;
 
         // Buffer arrays used during decomposition
-        private int[] cornerPointBuffer = new int[cornerBufferLength];
-        private TextureIndex[] uniqueTextureBuffer = new TextureIndex[uniqueTextureBufferLength];
-        private DFSubMeshBuffer[] subMeshBuffer = new DFSubMeshBuffer[subMeshBufferLength];
+        private readonly int[] cornerPointBuffer = new int[cornerBufferLength];
+        private readonly TextureIndex[] uniqueTextureBuffer = new TextureIndex[uniqueTextureBufferLength];
+        private readonly DFSubMeshBuffer[] subMeshBuffer = new DFSubMeshBuffer[subMeshBufferLength];
         private FaceUVTool.DFPurePoint[] calculatedUVBuffer = new FaceUVTool.DFPurePoint[calculatedUVBufferLength];
 
         /// <summary>
         /// Index lookup dictionary.
         /// </summary>
-        private Dictionary<UInt32, int> recordIndexLookup = new Dictionary<UInt32, int>();
+        private readonly Dictionary<UInt32, int> recordIndexLookup = new Dictionary<UInt32, int>();
 
         /// <summary>
         /// Auto-discard behaviour enabled or disabled.
@@ -64,7 +63,7 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// The BsaFile representing ARCH3D.BSA
         /// </summary>
-        private BsaFile bsaFile = new BsaFile();
+        private readonly BsaFile bsaFile = new BsaFile();
 
         /// <summary>
         /// Array of decomposed mesh records.
@@ -74,7 +73,7 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// Object for calculating UV values of face points
         /// </summary>
-        private FaceUVTool faceUVTool = new FaceUVTool();
+        private readonly FaceUVTool faceUVTool = new FaceUVTool();
 
         #endregion
 
@@ -276,7 +275,7 @@ namespace DaggerfallConnect.Arena2
         /// </summary>
         public int Count
         {
-            get {return bsaFile.Count;}
+            get { return bsaFile.Count; }
         }
 
         #endregion
@@ -309,7 +308,7 @@ namespace DaggerfallConnect.Arena2
                 return false;
 
             // Load file
-            if (!bsaFile.Load(filePath, usage, readOnly))
+            if (!bsaFile.Load(filePath, usage, readOnly, Arch3dPatch.patch))
                 return false;
 
             // Create records array
@@ -590,6 +589,9 @@ namespace DaggerfallConnect.Arena2
             long normalPosition = records[record].Header.NormalListOffset;
             BinaryReader normalReader = records[record].MemoryFile.GetReader(normalPosition);
 
+            // Get the record id
+            uint recordId = GetRecordId(record);
+
             // Read native data into plane array
             int uniqueTextureCount = 0;
             MeshVersions version = records[record].Version;
@@ -631,7 +633,7 @@ namespace DaggerfallConnect.Arena2
                     uniqueTextureBuffer[uniqueTextureCount].Record = textureRecord;
                     uniqueTextureCount++;
                 }
-                
+
                 // Store texture index for this plane
                 records[record].PureMesh.Planes[plane].TextureIndex.Archive = textureArchive;
                 records[record].PureMesh.Planes[plane].TextureIndex.Record = textureRecord;
@@ -645,32 +647,17 @@ namespace DaggerfallConnect.Arena2
                     int pointOffset = reader.ReadInt32();
 
                     // Read UV data
-                    Int16 u = reader.ReadInt16();
-                    Int16 v = reader.ReadInt16();
+                    int u = reader.ReadInt16();
+                    int v = reader.ReadInt16();
 
-                    // Fix certain UV coordinates that are
-                    // packed oddly, or aligned outside of poly.
-                    int threshold = 14335;
-                    while (u > threshold)
+                    // Fix some UV coordinates (process only the first 3 points as
+                    // coordinates from point 4 and above are ignored)
+                    // Only models whose id is below 905 seem to require some processing here
+                    if (point < 3 && recordId < 905)
                     {
-                        u = (Int16)(0x4000 - u);
+                        UVunpack(ref u);
+                        UVunpack(ref v);
                     }
-                    while (u < -threshold)
-                    {
-                        u = (Int16)(0x4000 + u);
-                    }
-                    while (v > threshold)
-                    {
-                        v = (Int16)(0x4000 - v);
-                    }
-                    while (v < -threshold)
-                    {
-                        v = (Int16)(0x4000 + v);
-                    }
-
-                    // Fix some remaining special-case textures
-                    if (u == 7168) u = 1024;
-                    if (u == -7168) u = -1024;
 
                     // Store UV coordinates
                     records[record].PureMesh.Planes[plane].Points[point].u = u;
@@ -774,6 +761,29 @@ namespace DaggerfallConnect.Arena2
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Unpack special texture coordinates.
+        /// </summary>
+        /// <param name="u">The U or V coordinate.</param>
+        private static void UVunpack(ref int u)
+        {
+            // A packed coordinate is outside the -14335,14335 range.
+            // -7168 is the only known exception
+            if (u > -14336 && u < 14336 && u != -7168)
+                return;
+
+            // Get the nearest multiple of 8192
+            int nextMult = u - 1;
+            nextMult = nextMult >> 13;
+            ++nextMult;
+            nextMult = nextMult << 13;
+            int prevMult = nextMult - 8192;
+            int mult = u - prevMult < nextMult - u ? prevMult : nextMult;
+
+            // Unpack the coordinate by subtracting the above multiple
+            u -= mult;
         }
 
         /// <summary>

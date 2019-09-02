@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -31,6 +31,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         List<DFCareer> classList = new List<DFCareer>();
         DFCareer selectedClass;
+        int selectedClassIndex = 0;
 
         public DFCareer SelectedClass
         {
@@ -57,25 +58,37 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     listBox.AddItem(classFile.Career.Name);
                 }
             }
+            // Last option is for creating custom classes
+            listBox.AddItem("Custom");
 
             OnItemPicked += DaggerfallClassSelectWindow_OnItemPicked;
         }
 
         void DaggerfallClassSelectWindow_OnItemPicked(int index, string className)
         {
-            selectedClass = classList[index];
+            if (index == classList.Count) // "Custom" option selected
+            {
+                selectedClass = null;
+                selectedClassIndex = -1;
+                CloseWindow();
+            } 
+            else 
+            {
+                selectedClass = classList[index];
+                selectedClassIndex = index;
 
-            TextFile.Token[] textTokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(startClassDescriptionID + index);
-            DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
-            messageBox.SetTextTokens(textTokens);
-            messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.Yes);
-            Button noButton = messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.No);
-            noButton.ClickSound = DaggerfallUI.Instance.GetAudioClip(SoundClips.ButtonClick);
-            messageBox.OnButtonClick += ConfirmClassPopup_OnButtonClick;
-            uiManager.PushWindow(messageBox);
+                TextFile.Token[] textTokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(startClassDescriptionID + index);
+                DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
+                messageBox.SetTextTokens(textTokens);
+                messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.Yes);
+                Button noButton = messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.No);
+                noButton.ClickSound = DaggerfallUI.Instance.GetAudioClip(SoundClips.ButtonClick);
+                messageBox.OnButtonClick += ConfirmClassPopup_OnButtonClick;
+                uiManager.PushWindow(messageBox);
 
-            AudioClip clip = DaggerfallUnity.Instance.SoundReader.GetAudioClip(SoundClips.SelectClassDrums);
-            DaggerfallUI.Instance.AudioSource.PlayOneShot(clip);
+                AudioClip clip = DaggerfallUnity.Instance.SoundReader.GetAudioClip(SoundClips.SelectClassDrums);
+                DaggerfallUI.Instance.AudioSource.PlayOneShot(clip, DaggerfallUnity.Settings.SoundVolume);
+            }
         }
 
         void ConfirmClassPopup_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
@@ -90,6 +103,16 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 selectedClass = null;
                 sender.CancelWindow();
             }
+        }
+
+        public int SelectedClassIndex
+        {
+            get { return selectedClassIndex; }
+        }
+
+        public List<DFCareer> ClassList
+        {
+            get { return classList; }
         }
     }
 }

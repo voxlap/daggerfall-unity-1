@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -13,7 +13,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using DaggerfallConnect.Save;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.Items;
 using FullSerializer;
 
 namespace DaggerfallWorkshop.Game.Questing
@@ -29,6 +32,9 @@ namespace DaggerfallWorkshop.Game.Questing
         ulong questUID;
         Symbol targetSymbol;
         bool isFoeDead = false;
+        bool restraintApplied = false;
+        int foeSpellQueuePosition = 0;
+        int foeItemQueuePosition = 0;
 
         [NonSerialized] Quest targetQuest;
         [NonSerialized] QuestResource targetResource = null;
@@ -44,6 +50,8 @@ namespace DaggerfallWorkshop.Game.Questing
             public ulong questUID;
             public Symbol targetSymbol;
             public bool isFoeDead;
+            public int foeSpellQueuePosition;
+            public int foeItemQueuePosition;
         }
 
         #endregion
@@ -121,6 +129,18 @@ namespace DaggerfallWorkshop.Game.Questing
                     targetResource.QuestResourceBehaviour = this;
             }
 
+            // Handle NPC checks
+            if (targetResource is Person && targetResource.QuestResourceBehaviour)
+            {
+                // Disable person resource if hidden or destroyed
+                // Normally this is done via QuestResource.Tick() but this stops receiving ticks when quest terminates
+                // Sometimes a quest person is hidden at same time quest is ended, e.g. $CUREWER when spawning lycanthrope foe
+                // Also disabling here to handle this situation
+                Person targetPerson = (Person)targetResource;
+                if (targetPerson.IsHidden || targetPerson.IsDestroyed)
+                    targetPerson.QuestResourceBehaviour.gameObject.SetActive(false);
+            }
+
             // Handle enemy checks
             if (enemyEntityBehaviour)
             {
@@ -129,17 +149,27 @@ namespace DaggerfallWorkshop.Game.Questing
                 if (foe == null)
                     return;
 
+                // If foe is hidden then remove self from game
+                if (foe.IsHidden)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+
+                // Process spell and item queues
+                CastSpellQueue(foe, enemyEntityBehaviour);
+                AddItemQueue(foe, enemyEntityBehaviour);
+
                 // Handle restrained check
                 // This might need some tuning in relation to injured and death checks
-                if (foe.IsRestrained)
+                if (foe.IsRestrained && !restraintApplied)
                 {
                     // Make enemy non-hostile
                     EnemyMotor enemyMotor = transform.GetComponent<EnemyMotor>();
                     if (enemyMotor)
                         enemyMotor.IsHostile = false;
 
-                    // Lower flag now this has been handled
-                    foe.ClearRestrained();
+                    restraintApplied = true;
                 }
 
                 // Handle injured check
@@ -225,6 +255,8 @@ namespace DaggerfallWorkshop.Game.Questing
             data.questUID = questUID;
             data.targetSymbol = targetSymbol;
             data.isFoeDead = isFoeDead;
+            data.foeSpellQueuePosition = foeSpellQueuePosition;
+            data.foeItemQueuePosition = foeItemQueuePosition;
 
             return data;
         }
@@ -238,7 +270,98 @@ namespace DaggerfallWorkshop.Game.Questing
             questUID = data.questUID;
             targetSymbol = data.targetSymbol;
             isFoeDead = data.isFoeDead;
+            foeSpellQueuePosition = data.foeSpellQueuePosition;
+            foeItemQueuePosition = data.foeItemQueuePosition;
             CacheTarget();
+        }
+
+        public void CastSpellQueue(Foe foe, DaggerfallEntityBehaviour enemyEntityBehaviour)
+        {
+            // Validate
+            if (!enemyEntityBehaviour || foe == null || foe.SpellQueue == null || foeSpellQueuePosition == foe.SpellQueue.Count)
+                return;
+
+            // Target entity must be alive
+            if (enemyEntityBehaviour.Entity.CurrentHealth == 0)
+                return;
+
+            // Get effect manager on enemy
+            EntityEffectManager enemyEffectManager = enemyEntityBehaviour.GetComponent<EntityEffectManager>();
+            if (!enemyEffectManager)
+                return;
+
+            // Cast queued spells on foe from current position
+            for (int i = foeSpellQueuePosition; i < foe.SpellQueue.Count; i++)
+            {
+                SpellReference spell = foe.SpellQueue[i];
+                EntityEffectBundle spellBundle = null;
+
+                // Create classic or custom spell bundle
+                if (string.IsNullOrEmpty(spell.CustomKey))
+                {
+                    // Get classic spell data
+                    SpellRecord.SpellRecordData spellData;
+                    if (!GameManager.Instance.EntityEffectBroker.GetClassicSpellRecord(spell.ClassicID, out spellData))
+                        continue;
+
+                    // Create classic spell bundle settings
+                    EffectBundleSettings bundleSettings;
+                    if (!GameManager.Instance.EntityEffectBroker.ClassicSpellRecordDataToEffectBundleSettings(spellData, BundleTypes.Spell, out bundleSettings))
+                        continue;
+
+                    // Create classic spell bundle
+                    spellBundle = new EntityEffectBundle(bundleSettings, enemyEntityBehaviour);
+                }
+                else
+                {
+                    // Create custom spell bundle - must be previously registered to broker
+                    try
+                    {
+                        EntityEffectBroker.CustomSpellBundleOffer offer = GameManager.Instance.EntityEffectBroker.GetCustomSpellBundleOffer(spell.CustomKey);
+                        spellBundle = new EntityEffectBundle(offer.BundleSetttings, enemyEntityBehaviour);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogErrorFormat("QuestResourceBehaviour.CastSpellQueue() could not find custom spell offer with key: {0}, exception: {1}", spell.CustomKey, ex.Message);
+                    }
+                }
+
+                // Assign spell bundle to enemy
+                if (spellBundle != null)
+                    enemyEffectManager.AssignBundle(spellBundle, AssignBundleFlags.BypassSavingThrows);
+            }
+
+            // Set index positon to end of queue
+            foeSpellQueuePosition = foe.SpellQueue.Count;
+        }
+
+        public void AddItemQueue(Foe foe, DaggerfallEntityBehaviour enemyEntityBehaviour)
+        {
+            // Validate
+            if (!enemyEntityBehaviour || foe == null || foe.ItemQueueCount == 0 || foeItemQueuePosition == foe.ItemQueueCount)
+                return;
+
+            // Get item queue as cloned items with new UIDs
+            DaggerfallUnityItem[] clonedItems = foe.GetClonedItemQueue();
+
+            // Assign all items for player to find
+            //  * Some quests assign item to Foe at create time, others on injured event
+            //  * It's possible for target enemy to be one-shot or to be killed by other means (such as "killall")
+            //  * This assignment will direct quest loot item either to live enemy or corpse loot container
+            if (enemyEntityBehaviour.CorpseLootContainer)
+            {
+                // If enemy is already dead then place item in corpse loot container
+                enemyEntityBehaviour.CorpseLootContainer.Items.AddItems(clonedItems);
+            }
+            else
+            {
+                // Otherwise add quest Item to Entity item collection
+                // It will be transferred to corpse marker loot container when dropped
+                enemyEntityBehaviour.Entity.Items.AddItems(clonedItems);
+            }
+
+            // Set index position to end of queue
+            foeItemQueuePosition = foe.ItemQueueCount;
         }
 
         #endregion

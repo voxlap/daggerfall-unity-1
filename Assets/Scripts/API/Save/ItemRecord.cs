@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,11 +10,9 @@
 //
 
 using System;
-using System.Text;
 using System.IO;
-using System.Collections;
-using System.Collections.Generic;
 using DaggerfallConnect.Utility;
+using DaggerfallConnect.FallExe;
 
 namespace DaggerfallConnect.Save
 {
@@ -63,8 +61,10 @@ namespace DaggerfallConnect.Save
             public Byte color;
             public UInt32 weight;
             public UInt16 enchantmentPoints;
-            public UInt32 message;
-            public UInt16[] magic;
+            public UInt16 message;
+            public Byte variants;
+            public Byte drawOrderOrEffect;
+            public DaggerfallEnchantment[] magic;
         }
 
         /// <summary>
@@ -75,7 +75,7 @@ namespace DaggerfallConnect.Save
         {
             None = 0x00,
             IngredientRegular = 0x01,
-            EdgedWeapon = 0x04,
+            OneHandedWeapon = 0x04,
             IngredientLiquid = 0x09,
             BluntWeapon = 0x10,
             Enchanted = 0x20,
@@ -124,30 +124,38 @@ namespace DaggerfallConnect.Save
 
             // Read native item data
             parsedData = new ItemRecordData();
-            parsedData.name = FileProxy.ReadCString(reader, 32);
-            parsedData.group = reader.ReadUInt16(); // 32
-            parsedData.index = reader.ReadUInt16(); // 34
-            parsedData.value = reader.ReadUInt32(); // 36
-            parsedData.unknown = reader.ReadUInt16(); // 40
-            parsedData.flags = reader.ReadUInt16(); // 42
-            parsedData.currentCondition = reader.ReadUInt16(); // 44
-            parsedData.maxCondition = reader.ReadUInt16(); // 46
-            parsedData.unknown2 = reader.ReadByte(); // 48
-            parsedData.typeDependentData = reader.ReadByte(); // 49
-            parsedData.image1 = reader.ReadUInt16(); // 50
-            parsedData.image2 = reader.ReadUInt16(); // 52
-            parsedData.material = reader.ReadUInt16(); // 54
-            parsedData.color = reader.ReadByte(); //56
+
+            // Item names should only be read until the null terminator.
+            long pos = reader.BaseStream.Position;
+            parsedData.name = FileProxy.ReadCString(reader, 0);
+            reader.BaseStream.Position = pos + 32;
+
+            parsedData.group = reader.ReadUInt16();
+            parsedData.index = reader.ReadUInt16();
+            parsedData.value = reader.ReadUInt32();
+            parsedData.unknown = reader.ReadUInt16();
+            parsedData.flags = reader.ReadUInt16();
+            parsedData.currentCondition = reader.ReadUInt16();
+            parsedData.maxCondition = reader.ReadUInt16();
+            parsedData.unknown2 = reader.ReadByte();
+            parsedData.typeDependentData = reader.ReadByte();
+            parsedData.image1 = reader.ReadUInt16();
+            parsedData.image2 = reader.ReadUInt16();
+            parsedData.material = reader.ReadUInt16();
+            parsedData.color = reader.ReadByte();
             parsedData.weight = reader.ReadUInt32();
             parsedData.enchantmentPoints = reader.ReadUInt16();
-            parsedData.message = reader.ReadUInt32();
+            parsedData.message = reader.ReadUInt16();
+            parsedData.variants = reader.ReadByte();
+            parsedData.drawOrderOrEffect = reader.ReadByte();
 
             // Read magic effect array
             const int effectCount = 10;
-            parsedData.magic = new ushort[effectCount];
+            parsedData.magic = new DaggerfallEnchantment[effectCount];
             for (int i = 0; i < effectCount; i++)
             {
-                parsedData.magic[i] = reader.ReadUInt16();
+                parsedData.magic[i].type = (EnchantmentTypes)reader.ReadInt16();
+                parsedData.magic[i].param = reader.ReadInt16();
             }
 
             // Close stream

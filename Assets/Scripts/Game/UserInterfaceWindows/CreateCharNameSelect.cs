@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,15 +11,10 @@
 
 using UnityEngine;
 using System;
-using System.IO;
-using System.Collections;
-using System.Collections.Generic;
-using DaggerfallConnect;
-using DaggerfallConnect.Arena2;
-using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -87,38 +82,36 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // OK button
             okButton = DaggerfallUI.AddButton(new Rect(263, 172, 39, 22), NativePanel);
             okButton.OnMouseClick += OkButton_OnMouseClick;
+
+            // First display of random button
+            ShowRandomButton();
         }
 
         public override void OnPush()
         {
+            // Subsequent display of random button
+            ShowRandomButton();
+
+            base.OnPush();
+        }
+
+        void ShowRandomButton()
+        {
             // Must have a race template set
             if (raceTemplate == null)
-                randomNameButton.Enabled = false;
-
-            // Check if race supported for random name button
-            // Argonian and Khajiit not supported at this time (no generation rules found in NAMEGEN)
-            switch (raceTemplate.ID)
             {
-                case (int)Races.Breton:
-                case (int)Races.Redguard:
-                case (int)Races.Nord:
-                case (int)Races.DarkElf:
-                case (int)Races.HighElf:
-                case (int)Races.WoodElf:
-                    randomNameButton.Enabled = true;
-                    break;
-
-                default:
-                    randomNameButton.Enabled = false;
-                    break;
+                randomNameButton.Enabled = false;
+                return;
             }
+
+            // Disable random name button only for Argonians because their race id
+            // would give them Imperial names from namegen
+            randomNameButton.Enabled = raceTemplate.ID != (int) Races.Argonian;
 
             // Randomise DFRandom seed from System.Random
             // A bit of a hack but better than starting with a seed of 0 every time
             System.Random random = new System.Random();
             DFRandom.Seed = (uint)random.Next();
-
-            base.OnPush();
         }
 
         public override void Update()
@@ -161,32 +154,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         private void RandomNameButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             // Generate name based on race
-            NameHelper.BankTypes bankType;
-            switch (raceTemplate.ID)
-            {
-                case (int)Races.Breton:
-                    bankType = NameHelper.BankTypes.Breton;
-                    break;
-                case (int)Races.Redguard:
-                    bankType = NameHelper.BankTypes.Redguard;
-                    break;
-                case (int)Races.Nord:
-                    bankType = NameHelper.BankTypes.Nord;
-                    break;
-                case (int)Races.DarkElf:
-                    bankType = NameHelper.BankTypes.DarkElf;
-                    break;
-                case (int)Races.HighElf:
-                    bankType = NameHelper.BankTypes.HighElf;
-                    break;
-                case (int)Races.WoodElf:
-                    bankType = NameHelper.BankTypes.WoodElf;
-                    break;
-
-                default:
-                    return;
-            }
-
+            NameHelper.BankTypes bankType = MacroHelper.GetNameBank((Races)raceTemplate.ID);
             textBox.Text = nameHelper.FullName(bankType, gender);
         }
 

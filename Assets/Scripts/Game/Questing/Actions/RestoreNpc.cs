@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -26,7 +26,7 @@ namespace DaggerfallWorkshop.Game.Questing.Actions
 
         public override string Pattern
         {
-            get { return @"restore npc (?<anNPC>[a-zA-Z0-9_.-]+)"; }
+            get { return @"restore npc (?<anNPC>[a-zA-Z0-9_.-]+)|restore (?<anNPC>[a-zA-Z0-9_.-]+)"; }
         }
 
         public RestoreNpc(Quest parentQuest)

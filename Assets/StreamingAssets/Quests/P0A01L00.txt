@@ -161,10 +161,11 @@ _1stparton_ task:
 
 _clearclick_ task:
 	when _qgclicked_ and not _mondead_ 
+	say 1003
 	clear _qgclicked_ _clearclick_ 
 
 _readletter_ task:
-	reveal _mondung_ 
+	reveal _mondung_ readmap
 	log 1015 step 0 
 
 _S.06_ task:

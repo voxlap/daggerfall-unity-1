@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.IO;
 using DaggerfallConnect.Utility;
 #endregion
@@ -749,14 +748,14 @@ namespace DaggerfallConnect.Arena2
 
             // Extract all rows of image
             int dstPos = 0;
-            foreach(SpecialRowHeader header in SpecialRowHeaders)
+            foreach(SpecialRowHeader SRHeader in SpecialRowHeaders)
             {
                 // Get offset to row relative to record data offset
-                position = records[record].Position + header.RowOffset;
+                position = records[record].Position + SRHeader.RowOffset;
                 reader.BaseStream.Position = position;
 
                 // Handle row data based on compression
-                if (RowEncoding.IsRleEncoded == header.RowEncoding)
+                if (RowEncoding.IsRleEncoded == SRHeader.RowEncoding)
                 {
                     // Extract RLE row
                     byte pixel = 0;

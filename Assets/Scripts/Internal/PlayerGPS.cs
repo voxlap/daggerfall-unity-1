@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,7 @@
 
 using UnityEngine;
 using System;
-using System.Collections;
+using System.Linq;
 using System.Collections.Generic;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
@@ -20,10 +20,10 @@ using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Utility;
-using DaggerfallWorkshop.Game.Questing;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Banking;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 
 namespace DaggerfallWorkshop
 {
@@ -34,6 +34,8 @@ namespace DaggerfallWorkshop
     public class PlayerGPS : MonoBehaviour
     {
         #region Fields
+
+        const float refreshNearbyObjectsInterval = 0.33f;
 
         // Default location is outside Privateer's Hold
         [Range(0, 32735232)]
@@ -65,7 +67,12 @@ namespace DaggerfallWorkshop
 
         string locationRevealedByMapItem;
 
+        float nearbyObjectsUpdateTimer = 0f;
+        List<NearbyObject> nearbyObjects = new List<NearbyObject>();
+
         Dictionary<int, DiscoveredLocation> discoveredLocations = new Dictionary<int, DiscoveredLocation>();
+
+        Vector3 lastFramePosition;
 
         #endregion
 
@@ -90,6 +97,27 @@ namespace DaggerfallWorkshop
             public int factionID;
             public int quality;
             public DFLocation.BuildingTypes buildingType;
+            public int lastLockpickAttempt;
+        }
+
+        public struct NearbyObject
+        {
+            public GameObject gameObject;
+            public NearbyObjectFlags flags;
+            public float distance;
+        }
+
+        [Flags]
+        public enum NearbyObjectFlags
+        {
+            None = 0,
+            Enemy = 1,
+            Treasure = 2,
+            Magic = 4,
+            Undead = 8,
+            Daedra = 16,
+            Humanoid = 32,
+            Animal = 64,
         }
 
         #endregion
@@ -129,15 +157,6 @@ namespace DaggerfallWorkshop
                     return 31; // High Rock sea coast
                   else
                     return currentPoliticIndex - 128; }
-        }
-
-        /// <summary>
-        /// Gets one-based region index for faction data based on player world position.
-        /// Equivalent to CurrentRegionIndex + 1.
-        /// </summary>
-        public int CurrentOneBasedRegionIndex
-        {
-            get { return currentPoliticIndex - 127; }
         }
 
         /// <summary>
@@ -235,6 +254,17 @@ namespace DaggerfallWorkshop
 
         #endregion
 
+        #region Constructors
+
+        public PlayerGPS()
+        {
+            StartGameBehaviour.OnNewGame += StartGameBehaviour_OnNewGame;
+            SaveLoadManager.OnStartLoad += SaveLoadManager_OnStartLoad;
+            DaggerfallTravelPopUp.OnPostFastTravel += DaggerfallTravelPopUp_OnPostFastTravel;
+        }
+
+        #endregion
+
         #region Unity
 
         void Awake()
@@ -270,7 +300,6 @@ namespace DaggerfallWorkshop
 
                 lastMapPixelX = pos.X;
                 lastMapPixelY = pos.Y;
-                isPlayerInLocationRect = false;
             }
 
             // Raise other events
@@ -278,6 +307,54 @@ namespace DaggerfallWorkshop
 
             // Check if player is inside actual location rect
             PlayerLocationRectCheck();
+
+            // Update nearby objects
+            nearbyObjectsUpdateTimer += Time.deltaTime;
+            if (nearbyObjectsUpdateTimer > refreshNearbyObjectsInterval)
+            {
+                UpdateNearbyObjects();
+                nearbyObjectsUpdateTimer = 0;
+            }
+
+            // Snap back to physical world boundary to prevent player running off edge of world
+            // Setting to approx. 10000 inches (254 metres) in from edge so end of world not so visible
+            if (WorldX < 10000 ||       // West
+                WorldZ > 16370000 ||    // North
+                WorldZ < 10000 ||       // South
+                WorldX > 32750000)      // East
+            {    
+                gameObject.transform.position = lastFramePosition;
+            }
+            
+            // Record player's last frame position
+            lastFramePosition = gameObject.transform.position;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private void StartGameBehaviour_OnNewGame()
+        {
+            // Reset state when loading a new game
+            ResetState();
+        }
+
+        private void SaveLoadManager_OnStartLoad(SaveData_v1 saveData)
+        {
+            // Reset state when starting a new load process
+            ResetState();
+        }
+
+        private void DaggerfallTravelPopUp_OnPostFastTravel()
+        {
+            // Reset state after fast travelling
+            ResetState();
+        }
+
+        void ResetState()
+        {
+            isPlayerInLocationRect = false;
         }
 
         #endregion
@@ -295,34 +372,15 @@ namespace DaggerfallWorkshop
 
         /// <summary>
         /// Gets NameHelper.BankType in player's current region.
-        /// In practice this will always be Redguard/Breton/Nord.
-        /// Supporting a few other name banks for possible diversity later.
+        /// In practice this will always be Redguard/Breton.
+        /// Supporting other name banks for possible diversity later.
         /// </summary>
         public NameHelper.BankTypes GetNameBankOfCurrentRegion()
         {
-            DFLocation.ClimateSettings settings = MapsFile.GetWorldClimateSettings(climateSettings.WorldClimate);
-            NameHelper.BankTypes bankType;
-            switch (settings.Names)
-            {
-                case FactionFile.FactionRaces.Redguard:
-                    bankType = NameHelper.BankTypes.Redguard;
-                    break;
-                case FactionFile.FactionRaces.Nord:
-                    bankType = NameHelper.BankTypes.Nord;
-                    break;
-                case FactionFile.FactionRaces.DarkElf:
-                    bankType = NameHelper.BankTypes.DarkElf;
-                    break;
-                case FactionFile.FactionRaces.WoodElf:
-                    bankType = NameHelper.BankTypes.WoodElf;
-                    break;
-                default:
-                case FactionFile.FactionRaces.Breton:
-                    bankType = NameHelper.BankTypes.Breton;
-                    break;
-            }
+            if (GameManager.Instance.PlayerGPS.CurrentRegionIndex > -1)
+                return (NameHelper.BankTypes) MapsFile.RegionRaces[GameManager.Instance.PlayerGPS.CurrentRegionIndex];
 
-            return bankType;
+            return NameHelper.BankTypes.Breton;
         }
 
         /// <summary>
@@ -360,7 +418,7 @@ namespace DaggerfallWorkshop
                 (int)FactionFile.FactionTypes.People,
                 (int)FactionFile.SocialGroups.Commoners,
                 (int)FactionFile.GuildGroups.GeneralPopulace,
-                CurrentOneBasedRegionIndex);
+                CurrentRegionIndex);
 
             // Should always find a single people of
             if (factions == null || factions.Length != 1)
@@ -372,29 +430,24 @@ namespace DaggerfallWorkshop
         /// <summary>
         /// Gets the factionID of player's current region.
         /// </summary>
-        int GetCurrentRegionFaction()
+        public int GetCurrentRegionFaction()
         {
-            FactionFile.FactionData[] factions = GameManager.Instance.PlayerEntity.FactionData.FindFactions(
-                (int)FactionFile.FactionTypes.Province, -1, -1, CurrentOneBasedRegionIndex);
-
-            // Should always find a single region
-            if (factions == null || factions.Length != 1)
-                throw new Exception("GetCurrentRegionFaction() did not find exactly 1 match.");
-
-            return factions[0].id;
+            FactionFile.FactionData factionData;
+            GameManager.Instance.PlayerEntity.FactionData.GetRegionFaction(CurrentRegionIndex, out factionData);
+            return factionData.id;
         }
 
         /// <summary>
         /// Gets the factionID of noble court in player's current region 
         /// </summary>
-        int GetCourtOfCurrentRegion()
+        public int GetCourtOfCurrentRegion()
         {
             // Find court in current region
             FactionFile.FactionData[] factions = GameManager.Instance.PlayerEntity.FactionData.FindFactions(
                 (int)FactionFile.FactionTypes.Courts,
                 (int)FactionFile.SocialGroups.Nobility,
                 (int)FactionFile.GuildGroups.Region,
-                CurrentOneBasedRegionIndex);
+                CurrentRegionIndex);
 
             // Should always find a single court
             if (factions == null || factions.Length != 1)
@@ -430,6 +483,27 @@ namespace DaggerfallWorkshop
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Gets nearby objects matching flags and within maxRange.
+        /// Can be used as needed, does not trigger a scene search.
+        /// This only searches pre-populated list of nearby objects which is updated at low frequency.
+        /// </summary>
+        /// <param name="flags">Flags to search for.</param>
+        /// <param name="maxRange">Max range for search. Not matched to classic range at this time.</param>
+        /// <returns>NearbyObject list. Can be null or empty.</returns>
+        public List<NearbyObject> GetNearbyObjects(NearbyObjectFlags flags, float maxRange = 14f)
+        {
+            if (flags == NearbyObjectFlags.None)
+                return null;
+
+            var query =
+                from no in nearbyObjects
+                where ((no.flags & flags) == flags) && no.distance < maxRange
+                select no;
+
+            return query.ToList();
         }
 
         #endregion
@@ -474,7 +548,7 @@ namespace DaggerfallWorkshop
             currentClimateIndex = dfUnity.ContentReader.MapFileReader.GetClimateIndex(x, y);
             currentPoliticIndex = dfUnity.ContentReader.MapFileReader.GetPoliticIndex(x, y);
             climateSettings = MapsFile.GetWorldClimateSettings(currentClimateIndex);
-            if (currentPoliticIndex > 128)
+            if (currentPoliticIndex >= 128)
                 regionName = dfUnity.ContentReader.MapFileReader.GetRegionName(currentPoliticIndex - 128);
             else if (currentPoliticIndex == 64)
                 regionName = "Ocean";
@@ -615,6 +689,115 @@ namespace DaggerfallWorkshop
 
         #endregion
 
+        #region Nearby Objects
+
+        /// <summary>
+        /// Refresh list of nearby objects to service related systems.
+        /// </summary>
+        void UpdateNearbyObjects()
+        {
+            nearbyObjects.Clear();
+
+            // Get entities
+            DaggerfallEntityBehaviour[] entities = FindObjectsOfType<DaggerfallEntityBehaviour>();
+            if (entities != null)
+            {
+                for (int i = 0; i < entities.Length; i++)
+                {
+                    if (entities[i] == GameManager.Instance.PlayerEntityBehaviour)
+                        continue;
+
+                    NearbyObject no = new NearbyObject()
+                    {
+                        gameObject = entities[i].gameObject,
+                        distance = Vector3.Distance(transform.position, entities[i].transform.position),
+                    };
+
+                    no.flags = GetEntityFlags(entities[i]);
+                    nearbyObjects.Add(no);
+                }
+            }
+
+            // Get treasure - this assumes loot containers will never carry entity component
+            DaggerfallLoot[] lootContainers = FindObjectsOfType<DaggerfallLoot>();
+            if (lootContainers != null)
+            {
+                for (int i = 0; i < lootContainers.Length; i++)
+                {
+                    NearbyObject no = new NearbyObject()
+                    {
+                        gameObject = lootContainers[i].gameObject,
+                        distance = Vector3.Distance(transform.position, lootContainers[i].transform.position),
+                    };
+
+                    no.flags = GetLootFlags(lootContainers[i]);
+                    nearbyObjects.Add(no);
+                }
+            }
+        }
+
+        public NearbyObjectFlags GetEntityFlags(DaggerfallEntityBehaviour entity)
+        {
+            NearbyObjectFlags result = NearbyObjectFlags.None;
+            if (!entity)
+                return result;
+
+            if (entity.EntityType == EntityTypes.EnemyClass || entity.EntityType == EntityTypes.EnemyMonster)
+            {
+                result |= NearbyObjectFlags.Enemy;
+                DFCareer.EnemyGroups enemyGroup = (entity.Entity as EnemyEntity).GetEnemyGroup();
+                switch (enemyGroup)
+                {
+                    case DFCareer.EnemyGroups.Undead:
+                        result |= NearbyObjectFlags.Undead;
+                        break;
+                    case DFCareer.EnemyGroups.Daedra:
+                        result |= NearbyObjectFlags.Daedra;
+                        break;
+                    case DFCareer.EnemyGroups.Humanoid:
+                        result |= NearbyObjectFlags.Humanoid;
+                        break;
+                    case DFCareer.EnemyGroups.Animals:
+                        result |= NearbyObjectFlags.Animal;
+                        break;
+                }
+            }
+            else if (entity.EntityType == EntityTypes.CivilianNPC)
+            {
+                result |= NearbyObjectFlags.Humanoid;
+            }
+
+            // Set magic flag
+            // Not completely sure what conditions should flag entity for "detect magic"
+            // Currently just assuming entity has active effects
+            EntityEffectManager manager = entity.GetComponent<EntityEffectManager>();
+            if (manager && manager.EffectCount > 0)
+            {
+                result |= NearbyObjectFlags.Magic;
+            }
+
+            return result;
+        }
+
+        public NearbyObjectFlags GetLootFlags(DaggerfallLoot loot)
+        {
+            NearbyObjectFlags result = NearbyObjectFlags.None;
+            if (!loot)
+                return result;
+
+            // Set treasure flag when container not empty
+            // Are any other conditions required?
+            // Should corspes loot container be filtered out?
+            if (loot.Items.Count > 0)
+            {
+                result |= NearbyObjectFlags.Treasure;
+            }
+
+            return result;
+        }
+
+        #endregion
+
         #region Location Discovery
 
         /// <summary>
@@ -648,7 +831,7 @@ namespace DaggerfallWorkshop
         /// </summary>
         public void DiscoverLocation(string regionName, string locationName)
         {
-            DFLocation location;        
+            DFLocation location;
             bool found = dfUnity.ContentReader.GetLocation(regionName, locationName, out location);
             if (!found)
                 throw new Exception(String.Format("Error finding location {0} : {1}", regionName, locationName));
@@ -693,6 +876,9 @@ namespace DaggerfallWorkshop
         /// <param name="overrideName">If provided, ignore previous discovery and override the name</param>
         public void DiscoverBuilding(int buildingKey, string overrideName = null)
         {
+            // Ensure current location also discovered before processing building
+            DiscoverCurrentLocation();
+
             // Must have a location loaded
             if (!CurrentLocation.Loaded)
                 return;
@@ -703,7 +889,7 @@ namespace DaggerfallWorkshop
 
             // Get building information
             DiscoveredBuilding db;
-            if (!GetBuildingDiscoveryData(buildingKey, out db))
+            if (!GetBaseBuildingDiscoveryData(buildingKey, out db))
                 return;
 
             // Get location discovery
@@ -717,6 +903,21 @@ namespace DaggerfallWorkshop
             // Ensure the building dict is created
             if (dl.discoveredBuildings == null)
                 dl.discoveredBuildings = new Dictionary<int, DiscoveredBuilding>();
+
+            // check if building is used in quest (but only if no override name was provided (which will have priority))
+            if (overrideName == null)
+            {
+                bool pcLearnedAboutExistence = false;
+                bool receivedDirectionalHints = false;
+                bool locationWasMarkedOnMapByNPC = false;
+                string overrideBuildingName = string.Empty;
+                if (GameManager.Instance.TalkManager.IsBuildingQuestResource(CurrentMapID, buildingKey, ref overrideBuildingName, ref pcLearnedAboutExistence, ref receivedDirectionalHints, ref locationWasMarkedOnMapByNPC))
+                {
+                    // if pc learned about building existance (was told the name) and quest building has (override) building name different than current building display name
+                    if (pcLearnedAboutExistence && overrideBuildingName != db.displayName)
+                        overrideName = overrideBuildingName; // set override name for use
+                }
+            }
 
             // Add the building and store back to discovered location, overriding name if requested
             if (overrideName != null)
@@ -733,23 +934,19 @@ namespace DaggerfallWorkshop
             dl.discoveredBuildings[db.buildingKey] = db;
             discoveredLocations[mapPixelID] = dl;
         }
-
+       
         /// <summary>
         /// Undiscover the specified building in current location.
-        /// used to undiscover residences when they are a quest resource (named residence) when "add dialog" is done for this quest resource or on quest startup
+        /// used to undiscover residences when they are a quest resource (named residence) when "add dialog" is done for this quest resource or on quest startup or on quest tombstone
         /// otherwise previously discovered residences will automatically show up on the automap when used in a quest
         /// </summary>
         /// <param name="buildingKey">Building key of building to be undiscovered</param>
         /// <param name="onlyIfResidence">gets undiscovered only if buildingType is residence</param>
-        public void UndiscoverBuilding(int buildingKey, bool onlyIfResidence = false)
+        /// <param name="matchName">use a name for matching (only undiscover if building name matches matchName) - this is used if two quests "occupy" the same residence with different names, and one tries to hide residence on map but other quest's residence name was used and is still running</param>
+        public void UndiscoverBuilding(int buildingKey, bool onlyIfResidence = false, string matchName = null)
         {
             // Must have a location loaded
             if (!CurrentLocation.Loaded)
-                return;
-
-            // Get building information
-            DiscoveredBuilding db;
-            if (!GetBuildingDiscoveryData(buildingKey, out db))
                 return;
 
             // Get location discovery
@@ -760,11 +957,20 @@ namespace DaggerfallWorkshop
                 dl = discoveredLocations[mapPixelID];
             }
 
+            if (dl.discoveredBuildings == null || !dl.discoveredBuildings.ContainsKey(buildingKey))
+                return;
+
+            DiscoveredBuilding db = dl.discoveredBuildings[buildingKey];
+
+            // do nothing if only residences should be undiscovered but building is no residence
             if (onlyIfResidence && !RMBLayout.IsResidence(db.buildingType))
                 return;
 
-            if (dl.discoveredBuildings.ContainsKey(db.buildingKey))
-                dl.discoveredBuildings.Remove(db.buildingKey);
+            // do nothing if matchName was provided but matchName does not match displayName of building
+            if (matchName != null && matchName != db.displayName)
+                return;
+
+            dl.discoveredBuildings.Remove(db.buildingKey);
         }
 
         /// <summary>
@@ -799,12 +1005,13 @@ namespace DaggerfallWorkshop
             DiscoveredLocation dl = discoveredLocations[mapPixelID];
             if (dl.discoveredBuildings == null)
                 return false;
-
+            
             return dl.discoveredBuildings.ContainsKey(buildingKey);
         }
 
         /// <summary>
         /// Gets discovered building data for current location.
+        /// Does not change discovery state (NOTE: it kind of does for now with player house override but this will eventually be fixed)
         /// </summary>
         /// <param name="buildingKey">Building key in current location.</param>
         /// <param name="discoveredBuildingOut">Building discovery data out.</param>
@@ -835,6 +1042,56 @@ namespace DaggerfallWorkshop
         }
 
         /// <summary>
+        /// Gets skill value of last lockpick attempt on this building in current location.
+        /// </summary>
+        /// <param name="buildingKey">Building key in current location.</param>
+        public int GetLastLockpickAttempt(int buildingKey)
+        {
+            DiscoveredBuilding discoveredBuilding;
+            if (!GetDiscoveredBuilding(buildingKey, out discoveredBuilding))
+                return 0;
+
+            return discoveredBuilding.lastLockpickAttempt;
+        }
+
+        /// <summary>
+        /// Sets skill value at time of last lockpicking attempt after failure in current location.
+        /// Player must increase skill past this value before they can try again.
+        /// </summary>
+        /// <param name="buildingKey">Building key in current location.</param>
+        /// <param name="skillValue">Skill value at time attempt failed.</param>
+        public void SetLastLockpickAttempt(int buildingKey, int skillValue)
+        {
+            DiscoveredBuilding discoveredBuilding;
+            if (!GetDiscoveredBuilding(buildingKey, out discoveredBuilding))
+                return;
+
+            discoveredBuilding.lastLockpickAttempt = skillValue;
+            UpdateDiscoveredBuilding(discoveredBuilding);
+        }
+
+        /// <summary>
+        /// Updates discovered building data in current location.
+        /// </summary>
+        /// <param name="discoveredBuilding">Updated data to write back to live discovery database.</param>
+        void UpdateDiscoveredBuilding(DiscoveredBuilding discoveredBuildingIn)
+        {
+            // Must have discovered building
+            if (!HasDiscoveredBuilding(discoveredBuildingIn.buildingKey))
+                return;
+
+            // Get the location discovery for this mapID
+            int mapPixelID = MapsFile.GetMapPixelIDFromLongitudeLatitude((int)CurrentLocation.MapTableData.Longitude, CurrentLocation.MapTableData.Latitude);
+            DiscoveredLocation dl = discoveredLocations[mapPixelID];
+            if (dl.discoveredBuildings == null)
+                return;
+
+            // Replace discovery data for building
+            dl.discoveredBuildings.Remove(discoveredBuildingIn.buildingKey);
+            dl.discoveredBuildings.Add(discoveredBuildingIn.buildingKey, discoveredBuildingIn);
+        }
+
+        /// <summary>
         /// Gets discovery information from any building in current location.
         /// Does not change discovery state, simply returns data as if building is always discovered.
         /// </summary>
@@ -845,12 +1102,12 @@ namespace DaggerfallWorkshop
         {
             discoveredBuildingOut = new DiscoveredBuilding();
 
-            // Must have a location loaded
-            if (!CurrentLocation.Loaded)
-                return false;
+            // if found in discovered building data, return discovery information
+            if (GetDiscoveredBuilding(buildingKey, out discoveredBuildingOut))
+                return true;
 
-            // Get building discovery data only
-            if (GetBuildingDiscoveryData(buildingKey, out discoveredBuildingOut))
+            // if not try to get it from GetBaseBuildingDiscoveryData() function
+            if (GetBaseBuildingDiscoveryData(buildingKey, out discoveredBuildingOut))
                 return true;
 
             return false;
@@ -861,6 +1118,8 @@ namespace DaggerfallWorkshop
         /// </summary>
         public Dictionary<int, DiscoveredLocation> GetDiscoverySaveData()
         {
+            RemoveUnnamedResidencesFromDiscoveryData();
+
             return discoveredLocations;
         }
 
@@ -881,10 +1140,12 @@ namespace DaggerfallWorkshop
             }
 
             // Remove legacy entries
-            foreach(int key in keysToRemove)
+            foreach (int key in keysToRemove)
             {
                 discoveredLocations.Remove(key);
             }
+
+            RemoveUnnamedResidencesFromDiscoveryData();
         }
 
         /// <summary>
@@ -898,11 +1159,13 @@ namespace DaggerfallWorkshop
         }
 
         /// <summary>
-        /// Gets building information from current location.
+        /// Gets base building information from current location (no building name expansion). This is used as intermediate result by other functions like DiscoverBuilding and GetAnyBuilding
         /// Does not change discovery state for building.
         /// </summary>
         /// <param name="buildingKey">Key of building to query.</param>
-        bool GetBuildingDiscoveryData(int buildingKey, out DiscoveredBuilding buildingDiscoveryData)
+        /// <param name="buildingDiscoveryData">[out] building discovery data of queried building</param>
+        /// <returns>True if building information was found.</returns>
+        bool GetBaseBuildingDiscoveryData(int buildingKey, out DiscoveredBuilding buildingDiscoveryData)
         {
             buildingDiscoveryData = new DiscoveredBuilding();
 
@@ -922,46 +1185,53 @@ namespace DaggerfallWorkshop
                 return false;
             }
 
-            // Resolve name by building type
-            string buildingName;
+            // Add to data
+            buildingDiscoveryData.buildingKey = buildingKey;
             if (RMBLayout.IsResidence(buildingSummary.BuildingType))
             {
                 // Residence                
-                buildingName = HardStrings.residence;
-
-                // Link to quest system active sites
-                // note Nystul: do this via TalkManager, this might seem odd at first glance but there is a reason to do so:
-                //              get info from TalkManager if pc learned about existence of the building (i.e. its name)
-                //              either through dialog ("add dialog" or by dialog-link) or quest (quest did not hide location via "dialog link" command)
-                bool pcLearnedAboutExistence = false;
-                bool receivedDirectionalHints = false;
-                bool locationWasMarkedOnMapByNPC = false;
-                string overrideBuildingName = string.Empty;
-                if (GameManager.Instance.TalkManager.IsBuildingQuestResource(buildingSummary.buildingKey, ref overrideBuildingName, ref pcLearnedAboutExistence, ref receivedDirectionalHints, ref locationWasMarkedOnMapByNPC))
-                {
-                    if (pcLearnedAboutExistence)
-                        buildingName = overrideBuildingName;
-                }
+                buildingDiscoveryData.displayName = HardStrings.residence;
             }
             else
             {
                 // Fixed building name
-                buildingName = BuildingNames.GetName(
+                buildingDiscoveryData.displayName = BuildingNames.GetName(
                     buildingSummary.NameSeed,
                     buildingSummary.BuildingType,
                     buildingSummary.FactionId,
                     buildingDirectory.LocationData.Name,
                     buildingDirectory.LocationData.RegionName);
             }
-
-            // Add to data
-            buildingDiscoveryData.buildingKey = buildingKey;
-            buildingDiscoveryData.displayName = buildingName;
             buildingDiscoveryData.factionID = buildingSummary.FactionId;
             buildingDiscoveryData.quality = buildingSummary.Quality;
             buildingDiscoveryData.buildingType = buildingSummary.BuildingType;
 
             return true;
+        }
+
+        /// <summary>
+        /// this function uses two purposes:
+        /// keep save data small and 
+        /// get rid of discovered and stored residences in the past (old save games will have them) preventing named residences to show up correctly after code rework
+        /// </summary>
+        void RemoveUnnamedResidencesFromDiscoveryData()
+        {
+            foreach (var discoveredLocation in discoveredLocations)
+            {
+                List<int> keysToRemove = new List<int>();
+
+                if (discoveredLocation.Value.discoveredBuildings != null)
+                {
+                    foreach (var discoveredBuilding in discoveredLocation.Value.discoveredBuildings)
+                        if (discoveredBuilding.Value.displayName == HardStrings.residence)
+                            keysToRemove.Add(discoveredBuilding.Key);
+
+                    foreach (int key in keysToRemove)
+                    {
+                        discoveredLocation.Value.discoveredBuildings.Remove(key);
+                    }
+                }
+            }
         }
 
         #endregion

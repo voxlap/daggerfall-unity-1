@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -14,7 +14,7 @@ using System;
 using System.Text.RegularExpressions;
 using DaggerfallWorkshop.Utility;
 using FullSerializer;
-using DaggerfallWorkshop.Game.UserInterfaceWindows;
+using DaggerfallWorkshop.Game.Utility;
 
 namespace DaggerfallWorkshop.Game.Questing
 {
@@ -23,10 +23,13 @@ namespace DaggerfallWorkshop.Game.Questing
     /// </summary>
     public class CreateFoe : ActionTemplate
     {
+        const string optionsMatchStr = @"msg (?<msgId>\d+)";
+
         Symbol foeSymbol;
         uint spawnInterval;
         int spawnMaxTimes = -1;
         int spawnChance;
+        int msgMessageID = -1;
 
         ulong lastSpawnTime = 0;
         int spawnCounter = 0;
@@ -89,6 +92,17 @@ namespace DaggerfallWorkshop.Game.Questing
                     action.spawnMaxTimes = -1;
             }
 
+            // Split options from declaration
+            string optionsSource = source.Substring(match.Length);
+            MatchCollection options = Regex.Matches(optionsSource, optionsMatchStr);
+            foreach (Match option in options)
+            {
+                // Message ID
+                Group msgIDGroup = option.Groups["msgId"];
+                if (msgIDGroup.Success)
+                    action.msgMessageID = Parser.ParseInt(msgIDGroup.Value);
+            }
+
             return action;
         }
 
@@ -98,7 +112,7 @@ namespace DaggerfallWorkshop.Game.Questing
 
             // Init spawn timer on first update
             if (lastSpawnTime == 0)
-                lastSpawnTime = gameSeconds + (uint)UnityEngine.Random.Range(0, spawnInterval);
+                lastSpawnTime = gameSeconds + (uint)UnityEngine.Random.Range(0, spawnInterval + 1);
 
             // Do nothing if max foes already spawned
             // This can be cleared on next set/rearm
@@ -124,35 +138,34 @@ namespace DaggerfallWorkshop.Game.Questing
                 if (UnityEngine.Random.Range(0f, 1f) > chance)
                     return;
 
+                // Get the Foe resource
+                Foe foe = ParentQuest.GetFoe(foeSymbol);
+                if (foe == null)
+                {
+                    SetComplete();
+                    throw new Exception(string.Format("create foe could not find Foe with symbol name {0}", Symbol.Name));
+                }
+
+                // Do not spawn if foe is hidden
+                if (foe.IsHidden)
+                    return;
+
                 // Start deploying GameObjects
-                CreatePendingFoeSpawn();
+                CreatePendingFoeSpawn(foe);
             }
 
             // Try to deploy a pending spawns
             if (spawnInProgress)
             {
                 TryPlacement();
-            }
-
-            // Keep breaking rest if spawn in progress
-            if (spawnInProgress && DaggerfallUI.Instance.UserInterfaceManager.TopWindow is DaggerfallRestWindow)
-            {
-                (DaggerfallUI.Instance.UserInterfaceManager.TopWindow as DaggerfallRestWindow).AbortRestForEnemySpawn();
+                GameManager.Instance.RaiseOnEncounterEvent();
             }
         }
 
         #region Private Methods
 
-        void CreatePendingFoeSpawn()
+        void CreatePendingFoeSpawn(Foe foe)
         {
-            // Get the Foe resource
-            Foe foe = ParentQuest.GetFoe(foeSymbol);
-            if (foe == null)
-            {
-                SetComplete();
-                throw new Exception(string.Format("create foe could not find Foe with symbol name {0}", Symbol.Name));
-            }
-
             // Get foe GameObjects
             pendingFoeGameObjects = GameObjectHelper.CreateFoeGameObjects(Vector3.zero, foe.FoeType, foe.SpawnCount, MobileReactions.Hostile, foe);
             if (pendingFoeGameObjects == null || pendingFoeGameObjects.Length != foe.SpawnCount)
@@ -309,6 +322,13 @@ namespace DaggerfallWorkshop.Game.Questing
             FinalizeFoe(pendingFoeGameObjects[pendingFoesSpawned]);
             gameObjects[pendingFoesSpawned].transform.LookAt(GameManager.Instance.PlayerObject.transform.position);
 
+            // Send msg message on first spawn only
+            if (msgMessageID != -1)
+            {
+                ParentQuest.ShowMessagePopup(msgMessageID);
+                msgMessageID = -1;
+            }
+
             // Increment count
             pendingFoesSpawned++;
         }
@@ -366,6 +386,7 @@ namespace DaggerfallWorkshop.Game.Questing
             public int spawnChance;
             public int spawnCounter;
             public bool isSendAction;
+            public int msgMessageID;
         }
 
         public override object GetSaveData()
@@ -378,6 +399,7 @@ namespace DaggerfallWorkshop.Game.Questing
             data.spawnChance = spawnChance;
             data.spawnCounter = spawnCounter;
             data.isSendAction = isSendAction;
+            data.msgMessageID = msgMessageID;
 
             return data;
         }
@@ -395,6 +417,7 @@ namespace DaggerfallWorkshop.Game.Questing
             spawnChance = data.spawnChance;
             spawnCounter = data.spawnCounter;
             isSendAction = data.isSendAction;
+            msgMessageID = data.msgMessageID;
 
             // Set timer to current game time if not loaded from save
             if (lastSpawnTime == 0)

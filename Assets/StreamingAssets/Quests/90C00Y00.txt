@@ -79,18 +79,6 @@ I hear %god sent us an angel to rid ___mondung_ of that accursed lich.
 <--->
 We may never know who destroyed that lich in ___mondung_, but he's in our prayers.
 
-QuestorPostsuccess:  [1008]
-Error: Quest 90c00y00.q tried to display text
-
-QuestorPostsuccess:  [1008]
-<ce>                                   
-
-QuestorPostfailure:  [1009]
-Error: Quest 90c00y00.q tried to display text
-
-QuestorPostfailure:  [1009]
-<ce>                                   
-
 Message:  1011
 _qgfriend_ is that creepy =qgfriend_ over at __qgfriend_ to the %di.
 <--->
@@ -117,8 +105,9 @@ Message:  1015
 <ce>                          with Lady Vaernima.
 
 Message:  1020
-%qdt: I have made a contract with the Daedra
- Prince Vaernima. She will order her agent in ___qgfriend_
+%qdt:
+ I have made a contract with the Daedra Prince Vaernima.
+ She will order her agent in ___qgfriend_
  to give me her artifact, _artifact_, if
  I can meet %g2 at __qgfriend_ with the
  dust of a certain _monster_ on my hands
@@ -155,6 +144,7 @@ Clock _1stparton_ 00:00 0 flag 1 range 2 5
 Clock _delay_ 01:00 0 flag 1 range 0 1
 
 Foe _monster_ is Lich
+--fixed msg 1020 to not share qdt line
 
 --	Quest start-up:
 	start timer _1stparton_ 
@@ -166,12 +156,14 @@ _1stparton_ task:
 	end quest 
 
 variable _2ndparton_
+--unused variable
 _pcgetsgold_ task:
 	when _npcclicked_ and _mondead_ 
 	give pc _artifact_ 
 	start timer _delay_ 
 
 variable _queston_
+--unused variable
 _mondead_ task:
 	killed 1 _monster_ 
 	say 1015 
@@ -181,6 +173,7 @@ _npcclicked_ task:
 
 _clearclick_ task:
 	when _npcclicked_ and not _mondead_ 
+	say 1003
 	clear _npcclicked_ 
 
 _delay_ task:

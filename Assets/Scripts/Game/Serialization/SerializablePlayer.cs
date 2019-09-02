@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    Hazelnut
+// Contributors:    Hazelnut, Numidium
 // 
 // Notes:
 //
@@ -16,6 +16,8 @@ using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.MagicAndEffects;
 using System.Collections.Generic;
 using System.Linq;
+using DaggerfallWorkshop.Game.Items;
+using DaggerfallConnect.Arena2;
 
 namespace DaggerfallWorkshop.Game.Serialization
 {
@@ -104,7 +106,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             PlayerEntity entity = playerEntityBehaviour.Entity as PlayerEntity;
             data.playerEntity = new PlayerEntityData_v1();
             data.playerEntity.gender = entity.Gender;
-            data.playerEntity.raceTemplate = entity.RaceTemplate;
+            data.playerEntity.raceTemplate = entity.BirthRaceTemplate;
             data.playerEntity.faceIndex = entity.FaceIndex;
             data.playerEntity.reflexes = entity.Reflexes;
             data.playerEntity.careerTemplate = entity.Career;
@@ -113,13 +115,14 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.playerEntity.stats = entity.Stats;
             data.playerEntity.skills = entity.Skills;
             data.playerEntity.resistances = entity.Resistances;
-            data.playerEntity.maxHealth = entity.MaxHealth;
+            data.playerEntity.maxHealth = entity.RawMaxHealth;
             data.playerEntity.currentHealth = entity.CurrentHealth;
             data.playerEntity.currentFatigue = entity.CurrentFatigue;
             data.playerEntity.currentMagicka = entity.CurrentMagicka;
             data.playerEntity.currentBreath = entity.CurrentBreath;
             data.playerEntity.skillUses = entity.SkillUses;
             data.playerEntity.timeOfLastSkillIncreaseCheck = entity.TimeOfLastSkillIncreaseCheck;
+            data.playerEntity.skillsRecentlyRaised = entity.SkillsRecentlyRaised;
             data.playerEntity.timeOfLastSkillTraining = entity.TimeOfLastSkillTraining;
             data.playerEntity.startingLevelUpSkillSum = entity.StartingLevelUpSkillSum;
             data.playerEntity.equipTable = entity.ItemEquipTable.SerializeEquipTable();
@@ -144,6 +147,19 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.playerEntity.spellbook = entity.SerializeSpellbook();
             data.playerEntity.crimeCommitted = entity.CrimeCommitted;
             data.playerEntity.haveShownSurrenderToGuardsDialogue = entity.HaveShownSurrenderToGuardsDialogue;
+            data.playerEntity.lightSourceUID = (entity.LightSource == null) ? 0 : entity.LightSource.UID;
+            data.playerEntity.reputationCommoners = entity.SGroupReputations[(int)FactionFile.SocialGroups.Commoners];
+            data.playerEntity.reputationMerchants = entity.SGroupReputations[(int)FactionFile.SocialGroups.Merchants];
+            data.playerEntity.reputationScholars = entity.SGroupReputations[(int)FactionFile.SocialGroups.Scholars];
+            data.playerEntity.reputationNobility = entity.SGroupReputations[(int)FactionFile.SocialGroups.Nobility];
+            data.playerEntity.reputationUnderworld = entity.SGroupReputations[(int)FactionFile.SocialGroups.Underworld];
+            data.playerEntity.reputationSGroup5 = entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup5];
+            data.playerEntity.reputationSupernaturalBeings = entity.SGroupReputations[(int)FactionFile.SocialGroups.SupernaturalBeings];
+            data.playerEntity.reputationGuildMembers = entity.SGroupReputations[(int)FactionFile.SocialGroups.GuildMembers];
+            data.playerEntity.reputationSGroup8 = entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup8];
+            data.playerEntity.reputationSGroup9 = entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup9];
+            data.playerEntity.reputationSGroup10 = entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup10];
+            data.playerEntity.previousVampireClan = entity.PreviousVampireClan;
 
             data.playerEntity.regionData = entity.RegionData;
             data.playerEntity.rentedRooms = entity.RentedRooms.ToArray();
@@ -153,6 +169,7 @@ namespace DaggerfallWorkshop.Game.Serialization
 
             // Store weapon state
             data.weaponDrawn = !weaponManager.Sheathed;
+            data.usingLeftHand = !weaponManager.UsingRightHand;
             // Store transport mode
             data.transportMode = transportManager.TransportMode;
             // Store pre boarding ship position
@@ -166,6 +183,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             }
             // Store guild memberships
             data.guildMemberships = GameManager.Instance.GuildManager.GetMembershipData();
+            // Store one time quest acceptances
+            data.oneTimeQuestsAccepted = GameManager.Instance.QuestListsManager.oneTimeQuestsAccepted;
 
             // Store instanced effect bundles
             data.playerEntity.instancedEffectBundles = GetComponent<EntityEffectManager>().GetInstancedBundlesSaveData();
@@ -176,6 +195,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public PlayerPositionData_v1 GetPlayerPositionData()
         {
             PlayerPositionData_v1 playerPosition = new PlayerPositionData_v1();
+            //PlayerHeightChanger heightChanger = GetComponent<PlayerHeightChanger>();
             playerPosition.position = transform.position;
             playerPosition.worldCompensation = GameManager.Instance.StreamingWorld.WorldCompensation;
             playerPosition.worldContext = playerEnterExit.WorldContext;
@@ -208,7 +228,25 @@ namespace DaggerfallWorkshop.Game.Serialization
         public void RestoreFactionData(FactionData_v2 factionData)
         {
             PlayerEntity entity = playerEntityBehaviour.Entity as PlayerEntity;
-            entity.FactionData.FactionDict = factionData.factionDict;
+            // There are a mixture of saved games that were made using the 1-based region IDs
+            // straight from FACTION.TXT, while others made earlier used 0-based IDs.
+            // Here we convert saves with 1-based to be 0-based. 0-based is assumed by code using these IDs.
+            if (factionData.factionDict[201].region == 18) // To check for 1-based, see if Daggerfall is 18 rather than 17
+            {
+                Debug.Log("Updating 1-based faction region IDs to 0-based.");
+                entity.FactionData.FactionDict = new Dictionary<int, DaggerfallConnect.Arena2.FactionFile.FactionData>();
+                foreach (int key in factionData.factionDict.Keys)
+                {
+                    var dict = factionData.factionDict[key];
+                    if (factionData.factionDict[key].region != -1)
+                        dict.region--;
+
+                    entity.FactionData.FactionDict.Add(key, dict);
+                }
+            }
+            else
+                entity.FactionData.FactionDict = factionData.factionDict;
+
             entity.FactionData.FactionNameToIDDict = factionData.factionNameToIDDict;
             // Add any registered custom factions
             entity.FactionData.AddCustomFactions();
@@ -224,7 +262,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             PlayerEntity entity = playerEntityBehaviour.Entity as PlayerEntity;
 
             entity.Gender = data.playerEntity.gender;
-            entity.RaceTemplate = data.playerEntity.raceTemplate;
+            entity.BirthRaceTemplate = data.playerEntity.raceTemplate;
             entity.FaceIndex = data.playerEntity.faceIndex;
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
@@ -234,11 +272,12 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.Skills = data.playerEntity.skills;
             entity.Resistances = (data.playerEntity.resistances != null) ? data.playerEntity.resistances : new DaggerfallResistances();
             entity.MaxHealth = data.playerEntity.maxHealth;
-            entity.CurrentHealth = data.playerEntity.currentHealth;
-            entity.CurrentFatigue = data.playerEntity.currentFatigue;
-            entity.CurrentMagicka = data.playerEntity.currentMagicka;
+            entity.SetHealth(data.playerEntity.currentHealth, true);
+            entity.SetFatigue(data.playerEntity.currentFatigue, true);
+            entity.SetMagicka(data.playerEntity.currentMagicka, true);
             entity.CurrentBreath = data.playerEntity.currentBreath;
             entity.SkillUses = data.playerEntity.skillUses;
+            entity.SkillsRecentlyRaised = (data.playerEntity.skillsRecentlyRaised != null ? data.playerEntity.skillsRecentlyRaised : new uint[2]);
             entity.TimeOfLastSkillIncreaseCheck = data.playerEntity.timeOfLastSkillIncreaseCheck;
             entity.TimeOfLastSkillTraining = data.playerEntity.timeOfLastSkillTraining;
             entity.StartingLevelUpSkillSum = data.playerEntity.startingLevelUpSkillSum;
@@ -264,6 +303,19 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.CrimeCommitted = data.playerEntity.crimeCommitted;
             entity.HaveShownSurrenderToGuardsDialogue = data.playerEntity.haveShownSurrenderToGuardsDialogue;
             entity.SetCurrentLevelUpSkillSum();
+            if (DaggerfallUnity.Settings.PlayerTorchFromItems)
+                entity.LightSource = entity.Items.GetItem(data.playerEntity.lightSourceUID);
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.Commoners] = data.playerEntity.reputationCommoners;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.Merchants] = data.playerEntity.reputationMerchants;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.Scholars] = data.playerEntity.reputationScholars;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.Nobility] = data.playerEntity.reputationNobility;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.Underworld] = data.playerEntity.reputationUnderworld;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup5] = data.playerEntity.reputationSGroup5;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.GuildMembers] = data.playerEntity.reputationGuildMembers;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup8] = data.playerEntity.reputationSGroup8;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup9] = data.playerEntity.reputationSGroup9;
+            entity.SGroupReputations[(int)FactionFile.SocialGroups.SGroup10] = data.playerEntity.reputationSGroup10;
+            entity.PreviousVampireClan = data.playerEntity.previousVampireClan;
 
             entity.RentedRooms = (data.playerEntity.rentedRooms != null) ? data.playerEntity.rentedRooms.ToList() : new List<RoomRental_v1>();
 
@@ -298,6 +350,10 @@ namespace DaggerfallWorkshop.Game.Serialization
                     entity.UpdateEquippedArmorValues(equipTable[i], true);
                 }
             }
+
+            // Trim name strings as these might contain trailing whitespace characters previously imported from classic saves
+            entity.Name = entity.Name.Trim();
+            entity.Career.Name = entity.Career.Name.Trim();
 
             // Flag determines if player position is restored
             bool restorePlayerPosition = true;
@@ -339,13 +395,19 @@ namespace DaggerfallWorkshop.Game.Serialization
 
             // Restore sheath state
             weaponManager.Sheathed = !data.weaponDrawn;
+            weaponManager.UsingRightHand = !data.usingLeftHand;
             // Restore transport mode
             transportManager.TransportMode = data.transportMode;
             // Restore pre boarding ship position
             transportManager.BoardShipPosition = data.boardShipPosition;
 
+            // Validate spellbook item
+            DaggerfallUnity.Instance.ItemHelper.ValidateSpellbookItem(entity);
+
             // Restore guild memberships, also done early in SaveLoadManager for interiors
             GameManager.Instance.GuildManager.RestoreMembershipData(data.guildMemberships);
+            // Restore one time quest acceptances
+            GameManager.Instance.QuestListsManager.oneTimeQuestsAccepted = data.oneTimeQuestsAccepted;
 
             entity.DeserializeSpellbook(data.playerEntity.spellbook);
 

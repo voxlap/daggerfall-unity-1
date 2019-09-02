@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -17,9 +17,10 @@ using System.Collections.Generic;
 using FullSerializer;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Questing;
-using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Banking;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
+using DaggerfallWorkshop.Game.Player;
+using DaggerfallWorkshop.Game.Entity;
 
 namespace DaggerfallWorkshop.Game.Serialization
 {
@@ -45,8 +46,11 @@ namespace DaggerfallWorkshop.Game.Serialization
         const string questDataFilename = "QuestData.txt";
         const string discoveryDataFilename = "DiscoveryData.txt";
         const string conversationDataFilename = "ConversationData.txt";
+        const string notebookDataFilename = "NotebookData.txt";
         const string automapDataFilename = "AutomapData.txt";
+        const string questExceptionsFilename = "QuestExceptions.txt";
         const string screenshotFilename = "Screenshot.jpg";
+        const string bioFileName = "bio.txt";
         const string notReadyExceptionText = "SaveLoad not ready.";
 
         // Serializable state manager for stateful game objects
@@ -304,10 +308,13 @@ namespace DaggerfallWorkshop.Game.Serialization
             File.Delete(Path.Combine(path, screenshotFilename));
             File.Delete(Path.Combine(path, containerDataFilename));
             File.Delete(Path.Combine(path, automapDataFilename));
+            File.Delete(Path.Combine(path, questExceptionsFilename));
             File.Delete(Path.Combine(path, conversationDataFilename));
             File.Delete(Path.Combine(path, discoveryDataFilename));
             File.Delete(Path.Combine(path, factionDataFilename));
             File.Delete(Path.Combine(path, questDataFilename));
+            File.Delete(Path.Combine(path, bioFileName));
+            File.Delete(Path.Combine(path, notebookDataFilename));
             if (ModManager.Instance != null)
             {
                 foreach (Mod mod in ModManager.Instance.GetAllModsWithSaveData())
@@ -331,29 +338,24 @@ namespace DaggerfallWorkshop.Game.Serialization
             EnumerateSaves();
         }
 
-        public void Save(string characterName, string saveName)
+        public void Save(string characterName, string saveName, bool instantReload = false)
         {
             // Must be ready
             if (!IsReady())
                 throw new Exception(notReadyExceptionText);
 
-            // Look for existing save with this character and name
-            int key = FindSaveFolderByNames(characterName, saveName);
-
-            // Get or create folder
-            string path;
-            if (key == -1)
-                path = CreateNewSavePath(enumeratedSaveFolders);
-            else
-                path = GetSaveFolder(key);
+            // Do nothing if load in progress
+            if (LoadInProgress)
+                return;
 
             // Save game
-            StartCoroutine(SaveGame(saveName, path));
+            StartCoroutine(SaveGame(characterName, saveName, instantReload));
         }
 
-        public void QuickSave()
+        public void QuickSave(bool instantReload = false)
         {
-            Save(GameManager.Instance.PlayerEntity.Name, quickSaveName);
+            if (!LoadInProgress)
+                Save(GameManager.Instance.PlayerEntity.Name, quickSaveName, instantReload);
         }
 
         public void Load(int key)
@@ -716,6 +718,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             saveData.bankDeeds = GetBankDeedData();
             saveData.escortingFaces = DaggerfallUI.Instance.DaggerfallHUD.EscortingFaces.GetSaveData();
             saveData.sceneCache = stateManager.GetSceneCache();
+            saveData.travelMapData = DaggerfallUI.Instance.DfTravelMapWindow.GetTravelMapSaveData();
 
             return saveData;
         }
@@ -905,8 +908,18 @@ namespace DaggerfallWorkshop.Game.Serialization
 
         #region Utility
 
-        IEnumerator SaveGame(string saveName, string path)
+        IEnumerator SaveGame(string characterName, string saveName, bool instantReload = false)
         {
+            // Look for existing save with this character and name
+            int key = FindSaveFolderByNames(characterName, saveName);
+
+            // Get or create folder
+            string path;
+            if (key == -1)
+                path = CreateNewSavePath(enumeratedSaveFolders);
+            else
+                path = GetSaveFolder(key);
+
             // Build save data
             SaveData_v1 saveData = BuildSaveData();
 
@@ -916,6 +929,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             saveInfo.saveName = saveName;
             saveInfo.characterName = saveData.playerData.playerEntity.name;
             saveInfo.dateAndTime = saveData.dateAndTime;
+            saveInfo.dfuVersion = VersionInfo.DaggerfallUnityVersion;
 
             // Build faction data
             FactionData_v2 factionData = stateManager.GetPlayerFactionData();
@@ -929,6 +943,9 @@ namespace DaggerfallWorkshop.Game.Serialization
             // Get conversation data
             TalkManager.SaveDataConversation conversationData = GameManager.Instance.TalkManager.GetConversationSaveData();
 
+            // Get notebook data
+            PlayerNotebook.NotebookData_v1 notebookData = GameManager.Instance.PlayerEntity.Notebook.GetNotebookSaveData();
+
             // Serialize save data to JSON strings
             string saveDataJson = Serialize(saveData.GetType(), saveData);
             string saveInfoJson = Serialize(saveInfo.GetType(), saveInfo);
@@ -936,6 +953,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             string questDataJson = Serialize(questData.GetType(), questData);
             string discoveryDataJson = Serialize(discoveryData.GetType(), discoveryData);
             string conversationDataJson = Serialize(conversationData.GetType(), conversationData);
+            string notebookDataJson = Serialize(notebookData.GetType(), notebookData);
 
             //// Attempt to hide UI for screenshot
             //bool rawImageEnabled = false;
@@ -967,11 +985,28 @@ namespace DaggerfallWorkshop.Game.Serialization
             WriteSaveFile(Path.Combine(path, questDataFilename), questDataJson);
             WriteSaveFile(Path.Combine(path, discoveryDataFilename), discoveryDataJson);
             WriteSaveFile(Path.Combine(path, conversationDataFilename), conversationDataJson);
+            WriteSaveFile(Path.Combine(path, notebookDataFilename), notebookDataJson);
+
+            // Save quest exceptions
+            QuestMachine.StoredException[] storedExceptions = QuestMachine.Instance.GetStoredExceptions();
+            string questExceptionsJson = Serialize(storedExceptions.GetType(), storedExceptions);
+            WriteSaveFile(Path.Combine(path, questExceptionsFilename), questExceptionsJson);
+
+            // Save backstory text
+            if (!File.Exists(Path.Combine(path, bioFileName)))
+            {
+                StreamWriter file = new StreamWriter(Path.Combine(path, bioFileName).ToString());
+                foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                {
+                    file.WriteLine(line);
+                }
+                file.Close();
+            }
 
             // Save automap state
             try
             {
-                Dictionary<string, Automap.AutomapGeometryDungeonState> automapState = GameManager.Instance.InteriorAutomap.GetState();
+                Dictionary<string, Automap.AutomapDungeonState> automapState = GameManager.Instance.InteriorAutomap.GetState();
                 string automapDataJson = Serialize(automapState.GetType(), automapState);
                 WriteSaveFile(Path.Combine(path, automapDataFilename), automapDataJson);
             }
@@ -1006,8 +1041,16 @@ namespace DaggerfallWorkshop.Game.Serialization
             // Raise OnSaveEvent
             RaiseOnSaveEvent(saveData);
 
+            // Update saves if needed
+            if (key == -1)
+                EnumerateSaves();
+
             // Notify
             DaggerfallUI.Instance.PopupMessage(HardStrings.gameSaved);
+
+            // Reload this save instantly if requested
+            if (instantReload)
+                Load(saveData.playerData.playerEntity.name, saveName);
         }
 
         IEnumerator LoadGame(string path)
@@ -1017,6 +1060,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             InputManager.Instance.ClearAllActions();
             QuestMachine.Instance.ClearState();
             stateManager.ClearSceneCache();
+            PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+            playerEntity.Reset();
 
             // Read save data from files
             string saveDataJson = ReadSaveFile(Path.Combine(path, saveDataFilename));
@@ -1024,6 +1069,28 @@ namespace DaggerfallWorkshop.Game.Serialization
             string questDataJson = ReadSaveFile(Path.Combine(path, questDataFilename));
             string discoveryDataJson = ReadSaveFile(Path.Combine(path, discoveryDataFilename));
             string conversationDataJson = ReadSaveFile(Path.Combine(path, conversationDataFilename));
+            string notebookDataJson = ReadSaveFile(Path.Combine(path, notebookDataFilename));
+
+            // Read quest exceptions
+            if (File.Exists(Path.Combine(path, questExceptionsFilename)))
+            {
+                string questExceptionsJson = ReadSaveFile(Path.Combine(path, questExceptionsFilename));
+                QuestMachine.StoredException[] storedExceptions = Deserialize(typeof(QuestMachine.StoredException[]), questExceptionsJson) as QuestMachine.StoredException[];
+                QuestMachine.Instance.SetStoredExceptions(storedExceptions);
+            }
+
+            // Load backstory text
+            playerEntity.BackStory = new List<string>();
+            if (File.Exists(Path.Combine(path, bioFileName)))
+            {
+                StreamReader file = new StreamReader(Path.Combine(path, bioFileName).ToString());
+                string line;
+                while ((line = file.ReadLine()) != null)
+                {
+                    playerEntity.BackStory.Add(line);
+                }
+                file.Close();
+            }
 
             // Deserialize JSON strings
             SaveData_v1 saveData = Deserialize(typeof(SaveData_v1), saveDataJson) as SaveData_v1;
@@ -1041,7 +1108,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             // Restore discovery data
             if (!string.IsNullOrEmpty(discoveryDataJson))
             {
-                Dictionary<int, PlayerGPS.DiscoveredLocation> discoveryData = Deserialize(typeof(Dictionary<int, PlayerGPS.DiscoveredLocation>), discoveryDataJson) as Dictionary<int, PlayerGPS.DiscoveredLocation>;
+                Dictionary<int, PlayerGPS.DiscoveredLocation> discoveryData =
+                    Deserialize(typeof(Dictionary<int, PlayerGPS.DiscoveredLocation>), discoveryDataJson) as Dictionary<int, PlayerGPS.DiscoveredLocation>;
                 GameManager.Instance.PlayerGPS.RestoreDiscoveryData(discoveryData);
             }
             else
@@ -1096,8 +1164,18 @@ namespace DaggerfallWorkshop.Game.Serialization
                 GameManager.Instance.TalkManager.RestoreConversationData(null);
             }
 
+            // Restore notebook data
+            if (!string.IsNullOrEmpty(notebookDataJson))
+            {
+                PlayerNotebook.NotebookData_v1 notebookData = Deserialize(typeof(PlayerNotebook.NotebookData_v1), notebookDataJson) as PlayerNotebook.NotebookData_v1;
+                playerEntity.Notebook.RestoreNotebookData(notebookData);
+            }
+
             // Restore player position to world
-            playerEnterExit.RestorePositionHelper(saveData.playerData.playerPosition, true);
+            playerEnterExit.RestorePositionHelper(saveData.playerData.playerPosition, true, false);
+
+            //Restore Travel Map settings
+            DaggerfallUI.Instance.DfTravelMapWindow.SetTravelMapFromSaveData(saveData.travelMapData);
 
             // Smash to black while respawning
             DaggerfallUI.Instance.FadeBehaviour.SmashHUDToBlack();
@@ -1118,10 +1196,10 @@ namespace DaggerfallWorkshop.Game.Serialization
             try
             {
                 string automapDataJson = ReadSaveFile(Path.Combine(path, automapDataFilename));
-                Dictionary<string, Automap.AutomapGeometryDungeonState> automapState = null;
+                Dictionary<string, Automap.AutomapDungeonState> automapState = null;
 
                 if (!string.IsNullOrEmpty(automapDataJson))
-                    automapState = Deserialize(typeof(Dictionary<string, Automap.AutomapGeometryDungeonState>), automapDataJson) as Dictionary<string, Automap.AutomapGeometryDungeonState>;
+                    automapState = Deserialize(typeof(Dictionary<string, Automap.AutomapDungeonState>), automapDataJson) as Dictionary<string, Automap.AutomapDungeonState>;
 
                 if (automapState != null)
                     GameManager.Instance.InteriorAutomap.SetState(automapState);
@@ -1133,7 +1211,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             }
 
             // Clear any orphaned quest items
-            RemoveAllOrphanedQuestItems();
+            RemoveAllOrphanedItems();
 
             // Check mod manager is available
             if (ModManager.Instance != null)
@@ -1151,6 +1229,9 @@ namespace DaggerfallWorkshop.Game.Serialization
                 }
             }
 
+            // Clamp legal reputation
+            playerEntity.ClampLegalReputations();
+
             // Lower load in progress flag
             loadInProgress = false;
 
@@ -1162,18 +1243,18 @@ namespace DaggerfallWorkshop.Game.Serialization
         }
 
         /// <summary>
-        /// Looks for orphaned quest items (quest no longer active) remaining in player item collections.
+        /// Looks for orphaned items (e.g. quest no longer active or invalid template) remaining in player item collections.
         /// </summary>
-        void RemoveAllOrphanedQuestItems()
+        void RemoveAllOrphanedItems()
         {
             int count = 0;
             Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            count += playerEntity.Items.RemoveOrphanedQuestItems();
-            count += playerEntity.WagonItems.RemoveOrphanedQuestItems();
-            count += playerEntity.OtherItems.RemoveOrphanedQuestItems();
+            count += playerEntity.Items.RemoveOrphanedItems();
+            count += playerEntity.WagonItems.RemoveOrphanedItems();
+            count += playerEntity.OtherItems.RemoveOrphanedItems();
             if (count > 0)
             {
-                Debug.LogFormat("Removed {0} orphaned quest items.", count);
+                Debug.LogFormat("Removed {0} orphaned items.", count);
             }
         }
 

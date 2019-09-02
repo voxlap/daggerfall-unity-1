@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -26,6 +26,7 @@ using DaggerfallWorkshop.Game.Player;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
+using DaggerfallWorkshop.Utility.AssetInjection;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -64,6 +65,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         Checkbox leftHandWeapons;
         Checkbox playerNudity;
         Checkbox clickToAttack;
+        Checkbox sdfFontRendering;
+        Checkbox retro320x200WorldRendering;
 
         Color unselectedTextColor = new Color(0.6f, 0.6f, 0.6f, 1f);
         Color selectedTextColor = new Color(0.0f, 0.8f, 0.0f, 1.0f);
@@ -150,6 +153,14 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
 
             moveNextStage = true;
+
+            // Override cursor
+            Texture2D tex;
+            if (TextureReplacement.TryImportTexture("Cursor", true, out tex))
+            {
+                Cursor.SetCursor(tex, Vector2.zero, CursorMode.Auto);
+                Debug.Log("Cursor texture overridden by mods.");
+            }
         }
 
         public override void Update()
@@ -161,6 +172,11 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 DaggerfallUI.Instance.DaggerfallSongPlayer.Play(titleSongFile);
             }
+
+            // Sync SDF font rendering to current setting
+            // This is a special realtime setting as font rendering can change at any time, even during the setup process itself
+            if (sdfFontRendering != null)
+                sdfFontRendering.IsChecked = DaggerfallUnity.Settings.SDFFontRendering;
 
             // Move to next setup stage
             if (moveNextStage)
@@ -243,7 +259,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Get resolutions
             initialResolution = Screen.currentResolution;
-            availableResolutions = Screen.resolutions;
+            availableResolutions = DaggerfallUI.GetDistinctResolutions();
 
             // Create backdrop
             if (!backdropCreated)
@@ -411,10 +427,11 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             optionsPanel.Size = new Vector2(318, 165);
             NativePanel.Components.Add(optionsPanel);
 
-            // Add options title text
-            TextLabel titleLabel = new TextLabel();
-            titleLabel.Text = GetText("options");
-            titleLabel.Position = new Vector2(0, 2);
+            // Add title text
+            TextLabel titleLabel = new TextLabel(DaggerfallUI.Instance.Font2);
+            titleLabel.Text = "Daggerfall Unity";
+            titleLabel.Position = new Vector2(0, 15);
+            titleLabel.TextScale = 1.4f;
             titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
             optionsPanel.Components.Add(titleLabel);
 
@@ -430,20 +447,23 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Setup options checkboxes
             float x = 8;
-            optionPos = 20;
+            optionPos = 60;
             alwayShowOptions = AddOption(x, "alwayShowOptions", DaggerfallUnity.Settings.ShowOptionsAtStart);
             vsync = AddOption(x, "vsync", DaggerfallUnity.Settings.VSync);
             swapHealthAndFatigue = AddOption(x, "swapHealthAndFatigue", DaggerfallUnity.Settings.SwapHealthAndFatigueColors);
             invertMouseVertical = AddOption(x, "invertMouseVertical", DaggerfallUnity.Settings.InvertMouseVertical);
             mouseSmoothing = AddOption(x, "mouseSmoothing", DaggerfallUnity.Settings.MouseLookSmoothing);
+
+            x = 165;
+            optionPos = 60;
             leftHandWeapons = AddOption(x, "leftHandWeapons", GetLeftHandWeapons());
             playerNudity = AddOption(x, "playerNudity", DaggerfallUnity.Settings.PlayerNudity);
             clickToAttack = AddOption(x, "clickToAttack", DaggerfallUnity.Settings.ClickToAttack);
 
             // Setup mods checkboxes
             // TODO: Might rework this, but could still be useful for certain core mods later
-            x = 165;
-            optionPos = 20;
+            sdfFontRendering = AddOption(x, "sdfFontRendering", DaggerfallUnity.Settings.SDFFontRendering);
+            sdfFontRendering.OnToggleState += SDFFontRendering_OnToggleState;
             //bool exampleModCheckbox = AddOption(x, "Example", "Example built-in mod", DaggerfallUnity.Settings.ExampleModOption);
 
             // Add mod note
@@ -466,8 +486,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             Button restartButton = new Button();
             restartButton.Size = new Vector2(45, 12);
             restartButton.Label.Text = string.Format("< {0}", GetText("restart"));
-            restartButton.Label.ShadowPosition = Vector2.zero;
-            restartButton.Label.TextColor = secondaryTextColor;
+            restartButton.Label.ShadowPosition = DaggerfallUI.DaggerfallDefaultShadowPos;
+            restartButton.Label.TextColor = DaggerfallUI.DaggerfallDefaultTextColor;
+            restartButton.Label.HorizontalAlignment = HorizontalAlignment.Left;
             restartButton.ToolTip = defaultToolTip;
             restartButton.ToolTipText = GetText("restartInfo");
             restartButton.VerticalAlignment = VerticalAlignment.Top;
@@ -499,6 +520,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             optionsPanel.Components.Add(AdvancedSettingsButton);
             AdvancedSettingsButton.OnMouseClick += AdvancedSettingsButton_OnOnMouseBlick;
 
+        }
+
+        private void SDFFontRendering_OnToggleState()
+        {
+            // Immediately switch font rendering
+            DaggerfallUnity.Settings.SDFFontRendering = sdfFontRendering.IsChecked;
         }
 
         //void ShowSummaryPanel()

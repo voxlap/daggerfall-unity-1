@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -68,7 +68,8 @@ namespace DaggerfallWorkshop.Game.Serialization
 
         public void AddPermanentScene(string sceneName)
         {
-            permanentScenes.Add(sceneName);
+            if (!permanentScenes.Contains(sceneName))
+                permanentScenes.Add(sceneName);
         }
 
         public bool ContainsPermanentScene(string sceneName)
@@ -430,7 +431,7 @@ namespace DaggerfallWorkshop.Game.Serialization
                     // Add custom drop containers back to scene (e.g. dropped loot, slain foes)
                     if (lootContainers[i].customDrop)
                     {
-                        DaggerfallLoot customLootContainer = GameObjectHelper.CreateDroppedLootContainer(GameManager.Instance.PlayerObject, key);
+                        DaggerfallLoot customLootContainer = GameObjectHelper.CreateDroppedLootContainer(GameManager.Instance.PlayerObject, key, lootContainers[i].textureArchive, lootContainers[i].textureRecord);
                         SerializableLootContainer serializableLootContainer = customLootContainer.GetComponent<SerializableLootContainer>();
                         if (serializableLootContainer)
                         {

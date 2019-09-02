@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -26,6 +26,7 @@ namespace DaggerfallWorkshop.Game
         Vector2 _smoothMouse;
         float cameraPitch = 0.0f;
         float cameraYaw = 0.0f;
+        bool cursorActive;
 
         public bool invertMouseY = false;
         public bool lockCursor;
@@ -74,6 +75,32 @@ namespace DaggerfallWorkshop.Game
         {
             bool applyLook = true;
 
+            // Cursor activation toggle while game is running
+            // This is distinct from cursor being left active when UI open or game is unpaused by esc
+            // When cursor activated during gameplay, player can click on world objects to activate them
+            // When cursor simply active from closing a popup, etc. a click will recapture cursor
+            // We handle activated cursor first as it takes precendence over mouse look and normal cursor recapture
+            if (!GameManager.IsGamePaused && InputManager.Instance.ActionComplete(InputManager.Actions.ActivateCursor))
+            {
+                cursorActive = !cursorActive;
+            }
+
+            // Show cursor and unlock while active
+            // While cursor is active, player can click on objects in scene using mouse similar to activating centre object
+            // Clicking on UI element of large HUD will instead operate on that UI
+            if (cursorActive)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+
+                if (Input.GetMouseButtonDown(0))
+                {
+                    // TODO: Activate object clicked by mouse - this should take precedence over activate centre object if that is also mouse0
+                }
+
+                return;
+            }
+
             // Ensure the cursor always locked when set
             if (lockCursor && enableMouseLook)
             {
@@ -105,7 +132,7 @@ namespace DaggerfallWorkshop.Game
                 return;
 
             // Suppress mouse look if player is swinging weapon
-            if (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon) && !DaggerfallUnity.Settings.ClickToAttack)
+            if (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon) && !DaggerfallUnity.Settings.ClickToAttack && GameManager.Instance.WeaponManager.ScreenWeapon.WeaponType != WeaponTypes.Bow)
                 applyLook = false;
 
             Vector2 rawMouseDelta = new Vector2(InputManager.Instance.LookX, InputManager.Instance.LookY);

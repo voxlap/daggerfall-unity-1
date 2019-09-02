@@ -1,5 +1,5 @@
 ﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -9,17 +9,13 @@
 // Notes:
 //
 
-#region Using Statements
-using System;
-#endregion
-
 namespace DaggerfallConnect.Utility
 {
 
     /// <summary>
     /// Provides static power of two calculations.
     /// </summary>
-    public class PowerOfTwo
+    public static class PowerOfTwo
     {
 
         /// <summary>

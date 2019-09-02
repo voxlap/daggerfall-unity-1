@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -31,14 +31,15 @@ namespace DaggerfallWorkshop.Game.Questing
         Zenithar = 'Z',
     }
 
-    struct QuestData
+    public struct QuestData
     {
         public string name;
         public string path;
         public string group;
         public char membership;
-        public int minRep;
-        public bool unitWildC;
+        public int minReq;
+        public bool oneTime;    // flag = 1
+        public bool adult;      // flag = X
     }
 
     /// <summary>
@@ -49,6 +50,11 @@ namespace DaggerfallWorkshop.Game.Questing
     /// The files must be named: QuestList-{name}.txt
     /// 
     /// Quest scripts sit alongside list and must be uniquely named. They are loaded at runtime.
+    ///
+    /// Get quests by calling one of these methods:
+    /// GetQuest()
+    /// GetGuildQuest()
+    /// GetSocialQuest()
     /// </summary>
     public class QuestListsManager
     {
@@ -56,11 +62,15 @@ namespace DaggerfallWorkshop.Game.Questing
         public const string QuestListPrefix = "QuestList-";
         private const string QuestListPattern = QuestListPrefix + "*.txt";
         private const string QuestPacksFolderName = "QuestPacks";
+        private const string QExt = ".txt";
 
         // Quest data tables
         private Dictionary<FactionFile.GuildGroups, List<QuestData>> guilds;
         private Dictionary<FactionFile.SocialGroups, List<QuestData>> social;
         private List<QuestData> init;
+
+        // List of one time quests player has previously accepted
+        public List<string> oneTimeQuestsAccepted;
 
         // Registered quest lists
         private static List<string> questLists = new List<string>();
@@ -70,6 +80,17 @@ namespace DaggerfallWorkshop.Game.Questing
         {
             DiscoverQuestPackLists();
             LoadQuestLists();
+
+            QuestMachine.OnQuestStarted += QuestMachine_OnQuestStarted;
+        }
+
+        public void QuestMachine_OnQuestStarted(Quest quest)
+        {
+            // Record that this quest was accepted so it doesn't get offered again.
+            if (quest.OneTime && oneTimeQuestsAccepted != null)
+            {
+                oneTimeQuestsAccepted.Add(quest.QuestName);
+            }
         }
 
         #region Quest Packs
@@ -135,11 +156,16 @@ namespace DaggerfallWorkshop.Game.Questing
             {
                 // Seek from mods using pattern: QuestList-<packName>.txt
                 TextAsset questListAsset;
-                string fileName = QuestListPrefix + questList + ".txt";
+                string fileName = QuestListPrefix + questList + QExt;
                 if (ModManager.Instance != null && ModManager.Instance.TryGetAsset(fileName, false, out questListAsset))
                 {
-                    List<string> lines = ModManager.GetTextAssetLines(questListAsset);
-                    ParseQuestList(new Table(lines.ToArray()));
+                    try {
+                        List<string> lines = ModManager.GetTextAssetLines(questListAsset);
+                        Table table = new Table(lines.ToArray());
+                        ParseQuestList(table);
+                    } catch (Exception ex) {
+                        Debug.LogErrorFormat("QuestListsManager unable to parse quest list table {0} with exception message {1}", questListAsset.name, ex.Message);
+                    }
                 }
                 else
                 {
@@ -150,8 +176,12 @@ namespace DaggerfallWorkshop.Game.Questing
 
         private void LoadQuestList(string questListFilename, string questsPath)
         {
-            Table table = new Table(QuestMachine.Instance.GetTableSourceText(questListFilename));
-            ParseQuestList(table, questsPath);
+            try {
+                Table table = new Table(QuestMachine.Instance.GetTableSourceText(questListFilename));
+                ParseQuestList(table, questsPath);
+            } catch (Exception ex) {
+                Debug.LogErrorFormat("QuestListsManager unable to parse quest list table {0} with exception message {1}", questListFilename, ex.Message);
+            }
         }
 
         private void ParseQuestList(Table questsTable, string questsPath = "")
@@ -160,19 +190,17 @@ namespace DaggerfallWorkshop.Game.Questing
             {
                 QuestData questData = new QuestData();
                 questData.path = questsPath;
-                string minRep = questsTable.GetValue("minRep", i);
-                if (minRep.EndsWith("X"))
-                {
-                    questData.unitWildC = true;
-                    minRep = minRep.Replace("X", "0");
-                }
+                string minRep = questsTable.GetValue("minReq", i);
                 int d = 0;
                 if (int.TryParse(minRep, out d))
                 {
                     questData.name = questsTable.GetValue("name", i);
                     questData.group = questsTable.GetValue("group", i);
                     questData.membership = questsTable.GetValue("membership", i)[0];
-                    questData.minRep = d;
+                    questData.minReq = d;
+                    char flag = questsTable.GetValue("flag", i)[0];
+                    questData.oneTime = (flag == '1');
+                    questData.adult = (flag == 'X');
 
                     // Is the group a guild group?
                     if (Enum.IsDefined(typeof(FactionFile.GuildGroups), questData.group))
@@ -228,36 +256,87 @@ namespace DaggerfallWorkshop.Game.Questing
         }
 
         /// <summary>
+        /// Get a specific named quest from any registered lists, or from QuestMachine.QuestSourceFolder property path.
+        /// NOTE: Since this is driven from quest name, any duplicate names will result in the first in order of precedence being returned.
+        /// </summary>
+        public Quest GetQuest(string questName, int factionId = 0)
+        {
+            // First check QuestSourceFolder containing classic quests.
+            string questFileName = questName + QExt;
+            string questFile = Path.Combine(QuestMachine.QuestSourceFolder, questFileName);
+            if (File.Exists(questFile))
+                return LoadQuest(questName, QuestMachine.QuestSourceFolder, factionId);
+
+            // Check each registered init quest & containing folder.
+            foreach (QuestData questData in init)
+            {
+                if (questData.name == questName)
+                    return LoadQuest(questData, factionId);
+
+                questFile = Path.Combine(questData.path, questFileName);
+                if (File.Exists(questFile))
+                    return LoadQuest(questName, questData.path, factionId);
+            }
+
+            // Check guild quests.
+            foreach (FactionFile.GuildGroups guildGroup in guilds.Keys)
+                foreach (QuestData questData in guilds[guildGroup])
+                    if (questData.name == questName)
+                        return LoadQuest(questData, factionId);
+
+            // Check social quests.
+            foreach (FactionFile.SocialGroups socialGroup in social.Keys)
+                foreach (QuestData questData in social[socialGroup])
+                    if (questData.name == questName)
+                        return LoadQuest(questData, factionId);
+
+            return null;
+        }
+
+        /// <summary>
         /// Get a random quest for a guild from appropriate subset.
         /// </summary>
-        public Quest GetGuildQuest(FactionFile.GuildGroups guildGroup, MembershipStatus status, int factionId, int rep)
+        public Quest GetGuildQuest(FactionFile.GuildGroups guildGroup, MembershipStatus status, int factionId, int rep, int rank)
+        {
+            List<QuestData> pool = GetGuildQuestPool(guildGroup, status, factionId, rep, rank);
+            return SelectQuest(pool, factionId);
+        }
+
+        /// <summary>
+        /// Gets a pool of elligible quests for a guild to offer.
+        /// </summary>
+        public List<QuestData> GetGuildQuestPool(FactionFile.GuildGroups guildGroup, MembershipStatus status, int factionId, int rep, int rank)
         {
 #if UNITY_EDITOR    // Reload every time when in editor
             LoadQuestLists();
 #endif
+
+            // Create one-time quest list if not already created
+            if (oneTimeQuestsAccepted == null)
+                oneTimeQuestsAccepted = new List<string>();
+
             List<QuestData> guildQuests;
             if (guilds.TryGetValue(guildGroup, out guildQuests))
             {
                 // Modifications for Temple dual membership status
                 MembershipStatus tplMemb = (guildGroup == FactionFile.GuildGroups.HolyOrder && status != MembershipStatus.Nonmember) ? MembershipStatus.Member : status;
-                // Underworld guilds don't expel and continue to offer std quests below zero reputation
-                rep = ((guildGroup == FactionFile.GuildGroups.DarkBrotherHood || guildGroup == FactionFile.GuildGroups.GeneralPopulace) && rep < 0) ? 0 : rep;
 
                 List<QuestData> pool = new List<QuestData>();
                 foreach (QuestData quest in guildQuests)
                 {
                     if ((status == (MembershipStatus)quest.membership || tplMemb == (MembershipStatus)quest.membership) &&
-                        (status == MembershipStatus.Nonmember || (rep >= quest.minRep && (!quest.unitWildC || rep < quest.minRep + 10))))
+                        (status == MembershipStatus.Nonmember || (quest.minReq < 10 && quest.minReq <= rank) || (quest.minReq >= 10 && quest.minReq <= rep)))
                     {
-                        pool.Add(quest);
+                        if ((!quest.adult || DaggerfallUnity.Settings.PlayerNudity) && !(quest.oneTime && oneTimeQuestsAccepted.Contains(quest.name)))
+                            pool.Add(quest);
                     }
                 }
-                return SelectQuest(pool, factionId);
+                return pool;
             }
             return null;
         }
 
-        public Quest GetSocialQuest(FactionFile.SocialGroups socialGroup, int factionId, int rep)
+        public Quest GetSocialQuest(FactionFile.SocialGroups socialGroup, int factionId, int rep, int level)
         {
 #if UNITY_EDITOR    // Reload every time when in editor
             LoadQuestLists();
@@ -268,9 +347,10 @@ namespace DaggerfallWorkshop.Game.Questing
                 List<QuestData> pool = new List<QuestData>();
                 foreach (QuestData quest in socialQuests)
                 {
-                    if (rep >= quest.minRep && (!quest.unitWildC || rep < quest.minRep + 10))
+                    if ((quest.minReq < 10 && quest.minReq <= level) || rep >= quest.minReq)
                     {
-                        pool.Add(quest);
+                        if (!quest.adult || DaggerfallUnity.Settings.PlayerNudity)
+                            pool.Add(quest);
                     }
                 }
                 return SelectQuest(pool, factionId);
@@ -278,7 +358,7 @@ namespace DaggerfallWorkshop.Game.Questing
             return null;
         }
 
-        private Quest SelectQuest(List<QuestData> pool, int factionId)
+        public Quest SelectQuest(List<QuestData> pool, int factionId)
         {
             Debug.Log("Quest pool has " + pool.Count);
             // Choose random quest from pool and try to parse it
@@ -297,12 +377,17 @@ namespace DaggerfallWorkshop.Game.Questing
             return null;
         }
 
-        private Quest LoadQuest(QuestData questData, int factionId)
+        private Quest LoadQuest(string questName, string questPath, int factionId)
+        {
+            return LoadQuest(new QuestData() { name = questName, path = questPath }, factionId);
+        }
+
+        public Quest LoadQuest(QuestData questData, int factionId)
         {
             // Append extension if not present
             string questName = questData.name;
-            if (!questName.EndsWith(".txt"))
-                questName += ".txt";
+            if (!questName.EndsWith(QExt))
+                questName += QExt;
 
             // Attempt to load quest source file
             Quest quest;
@@ -328,6 +413,7 @@ namespace DaggerfallWorkshop.Game.Questing
                     throw new Exception("Quest file " + questFile + " not found.");
             }
             quest.FactionId = factionId;
+            quest.OneTime = questData.oneTime;
             return quest;
         }
 

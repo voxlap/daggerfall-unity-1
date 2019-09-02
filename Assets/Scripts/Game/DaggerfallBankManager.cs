@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -19,6 +19,7 @@ using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallConnect.Utility;
 using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
 
 namespace DaggerfallWorkshop.Game.Banking
 {
@@ -58,6 +59,7 @@ namespace DaggerfallWorkshop.Game.Banking
         Depositing_LOC,
         Repaying_loan,
         Borrowing_loan,
+        Repaying_loan_from_account,
         Buy_house,
         Sell_house,
         Buy_ship,
@@ -73,21 +75,22 @@ namespace DaggerfallWorkshop.Game.Banking
 
     public static class DaggerfallBankManager
     {
-        public const int gold1kg = 400;
+        public const float goldUnitWeightInKg = 0.0025f;
         private const float deedSellMult = 0.85f;
         private const float housePriceMult = 1280f;
+        private const uint loanRepayMinutes = DaggerfallDateTime.DaysPerYear * DaggerfallDateTime.MinutesPerDay;
 
         #region Ships:
 
-        private static int[] shipPrices = new int[] { 100000, 200000 };
-        private static uint[] shipModelIds = new uint[] { 910, 909 };
-        private static float[] shipCameraDist = new float[] { -30, -50 };
-        private static DFPosition[] shipCoords = new DFPosition[] { new DFPosition(2, 2), new DFPosition(5, 5) };
-        private static string[] shipInteriorSceneNames = new string[] {
-            DaggerfallInterior.GetSceneName(1050578, 0),
-            DaggerfallInterior.GetSceneName(2102157, 0),
+        private static readonly int[] shipPrices = new int[] { 100000, 200000 };
+        private static readonly uint[] shipModelIds = new uint[] { 910, 909 };
+        private static readonly float[] shipCameraDist = new float[] { -30, -50 };
+        private static readonly DFPosition[] shipCoords = new DFPosition[] { new DFPosition(2, 2), new DFPosition(5, 5) };
+        private static readonly string[] shipInteriorSceneNames = new string[] {
+            DaggerfallInterior.GetSceneName(1050578, BuildingDirectory.buildingKey0),
+            DaggerfallInterior.GetSceneName(2102157, BuildingDirectory.buildingKey0),
         };
-        private static string[] shipExteriorSceneNames = new string[] {
+        private static readonly string[] shipExteriorSceneNames = new string[] {
             StreamingWorld.GetSceneName(shipCoords[0].X, shipCoords[0].Y),
             StreamingWorld.GetSceneName(shipCoords[1].X, shipCoords[1].Y),
         };
@@ -208,6 +211,14 @@ namespace DaggerfallWorkshop.Game.Banking
             return BankAccounts[regionIndex].hasDefaulted;
         }
 
+        public static void SetDefaulted(int regionIndex, bool defaulted)
+        {
+            if (!ValidateRegion(regionIndex))
+                return;
+
+            BankAccounts[regionIndex].hasDefaulted = defaulted;
+        }
+
         public static void SetupAccounts()
         {
             bankAccounts = new BankRecordData_v1[DaggerfallUnity.Instance.ContentReader.MapFileReader.RegionCount];
@@ -288,7 +299,10 @@ namespace DaggerfallWorkshop.Game.Banking
                     result = DepositAll_LOC(regionIndex);
                     break;
                 case TransactionType.Repaying_loan:
-                    result = RepayLoan(ref amount, regionIndex);
+                    result = RepayLoan(ref amount, false, regionIndex);
+                    break;
+                case TransactionType.Repaying_loan_from_account:
+                    result = RepayLoan(ref amount, true, regionIndex);
                     break;
                 case TransactionType.Borrowing_loan:
                     result = BorrowLoan(amount, regionIndex);
@@ -310,11 +324,23 @@ namespace DaggerfallWorkshop.Game.Banking
         public static TransactionResult DepositGold(int amount, int regionIndex)
         {
             PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            if (amount > playerEntity.GoldPieces)
+            DaggerfallUnityItem wagonGold = playerEntity.WagonItems.GetItem(ItemGroups.Currency, (int)Currency.Gold_pieces);
+            if (amount > playerEntity.GoldPieces + (wagonGold != null ? wagonGold.stackCount : 0))
                 return TransactionResult.NOT_ENOUGH_GOLD;
 
             BankAccounts[regionIndex].accountGold += amount;
-            playerEntity.GoldPieces -= (int)amount;
+
+            if (amount > playerEntity.GoldPieces && wagonGold != null)
+            {
+                wagonGold.stackCount -= (amount - playerEntity.GoldPieces);
+                playerEntity.GoldPieces = 0;
+                if (wagonGold.stackCount < 1)
+                    playerEntity.WagonItems.RemoveItem(wagonGold);
+            }
+            else
+            {
+                playerEntity.GoldPieces -= amount;
+            }
             return TransactionResult.NONE;
         }
 
@@ -325,7 +351,7 @@ namespace DaggerfallWorkshop.Game.Banking
 
             // Check weight limit
             PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            if (playerEntity.CarriedWeight + (amount / gold1kg) > playerEntity.MaxEncumbrance)
+            if (playerEntity.CarriedWeight + (amount * goldUnitWeightInKg) > playerEntity.MaxEncumbrance)
                 return TransactionResult.TOO_HEAVY;
 
             BankAccounts[regionIndex].accountGold -= amount;
@@ -398,6 +424,10 @@ namespace DaggerfallWorkshop.Game.Banking
 
             // Add interior scene to permanent list
             SaveLoadManager.StateManager.AddPermanentScene(DaggerfallInterior.GetSceneName(mapID, house.buildingKey));
+
+            // Add note to journal
+            GameManager.Instance.PlayerEntity.Notebook.AddNote(
+                TextManager.Instance.GetText("DaggerfallUI", "houseDeed").Replace("%town", location.Name).Replace("%region", MapsFile.RegionNames[regionIndex]));
         }
 
         public static TransactionResult SellHouse(int regionIndex)
@@ -432,12 +462,20 @@ namespace DaggerfallWorkshop.Game.Banking
             amount = playerEntity.DeductGoldAmount(amount);
             bankAccounts[regionIndex].accountGold -= amount;
 
-            // Set player owned ship and add scenes to permanent list
-            ownedShip = shipType;
-            SaveLoadManager.StateManager.AddPermanentScene(shipExteriorSceneNames[(int)shipType]);
-            SaveLoadManager.StateManager.AddPermanentScene(shipInteriorSceneNames[(int)shipType]);
+            AssignShipToPlayer(shipType);
 
             return TransactionResult.PURCHASED_SHIP;
+        }
+
+        public static void AssignShipToPlayer(ShipType shipType)
+        {
+            // Set player owned ship and add scenes to permanent list
+            ownedShip = shipType;
+            if (shipType != ShipType.None)
+            {
+                SaveLoadManager.StateManager.AddPermanentScene(shipExteriorSceneNames[(int)shipType]);
+                SaveLoadManager.StateManager.AddPermanentScene(shipInteriorSceneNames[(int)shipType]);
+            }
         }
 
         public static TransactionResult SellShip(int regionIndex)
@@ -458,16 +496,20 @@ namespace DaggerfallWorkshop.Game.Banking
         }
 
         //note - uses inv. gold pieces, account gold & loc
-        private static TransactionResult RepayLoan(ref int amount, int regionIndex)
+        private static TransactionResult RepayLoan(ref int amount, bool accountOnly, int regionIndex)
         {
             PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-            var playerGold = playerEntity.GetGoldAmount();
-            var accountGold = BankAccounts[regionIndex].accountGold;
+            var availableGold = BankAccounts[regionIndex].accountGold;
+            if (!accountOnly)
+            {
+                availableGold += playerEntity.GetGoldAmount();
+            }
+
             TransactionResult result = TransactionResult.NONE;
 
             if (!HasLoan(regionIndex))
                 return TransactionResult.NONE;
-            else if (amount > playerGold + accountGold)
+            else if (amount > availableGold)
                 return TransactionResult.NOT_ENOUGH_GOLD;
             else if (amount > BankAccounts[regionIndex].loanTotal)
             {
@@ -476,8 +518,9 @@ namespace DaggerfallWorkshop.Game.Banking
             }
 
             bankAccounts[regionIndex].loanTotal -= amount;
-            amount = playerEntity.DeductGoldAmount(amount);
-            if (amount > 0)     // Should not happen
+            if (!accountOnly)
+                amount = playerEntity.DeductGoldAmount(amount);
+            if (amount > 0)
                 bankAccounts[regionIndex].accountGold -= amount;
 
             if (bankAccounts[regionIndex].loanTotal <= 0)
@@ -497,7 +540,7 @@ namespace DaggerfallWorkshop.Game.Banking
             {
                 BankAccounts[regionIndex].loanTotal += (int)(amount + amount * .1);
                 BankAccounts[regionIndex].accountGold += amount;
-                bankAccounts[regionIndex].loanDueDate = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime();
+                bankAccounts[regionIndex].loanDueDate = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime() + loanRepayMinutes;
             }
             return result;
         }

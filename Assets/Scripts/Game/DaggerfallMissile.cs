@@ -1,10 +1,10 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    
+// Contributors:    Allofich
 // 
 // Notes:
 //
@@ -28,13 +28,14 @@ namespace DaggerfallWorkshop.Game
     /// </summary>
     [RequireComponent(typeof(Light))]
     [RequireComponent(typeof(SphereCollider))]
+    [RequireComponent(typeof(MeshCollider))]
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(DaggerfallAudioSource))]
     public class DaggerfallMissile : MonoBehaviour
     {
         #region Unity Properties
 
-        public float MovementSpeed = 12.0f;                     // Speed missile moves through world
+        public float MovementSpeed = 25.0f;                     // Speed missile moves through world
         public float ColliderRadius = 0.45f;                    // Radius of missile contact sphere
         public float ExplosionRadius = 3.0f;                    // Radius of area of effect explosion
         public float TouchRange = 2.5f;                         // Maximum range for touch spherecast
@@ -67,7 +68,7 @@ namespace DaggerfallWorkshop.Game
         Rigidbody myRigidbody;
         DaggerfallBillboard myBillboard;
         bool forceDisableSpellLighting;
-        bool forceDisableSpellShadows;
+        bool noSpellsSpatialBlend = false;
         float lifespan = 0f;
         float postImpactLifespan = 0f;
         TargetTypes targetType = TargetTypes.None;
@@ -79,8 +80,12 @@ namespace DaggerfallWorkshop.Game
         float initialRange;
         float initialIntensity;
         EntityEffectBundle payload;
+        bool isArrow = false;
+        GameObject goModel = null;
+        EnemySenses enemySenses;
 
         List<DaggerfallEntityBehaviour> targetEntities = new List<DaggerfallEntityBehaviour>();
+
 
         #endregion
 
@@ -128,6 +133,12 @@ namespace DaggerfallWorkshop.Game
             set { caster = value; }
         }
 
+        public bool IsArrow
+        {
+            get { return isArrow; }
+            set { isArrow = value; }
+        }
+
         /// <summary>
         /// Gets all target entities affected by this missile.
         /// Any effect bundle payload will be applied automatically.
@@ -137,6 +148,10 @@ namespace DaggerfallWorkshop.Game
         {
             get { return targetEntities.ToArray(); }
         }
+
+        public Vector3 CustomAimPosition { get; set; }
+
+        public Vector3 CustomAimDirection { get; set; }
 
         #endregion
 
@@ -153,20 +168,17 @@ namespace DaggerfallWorkshop.Game
             myLight = GetComponent<Light>();
             myLight.enabled = EnableLight;
             forceDisableSpellLighting = !DaggerfallUnity.Settings.EnableSpellLighting;
-            forceDisableSpellShadows = !DaggerfallUnity.Settings.EnableSpellShadows;
             if (forceDisableSpellLighting) myLight.enabled = false;
-            if (forceDisableSpellShadows) myLight.shadows = LightShadows.None;
+            if (!DaggerfallUnity.Settings.EnableSpellShadows) myLight.shadows = LightShadows.None;
             initialRange = myLight.range;
             initialIntensity = myLight.intensity;
 
             // Setup collider
             myCollider = GetComponent<SphereCollider>();
             myCollider.radius = ColliderRadius;
-            myCollider.isTrigger = true;
 
             // Setup rigidbody
             myRigidbody = GetComponent<Rigidbody>();
-            myRigidbody.isKinematic = true;
             myRigidbody.useGravity = false;
 
             // Use payload when available
@@ -181,8 +193,47 @@ namespace DaggerfallWorkshop.Game
                 if (targetType == TargetTypes.SingleTargetAtRange ||
                     targetType == TargetTypes.AreaAtRange)
                 {
-                    UseSpellBillboardAnims(elementType);
+                    UseSpellBillboardAnims();
                 }
+            }
+
+            // Setup senses
+            if (caster != GameManager.Instance.PlayerEntityBehaviour)
+            {
+                enemySenses = caster.GetComponent<EnemySenses>();
+            }
+
+            // Setup arrow
+            if (isArrow)
+            {
+                // Create and orient 3d arrow
+                goModel = GameObjectHelper.CreateDaggerfallMeshGameObject(99800, transform);
+                MeshCollider arrowCollider = GetComponent<MeshCollider>();
+                arrowCollider.sharedMesh = goModel.GetComponent<MeshFilter>().sharedMesh;
+
+                // Offset up so it comes from same place LOS check is done from
+                Vector3 adjust;
+                if (caster != GameManager.Instance.PlayerEntityBehaviour)
+                {
+                    CharacterController controller = caster.transform.GetComponent<CharacterController>();
+                    adjust = caster.transform.forward * 0.6f;
+                    adjust.y += controller.height / 3;
+                }
+                else
+                {
+                    // Offset forward to avoid collision with player
+                    adjust = GameManager.Instance.MainCamera.transform.forward * 0.6f;
+                    // Adjust slightly downward to match bow animation
+                    adjust.y -= 0.11f;
+                    // Adjust to the right or left to match bow animation
+                    if (!GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal)
+                        adjust += GameManager.Instance.MainCamera.transform.right * 0.15f;
+                    else
+                        adjust -= GameManager.Instance.MainCamera.transform.right * 0.15f;
+                }
+
+                goModel.transform.localPosition = adjust;
+                goModel.transform.rotation = Quaternion.LookRotation(GetAimDirection());
             }
 
             // Ignore missile collision with caster (this is a different check to AOE targets)
@@ -234,7 +285,8 @@ namespace DaggerfallWorkshop.Game
                 {
                     PlayImpactSound();
                     RaiseOnCompleteEvent();
-                    AssignPayloadToTargets();
+                    if (!isArrow)
+                        AssignPayloadToTargets();
                     impactAssigned = true;
                 }
 
@@ -256,22 +308,64 @@ namespace DaggerfallWorkshop.Game
 
         #region Collision Handling
 
+        private void OnCollisionEnter(Collision collision)
+        {
+            DoCollision(collision, null);
+        }
+
         private void OnTriggerEnter(Collider other)
         {
+            DoCollision(null, other);
+        }
+
+        void DoCollision(Collision collision, Collider other)
+        {
+            // Missile collision should only happen once
+            if (impactDetected)
+                return;
+
+            // Set my collider to trigger and rigidbody to kinematic immediately after impact
+            // This helps prevent mobiles from walking over low missiles or the missile bouncing off in some other direction
+            // Seems to eliminate the combined worst-case scenario where mobile will "ride" a missile bounce, throwing them high into the air
+            // Now the worst that seems to happen is mobile will "bump" over low missiles occasionally
+            // TODO: Review later and find a better way to eliminate issue other than this quick workaround
+            if (myCollider)
+                myCollider.isTrigger = true;
+            if (myRigidbody)
+                myRigidbody.isKinematic = true;
+
             // Play spell impact animation, this replaces spell missile animation
             if (elementType != ElementTypes.None && targetType != TargetTypes.ByTouch)
             {
-                UseSpellBillboardAnims(elementType, 1, true);
+                UseSpellBillboardAnims(1, true);
                 myBillboard.FramesPerSecond = ImpactBillboardFramesPerSecond;
                 impactDetected = true;
             }
 
+            // Get entity based on collision type
+            DaggerfallEntityBehaviour entityBehaviour = null;
+            if (collision != null && other == null)
+                entityBehaviour = collision.gameObject.transform.GetComponent<DaggerfallEntityBehaviour>();
+            else if (collision == null && other != null)
+                entityBehaviour = other.gameObject.transform.GetComponent<DaggerfallEntityBehaviour>();
+            else
+                return;
+
             // If entity was hit then add to target list
-            DaggerfallEntityBehaviour entityBehaviour = other.transform.GetComponent<DaggerfallEntityBehaviour>();
             if (entityBehaviour)
             {
                 targetEntities.Add(entityBehaviour);
                 //Debug.LogFormat("Missile hit target {0} by range", entityBehaviour.name);
+            }
+
+            if (isArrow)
+            {
+                if (other != null)
+                    AssignBowDamageToTarget(other);
+
+                // Destroy 3d arrow
+                Destroy(goModel.gameObject);
+                impactDetected = true;
             }
 
             // If missile is area at range
@@ -332,7 +426,7 @@ namespace DaggerfallWorkshop.Game
 
                 if (ignoreCaster && aoeEntity == caster)
                     continue;
-                
+
                 if (aoeEntity && !targetEntities.Contains(aoeEntity))
                 {
                     entities.Add(aoeEntity);
@@ -351,6 +445,10 @@ namespace DaggerfallWorkshop.Game
         // Get missile aim position from player or enemy mobile
         Vector3 GetAimPosition()
         {
+            // Aim position from custom source
+            if (CustomAimPosition != Vector3.zero)
+                return CustomAimPosition;
+
             // Aim position is from eye level for player or origin for other mobile
             // Player must aim from camera position or it feels out of alignment
             Vector3 aimPosition = caster.transform.position;
@@ -365,25 +463,34 @@ namespace DaggerfallWorkshop.Game
         // Get missile aim direction from player or enemy mobile
         Vector3 GetAimDirection()
         {
+            // Aim direction from custom source
+            if (CustomAimDirection != Vector3.zero)
+                return CustomAimDirection;
+
             // Aim direction should be from camera for player or facing for other mobile
             Vector3 aimDirection = Vector3.zero;
             if (caster == GameManager.Instance.PlayerEntityBehaviour)
             {
                 aimDirection = GameManager.Instance.MainCamera.transform.forward;
             }
-            else
+            else if (enemySenses)
             {
-                EnemySenses enemySenses = caster.GetComponent<EnemySenses>();
-                if (enemySenses)
-                {
-                    aimDirection = enemySenses.DirectionToPlayer;
-                }
+                Vector3 predictedPosition;
+                if (DaggerfallUnity.Settings.EnhancedCombatAI)
+                    predictedPosition = enemySenses.PredictNextTargetPos(MovementSpeed);
+                else
+                    predictedPosition = enemySenses.LastKnownTargetPos;
+
+                if (predictedPosition == EnemySenses.ResetPlayerPos)
+                    aimDirection = caster.transform.forward;
+                else
+                    aimDirection = (predictedPosition - caster.transform.position).normalized;
             }
 
             return aimDirection;
         }
 
-        void UseSpellBillboardAnims(ElementTypes elementType, int record = 0, bool oneShot = false)
+        void UseSpellBillboardAnims(int record = 0, bool oneShot = false)
         {
             // Destroy any existing billboard game object
             if (myBillboard)
@@ -393,7 +500,7 @@ namespace DaggerfallWorkshop.Game
             }
 
             // Add new billboard parented to this missile
-            GameObject go = GameObjectHelper.CreateDaggerfallBillboardGameObject(GetMissileTextureArchive(elementType), record, transform);
+            GameObject go = GameObjectHelper.CreateDaggerfallBillboardGameObject(GetMissileTextureArchive(), record, transform);
             go.transform.localPosition = Vector3.zero;
             myBillboard = go.GetComponent<DaggerfallBillboard>();
             myBillboard.FramesPerSecond = BillboardFramesPerSecond;
@@ -416,7 +523,7 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
-        int GetMissileTextureArchive(ElementTypes elementType)
+        int GetMissileTextureArchive()
         {
             switch (elementType)
             {
@@ -451,12 +558,38 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        void AssignBowDamageToTarget(Collider arrowHitCollider)
+        {
+            if (!isArrow || targetEntities.Count == 0)
+            {
+                return;
+            }
+
+            if (caster != GameManager.Instance.PlayerEntityBehaviour)
+            {
+                if (targetEntities[0] == caster.GetComponent<EnemySenses>().Target)
+                {
+                    EnemyAttack attack = caster.GetComponent<EnemyAttack>();
+                    if (attack)
+                    {
+                        attack.BowDamage(goModel.transform.forward);
+                    }
+                }
+            }
+            else
+            {
+                RaycastHit unused = new RaycastHit();
+                GameManager.Instance.WeaponManager.WeaponDamage(unused, goModel.transform.forward, arrowHitCollider, true);
+            }
+        }
+
         void PlayImpactSound()
         {
             if (audioSource && ImpactSound != SoundClips.None)
             {
-                // Using doppler of zero as classic does not appear to use 3D sound for spell impact
-                audioSource.PlayOneShot(ImpactSound, 0);
+                // Classic does not appear to use 3D sound for spell impact at all
+                float spatialBlend = !isArrow && noSpellsSpatialBlend ? 0f : 1f;
+                audioSource.PlayOneShot(ImpactSound, spatialBlend);
             }
         }
 

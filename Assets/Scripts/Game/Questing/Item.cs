@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -16,6 +16,7 @@ using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallConnect.Arena2;
+using DaggerfallConnect.FallExe;
 using FullSerializer;
 
 /*Example patterns:
@@ -133,10 +134,11 @@ namespace DaggerfallWorkshop.Game.Questing
         {
             base.SetResource(line);
 
-            string declMatchStr = @"(Item|item) (?<symbol>[a-zA-Z0-9_.-]+) (?<artifact>artifact) (?<itemName>[a-zA-Z0-9_.-]+)|(Item|item) (?<symbol>[a-zA-Z0-9_.-]+) (?<itemName>[a-zA-Z0-9_.-]+)";
+            string declMatchStr = @"(Item|item) (?<symbol>[a-zA-Z0-9_.-]+) item class (?<itemClass>\d+) subclass (?<itemSubClass>\d+)|"+
+                                  @"(Item|item) (?<symbol>[a-zA-Z0-9_.-]+) (?<artifact>artifact) (?<itemName>[a-zA-Z0-9_.-]+)|"+
+                                  @"(Item|item) (?<symbol>[a-zA-Z0-9_.-]+) (?<itemName>[a-zA-Z0-9_.-]+)";
 
-            string optionsMatchStr = @"range (?<rangeLow>\d+) to (?<rangeHigh>\d+)|" +
-                                     @"item class (?<itemClass>\d+) subclass (?<itemSubClass>\d+)";
+            string optionsMatchStr = @"range (?<rangeLow>\d+) to (?<rangeHigh>\d+)";
 
             // Try to match source line with pattern
             string itemName = string.Empty;
@@ -153,6 +155,16 @@ namespace DaggerfallWorkshop.Game.Questing
 
                 // Item or artifact name
                 itemName = match.Groups["itemName"].Value;
+
+                // Item class value
+                Group itemClassGroup = match.Groups["itemClass"];
+                if (itemClassGroup.Success)
+                    itemClass = Parser.ParseInt(itemClassGroup.Value);
+
+                // Item subclass value
+                Group itemSubClassGroup = match.Groups["itemSubClass"];
+                if (itemClassGroup.Success)
+                    itemSubClass = Parser.ParseInt(itemSubClassGroup.Value);
 
                 // Artifact status
                 if (!string.IsNullOrEmpty(match.Groups["artifact"].Value))
@@ -178,23 +190,13 @@ namespace DaggerfallWorkshop.Game.Questing
                     Group rangeHighGroup = option.Groups["rangeHigh"];
                     if (rangeHighGroup.Success)
                         rangeHigh = Parser.ParseInt(rangeHighGroup.Value);
-
-                    // Item class value
-                    Group itemClassGroup = option.Groups["itemClass"];
-                    if (itemClassGroup.Success)
-                        itemClass = Parser.ParseInt(itemClassGroup.Value);
-
-                    // Item subclass value
-                    Group itemSubClassGroup = option.Groups["itemSubClass"];
-                    if (itemClassGroup.Success)
-                        itemSubClass = Parser.ParseInt(itemSubClassGroup.Value);
                 }
 
                 // Create item
-                if (!string.IsNullOrEmpty(itemName) && !isGold)
-                    item = CreateItem(itemName);                        // Create by name of item in lookup table
-                else if (itemClass != -1 && !isGold)
+                if (itemClass != -1 && itemSubClass != -1 && !isGold)
                     item = CreateItem(itemClass, itemSubClass);         // Create item by class and subclass (a.k.a ItemGroup and GroupIndex)
+                else if (!string.IsNullOrEmpty(itemName) && !isGold)
+                    item = CreateItem(itemName);                        // Create by name of item in lookup table
                 else if (isGold)
                     item = CreateGold(rangeLow, rangeHigh);             // Create gold pieces of amount by level or range values
                 else
@@ -273,46 +275,46 @@ namespace DaggerfallWorkshop.Game.Questing
             if (itemClass == -1)
                 throw new Exception(string.Format("Tried to create Item with class {0}", itemClass));
 
-            // Handle random magic item by redirecting itemClass to one of several supported types
-            // Currently unknown how many types this supports - will expand later
-            // May also need to account for gender if offering clothing
-            // Item should have a world texture as may be placed in world by quest
-            // Only goal currently to have more variety than "ruby" for everything
-            bool isMagicItem = false;
-            if (itemClass == (int)ItemGroups.MagicItems && itemSubClass == -1)
+            DaggerfallUnityItem result;
+
+            // Handle random magic items
+            if (itemClass == (int)ItemGroups.MagicItems)
             {
-                ItemGroups[] randomMagicGroups = new ItemGroups[]
+                Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+                result = ItemBuilder.CreateRegularMagicItem(itemSubClass, playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+            }
+            // Handle books
+            else if (itemClass == (int)ItemGroups.Books)
+            {
+                result = ItemBuilder.CreateRandomBook();
+            }
+            else
+            {
+                // Handle random subclass
+                if (itemSubClass == -1)
                 {
-                    ItemGroups.Armor,
-                    ItemGroups.Weapons,
-                    ItemGroups.ReligiousItems,
-                    ItemGroups.Gems,
-                };
-                itemClass = UnityEngine.Random.Range(0, randomMagicGroups.Length);
-                isMagicItem = true;
-            }
+                    Array enumArray = DaggerfallUnity.Instance.ItemHelper.GetEnumArray((ItemGroups)itemClass);
+                    itemSubClass = UnityEngine.Random.Range(0, enumArray.Length);
+                }
 
-            // Handle random subclass
-            if (itemSubClass == -1)
-            {
-                Array enumArray = DaggerfallUnity.Instance.ItemHelper.GetEnumArray((ItemGroups)itemClass);
-                itemSubClass = UnityEngine.Random.Range(0, enumArray.Length);
-            }
-
-            // Create item
-            DaggerfallUnityItem result = new DaggerfallUnityItem((ItemGroups)itemClass, itemSubClass);
-
-            // Assign dummy magic effects so item becomes enchanted
-            // This will need to be ported to real magic system in future
-            if (isMagicItem)
-            {
-                result.legacyMagic = new int[] { 1, 87, 65535, 65535, 65535, 65535, 65535, 65535, 65535, 65535 };
+                // Create item
+                result = new DaggerfallUnityItem((ItemGroups)itemClass, itemSubClass);
             }
 
             // Link item to quest
             result.LinkQuestItem(ParentQuest.UID, Symbol.Clone());
 
-            return result;
+            string name = result.shortName.Replace("%it", result.ItemTemplate.name);
+            QuestMachine.LogFormat(
+                ParentQuest,
+                "Generated \"{0}\" from Class {1} and Subclass {2} for item {3}",
+                name,
+                itemClass,
+                itemSubClass,
+                Symbol.Original
+            );
+
+             return result;
         }
 
         // Create stack of gold pieces

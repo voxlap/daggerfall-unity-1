@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,7 +11,6 @@
 
 #region Using Statements
 using System;
-using System.Text;
 using System.Globalization;
 #endregion
 
@@ -234,6 +233,19 @@ namespace DaggerfallConnect
             Resistant,
             LowTolerance,
             CriticalWeakness,
+        }
+
+        /// <summary>
+        /// Tolerance level expressed as flags for saving throws.
+        /// </summary>
+        [Flags]
+        public enum ToleranceFlags
+        {
+            Normal = 0,
+            Immune = 1,
+            Resistant = 2,
+            LowTolerance = 4,
+            CriticalWeakness = 8,
         }
 
         /// <summary>
@@ -474,19 +486,17 @@ namespace DaggerfallConnect
         }
 
         /// <summary>
-        /// Combining elemental and other resistances for unified handling.
-        /// These values do not map to any particular classic data.
+        /// Elements for resistances and saving throws.
+        /// Values maps to classic resistance element used in saving throws.
         /// </summary>
-        public enum Resistances
+        public enum Elements
         {
             None = -1,
             Fire = 0,
-            Cold = 1,
-            Poison = 2,
+            Frost = 1,
+            DiseaseOrPoison = 2,
             Shock = 3,
             Magic = 4,
-            Disease = 5,
-            Paralysis = 6,
         }
 
         /// <summary>

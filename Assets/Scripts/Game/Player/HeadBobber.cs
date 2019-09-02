@@ -1,7 +1,15 @@
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Web Site:        http://www.dfworkshop.net
+// License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
+// Source Code:     https://github.com/Interkarma/daggerfall-unity
+// Original Author: Meteoric Dragon
+// Contributors:    
+// 
+// Notes:
+//
+
 using UnityEngine;
-using System;
-using System.Collections;
-using DaggerfallConnect;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -13,20 +21,27 @@ namespace DaggerfallWorkshop.Game
         Crouching,
         Walking,
         Running,
-        Horse
+        Horse,
+        Swimming
     }
 
     [RequireComponent(typeof(CharacterController))]
     [RequireComponent(typeof(PlayerFootsteps))]
+    [RequireComponent(typeof(PlayerEnterExit))]
     public class HeadBobber : MonoBehaviour
     {
         private BobbingStyle bobStyle = BobbingStyle.Walking;
+
         public BobbingStyle BobStyle
         {
             get { return bobStyle; }
         }
+
         private PlayerMotor playerMotor;
-        private Camera mainCamera;
+        private PlayerEnterExit playerEnterExit;
+        private ClimbingMotor climbingMotor;
+        private Camera mainCamera
+        { get { return GameManager.Instance.MainCamera; } }
 
         private Vector3 restPos; //local position where your camera would rest when it's not bobbing.
         public Vector3 RestPos
@@ -37,35 +52,36 @@ namespace DaggerfallWorkshop.Game
         private float bobXAmount; //how dramatic the bob is in side motion.
         private float bobYAmount; //how dramatic the bob is in up/down motion.
         private float nodXAmount; // for the nodding motion
-        private float nodYAmount; 
+        private float nodYAmount;
         private const float bobScalar = 1.0f; // user controlled multiplier for strength of bob
 
-        float landingTimerDown;
-        float landingTimerUp;
+        float bounceTimerDown;
+        float bounceTimerUp;
         float timer = Mathf.PI / 2; //initialized as this value because this is where sin = 1. So, this will make the camera always start at the crest of the sin wave, simulating someone picking up their foot and starting to walk--you experience a bob upwards when you start walking as your foot pushes off the ground, the left and right bobs come as you walk.
         float beginTransitionTimer = 0; // timer for smoothing out beginning of headbob.
         float endTransitionTimer = 0; // timer for smoothing out end of headbob. 
         const float endTimerMax = 0.5f;
-        const float beginTimerMax = Mathf.PI;
+        //const float beginTimerMax = Mathf.PI;
         private bool bIsStopping;
-        private bool readyToLand;
+        private bool readyToBounce;
 
         void Start()
         {
             playerMotor = GetComponent<PlayerMotor>();
-            
-            mainCamera = GameManager.Instance.MainCamera;
+            playerEnterExit = GetComponent<PlayerEnterExit>();
+            climbingMotor = GetComponent<ClimbingMotor>();
             restPos = mainCamera.transform.localPosition;
-            
+
             bobSpeed = GetComponent<PlayerFootsteps>().WalkStepInterval / 2.0f; // 1.20f;
             bIsStopping = false;
         }
 
         void Update()
         {
-            if (DaggerfallUnity.Settings.HeadBobbing == false ||
+            if (!DaggerfallUnity.Settings.HeadBobbing ||
                 GameManager.Instance.PlayerEntity.CurrentHealth < 1 ||
-                GameManager.IsGamePaused)
+                GameManager.IsGamePaused ||
+                climbingMotor.IsClimbing)
                 return;
 
             GetBobbingStyle();
@@ -80,7 +96,9 @@ namespace DaggerfallWorkshop.Game
 
         protected void GetBobbingStyle()
         {
-            if (playerMotor.IsRunning)
+            if (playerEnterExit.IsPlayerSwimming)
+                bobStyle = BobbingStyle.Swimming;
+            else if (playerMotor.IsRunning)
                 bobStyle = BobbingStyle.Running;
             else if (playerMotor.IsCrouching)
                 bobStyle = BobbingStyle.Crouching;
@@ -88,11 +106,10 @@ namespace DaggerfallWorkshop.Game
                 bobStyle = BobbingStyle.Horse;
             else
                 bobStyle = BobbingStyle.Walking;
-
         }
+
         protected void SetParamsForBobbingStyle()
         {
-            
             switch (bobStyle)
             {
                 // TODO: adjust bob speed to match player footstep sound better
@@ -124,6 +141,13 @@ namespace DaggerfallWorkshop.Game
                     nodXAmount = 0.2f;
                     nodYAmount = 0.1f;
                     break;
+                case BobbingStyle.Swimming:
+
+                    bobXAmount = 0;
+                    bobYAmount = 0;
+                    nodXAmount = 0;
+                    nodYAmount = 0;
+                    break;
                 default:
                     // error
                     break;
@@ -131,7 +155,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         protected void getNewPos(ref Vector3 newPosition, ref Vector3 newRotation)
-        { 
+        {
             float velocity = new Vector2(playerMotor.MoveDirection.x, playerMotor.MoveDirection.z).magnitude;
             float timeIncrement = velocity * bobSpeed * Time.deltaTime;
 
@@ -142,12 +166,12 @@ namespace DaggerfallWorkshop.Game
                     endTransitionTimer = 0;
                     timer = Mathf.PI;
                 }
-                    
+
                 timer += timeIncrement;
                 beginTransitionTimer += timeIncrement;
 
                 newPosition = PlotPath();
-                newRotation = PlotRotation();  
+                newRotation = PlotRotation();
 
                 if (beginTransitionTimer <= Mathf.PI)
                 {
@@ -175,50 +199,65 @@ namespace DaggerfallWorkshop.Game
                 bIsStopping = false;
             }
 
-            if (timer > Mathf.PI * 2 ) //completed a full cycle on the unit circle. Reset to 0 to avoid bloated values.
+            if (timer > Mathf.PI * 2) //completed a full cycle on the unit circle. Reset to 0 to avoid bloated values.
             {
                 timer = 0;
             }
 
-            applyLandingBounce(ref newPosition);
+            ApplySimpleBouncing(ref newPosition);
         }
 
-        protected void applyLandingBounce(ref Vector3 newPosition)
+        protected void ApplySimpleBouncing(ref Vector3 newPosition)
         {
-            if (!playerMotor.IsGrounded)
+            bool isGrounded = playerMotor.IsGrounded;
+            bool isSwimming = playerEnterExit.IsPlayerSwimming;
+            bool isClimbing = climbingMotor.IsClimbing;
+            bool isLevitating = playerMotor.IsLevitating;
+            float upSpeed = 1f,
+                  downSpeed = 1f;
+
+            if (isClimbing || isLevitating)
+                return;
+
+            if (isSwimming)
             {
-                readyToLand = true;
-                landingTimerUp = 0f;
-                landingTimerDown = 0f;
+                upSpeed = 0.40f;
+                downSpeed = 0.1f;
             }
-            else if (playerMotor.IsGrounded && readyToLand)
+
+            if ((!isGrounded || isSwimming) && !readyToBounce)
+            {
+                readyToBounce = true;
+                bounceTimerUp = 0f;
+                bounceTimerDown = 0f;
+            }
+            else if (readyToBounce && (isGrounded || isSwimming))
             {
                 const float bounceMax = 0.17f;
                 const float timerMax = 0.10f;
                 float t;
-                // apply landing bob
-                if (landingTimerDown < timerMax)
+                // apply bob
+                if (bounceTimerDown < timerMax)
                 {
-                    landingTimerDown += Time.deltaTime;
-                    t = (landingTimerDown / timerMax);
+                    bounceTimerDown += Time.deltaTime * downSpeed;
+                    t = (bounceTimerDown / timerMax);
                     newPosition += new Vector3(newPosition.x, Mathf.Lerp(restPos.y, restPos.y - bounceMax, t)) - newPosition;
                 }
-                else if (landingTimerUp < timerMax)
+                else if (bounceTimerUp < timerMax)
                 {
-                    landingTimerUp += Time.deltaTime;
-                    t = (landingTimerUp / timerMax);
+                    bounceTimerUp += Time.deltaTime * upSpeed;
+                    t = (bounceTimerUp / timerMax);
                     newPosition += new Vector3(newPosition.x, Mathf.Lerp(restPos.y - bounceMax, restPos.y, t)) - newPosition;
                 }
                 else
-                    readyToLand = false;
+                    readyToBounce = false;
             }
         }
 
         protected Vector3 PlotRotation()
         {
-            Vector3 newViewPositon = new Vector3(Mathf.Abs(Mathf.Sin(timer) * nodXAmount), -1 * Mathf.Sin(timer) * nodYAmount);
             // return vector for euler angles
-            return newViewPositon;
+            return new Vector3(Mathf.Abs(Mathf.Sin(timer) * nodXAmount), -1 * Mathf.Sin(timer) * nodYAmount);
         }
 
         protected Vector3 PlotPath()
@@ -228,7 +267,7 @@ namespace DaggerfallWorkshop.Game
 
         protected Vector3 InterpolateEndTransition(float endTimer) // interpolates a gradual path from moving to not moving.
         {
-            float t = (endTimer / endTimerMax); 
+            float t = (endTimer / endTimerMax);
             Vector3 camPos = mainCamera.transform.localPosition;
             return Vector3.Lerp(camPos, restPos, t);
         }
@@ -238,9 +277,5 @@ namespace DaggerfallWorkshop.Game
             float t = (timer % Mathf.PI) / Mathf.PI;
             return Vector3.Lerp(restPos, newPosition, t);
         }
-
-
     }
 }
-
-

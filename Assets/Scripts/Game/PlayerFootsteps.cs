@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,6 +12,8 @@
 using UnityEngine;
 using System.Collections;
 using DaggerfallWorkshop.Utility;
+using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -59,6 +61,7 @@ namespace DaggerfallWorkshop.Game
         SoundClips currentFootstepSound2 = SoundClips.None;
         DaggerfallDateTime.Seasons currentSeason = DaggerfallDateTime.Seasons.Summer;
         bool isInside = false;
+        bool isInOutsideWater = false;
 
         void Start()
         {
@@ -92,11 +95,15 @@ namespace DaggerfallWorkshop.Game
             bool playerInside = (playerEnterExit == null) ? true : playerEnterExit.IsPlayerInside;
             bool playerInBuilding = (playerEnterExit == null) ? false : playerEnterExit.IsPlayerInsideBuilding;
 
+            // Play splash footsteps whether player is walking on or swimming in exterior water
+            bool playerOnExteriorWater = (GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.Swimming || GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.WaterWalking);
+
             // Change footstep sounds between winter/summer variants or when player enters/exits an interior space
-            if (dfUnity.WorldTime.Now.SeasonValue != currentSeason || isInside != playerInside)
+            if (dfUnity.WorldTime.Now.SeasonValue != currentSeason || isInside != playerInside || playerOnExteriorWater != isInOutsideWater)
             {
                 currentSeason = dfUnity.WorldTime.Now.SeasonValue;
                 isInside = playerInside;
+                isInOutsideWater = playerOnExteriorWater;
                 if (!isInside)
                     if (currentSeason == DaggerfallDateTime.Seasons.Winter)
                     {
@@ -123,8 +130,17 @@ namespace DaggerfallWorkshop.Game
                 clip2 = null;
             }
 
-            // Use water sounds if in water
-            if (playerEnterExit.blockWaterLevel != 10000)
+            // walking on water tile
+            if (playerOnExteriorWater)
+            {
+                currentFootstepSound1 = FootstepSoundSubmerged;
+                currentFootstepSound2 = FootstepSoundSubmerged;
+                clip1 = null;
+                clip2 = null;
+            }
+
+            // Use water sounds if in dungeon water
+            if (GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon && playerEnterExit.blockWaterLevel != 10000)
             {
                 // In water, deep depth
                 if ((currentFootstepSound1 != FootstepSoundSubmerged) && playerEnterExit.IsPlayerSwimming)
@@ -145,7 +161,8 @@ namespace DaggerfallWorkshop.Game
             }
 
             // Not in water, reset footsteps to normal
-            if ((currentFootstepSound1 == FootstepSoundSubmerged || currentFootstepSound1 == FootstepSoundShallow)
+            if ((!playerOnExteriorWater) 
+                && (currentFootstepSound1 == FootstepSoundSubmerged || currentFootstepSound1 == FootstepSoundShallow)
                 && (playerEnterExit.blockWaterLevel == 10000 || (playerMotor.transform.position.y - 0.95f) >= (playerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale)))
             {
                 currentFootstepSound1 = FootstepSoundDungeon1;
@@ -166,7 +183,7 @@ namespace DaggerfallWorkshop.Game
             }
 
             // Check whether player is on foot and abort playing footsteps if not.
-            if (!transportManager.IsOnFoot)
+            if (playerMotor.IsLevitating || !transportManager.IsOnFoot && GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.None)
             {
                 distance = 0f;
                 return;
@@ -275,6 +292,25 @@ namespace DaggerfallWorkshop.Game
             if (dfAudioSource)
             {
                 dfAudioSource.PlayOneShot((int)SoundClips.Hit1 + Random.Range(2, 4), 0, 1f);
+            }
+        }
+
+        // Capture this message so we can play pain voice
+        public void RemoveHealth(int amount)
+        {
+            // Racial override can suppress optional attack voice
+            RacialOverrideEffect racialOverride = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect();
+            bool suppressCombatVoices = racialOverride != null && racialOverride.SuppressOptionalCombatVoices;
+
+            if (dfAudioSource && DaggerfallUnity.Settings.CombatVoices && !suppressCombatVoices && Dice100.SuccessRoll(40))
+            {
+                Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+                bool heavyDamage = amount >= playerEntity.MaxHealth / 4;
+                SoundClips sound = Entity.DaggerfallEntity.GetRaceGenderPainSound(playerEntity.Race, playerEntity.Gender, heavyDamage);
+                float pitch = dfAudioSource.AudioSource.pitch;
+                dfAudioSource.AudioSource.pitch = pitch + Random.Range(0, 0.3f);
+                dfAudioSource.PlayOneShot((int)sound, 0, 1f);
+                dfAudioSource.AudioSource.pitch = pitch;
             }
         }
 

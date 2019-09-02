@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,6 +10,7 @@
 //
 
 using UnityEngine;
+using UnityEngine.Video;
 using System;
 using System.IO;
 using System.Collections;
@@ -25,7 +26,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
     public class DaggerfallVidPlayerWindow : DaggerfallBaseWindow
     {
         DaggerfallVideo video;
-        CustomVideoPlayer customVideo;
+        VideoPlayerDrawer customVideo;
         bool useCustomVideo = false;
 
         bool hideCursor = true;
@@ -44,7 +45,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             get { return video; }
         }
 
-        public CustomVideoPlayer CustomVideo
+        public VideoPlayerDrawer CustomVideo
         {
             get { return customVideo; }
         }
@@ -57,6 +58,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public bool IsPlaying
         {
             get { return useCustomVideo ? customVideo.IsPlaying : video.Playing; }
+        }
+
+        public bool EndOnAnyKey
+        {
+            get { return endOnAnyKey; }
+            set { endOnAnyKey = value; }
         }
 
         public DaggerfallVidPlayerWindow(IUserInterfaceManager uiManager)
@@ -72,13 +79,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         protected override void Setup()
         {
-            MovieTexture customMovieTexture;
-            if (useCustomVideo = VideoReplacement.TryImportMovie(PlayOnStart, out customMovieTexture))
+            if (useCustomVideo = VideoReplacement.TryImportMovie(PlayOnStart, out customVideo))
             {
                 // Play custom video
-                customVideo = new CustomVideoPlayer();
-                customVideo.Play(customMovieTexture);
+                customVideo.Size = new Vector2(Screen.width, Screen.height);
                 NativePanel.Components.Add(customVideo);
+                customVideo.Play();
             }
             else
             {
@@ -109,11 +115,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Handle exit any key or end of video
             if (useCustomVideo)
             {
-                if (endOnAnyKey && Input.anyKeyDown || 
-                    !customVideo.IsPlaying )
+                if (endOnAnyKey && Input.anyKeyDown ||
+                    Input.GetKeyDown(KeyCode.Escape) ||
+                    !customVideo.IsPlaying)
                 {
                     customVideo.Stop();
                     customVideo.Dispose();
+                    customVideo = null;
                     RaiseOnVideoFinishedHandler();
                     RaiseOnVideoEndGlobalEvent();
                     CloseWindow();
@@ -122,7 +130,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             else
             {
                 if (endOnAnyKey && Input.anyKeyDown ||
-                video.VidFile.EndOfFile && video.Playing)
+                    Input.GetKeyDown(KeyCode.Escape) ||
+                    video.VidFile.EndOfFile && video.Playing)
                 {
                     video.Playing = false;
                     video.Dispose();

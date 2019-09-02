@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    Lypyl (lypyldf@gmail.com), Hazelnut
+// Contributors:    Lypyl (lypyldf@gmail.com), Hazelnut, Numidium
 // 
 // Notes:
 //
@@ -92,6 +92,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public BankDeedData_v1 bankDeeds;
         public FaceDetails[] escortingFaces;
         public SceneCache_v1 sceneCache;
+        public TravelMapSaveData travelMapData;
     }
 
     #endregion
@@ -140,9 +141,11 @@ namespace DaggerfallWorkshop.Game.Serialization
         public PlayerPositionData_v1 playerPosition;
         public PlayerEntityData_v1 playerEntity;
         public bool weaponDrawn;
+        public bool usingLeftHand;
         public TransportModes transportMode;
         public PlayerPositionData_v1 boardShipPosition;  // Holds the player position from before boarding a ship.
         public Dictionary<int, GuildMembership_v1> guildMemberships;
+        public List<string> oneTimeQuestsAccepted;
     }
 
     [fsObject("v1")]
@@ -165,6 +168,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public int currentBreath;
         public short[] skillUses;
         public uint timeOfLastSkillIncreaseCheck;
+        public uint[] skillsRecentlyRaised;
         public int startingLevelUpSkillSum;
         public ulong[] equipTable;
         public ItemData_v1[] items;
@@ -192,6 +196,19 @@ namespace DaggerfallWorkshop.Game.Serialization
         public EntityEffectManager.EffectBundleSaveData_v1[] instancedEffectBundles;
         public PlayerEntity.Crimes crimeCommitted;
         public bool haveShownSurrenderToGuardsDialogue;
+        public ulong lightSourceUID;
+        public short reputationCommoners;
+        public short reputationMerchants;
+        public short reputationNobility;
+        public short reputationScholars;
+        public short reputationUnderworld;
+        public short reputationSGroup5;
+        public short reputationSupernaturalBeings;
+        public short reputationGuildMembers;
+        public short reputationSGroup8;
+        public short reputationSGroup9;
+        public short reputationSGroup10;
+        public VampireClans previousVampireClan;
     }
 
     [fsObject("v1")]
@@ -231,7 +248,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public string name;
         public int mapID;
         public int buildingKey;
-        public Vector3 allocatedBed;
+        public int allocatedBedIndex;
         public ulong expiryTime;
     }
 
@@ -253,6 +270,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public int enchantmentPoints;
         public int message;
         public int[] legacyMagic;
+        public CustomEnchantment[] customMagic;
         public int playerTextureArchive;
         public int playerTextureRecord;
         public int worldTextureArchive;
@@ -265,6 +283,19 @@ namespace DaggerfallWorkshop.Game.Serialization
         public Symbol questItemSymbol;
         public MobileTypes trappedSoulType;
         public string className;
+        public Poisons poisonType = Poisons.None;
+        public int potionRecipe;
+        public ItemRepairData_v1 repairData;
+        public uint timeForItemToDisappear;
+        public uint timeHealthLeechLastUsed;
+    }
+
+    [fsObject("v1")]
+    public class ItemRepairData_v1
+    {
+        public string sceneName;
+        public ulong timeStarted;
+        public int repairTime;
     }
 
     #endregion
@@ -336,6 +367,11 @@ namespace DaggerfallWorkshop.Game.Serialization
         public ItemData_v1[] items;
         public ulong[] equipTable;
         public QuestResourceBehaviour.QuestResourceSaveData_v1 questResource;
+        public EntityEffectManager.EffectBundleSaveData_v1[] instancedEffectBundles;
+        public bool alliedToPlayer;
+        public int questFoeSpellQueueIndex;
+        public int questFoeItemQueueIndex;
+        public bool wabbajackActive;
     }
 
     #endregion
@@ -352,6 +388,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public Vector3 currentPosition;
         public Vector3 localPosition;
         public Vector3 worldCompensation;
+        public float heightScale;
         public int textureArchive;
         public int textureRecord;
         public string lootTableKey;
@@ -404,6 +441,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public string saveName;
         public string characterName;
         public DateAndTime_v1 dateAndTime;
+        public string dfuVersion;
     }
 
     #endregion
@@ -434,6 +472,18 @@ namespace DaggerfallWorkshop.Game.Serialization
         public uint loanDueDate;
         public int regionIndex;
         public bool hasDefaulted;
+    }
+
+    [fsObject("v1")]
+    public class TravelMapSaveData
+    {
+        public bool filterDungeons;
+        public bool filterTemples;
+        public bool filterHomes;
+        public bool filterTowns;
+        public bool sleepInn = true;
+        public bool speedCautious = true;
+        public bool travelShip = true;
     }
 
     #endregion

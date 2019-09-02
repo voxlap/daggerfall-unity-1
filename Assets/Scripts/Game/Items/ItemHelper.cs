@@ -1,26 +1,26 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2018 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:
+// Contributors: Numidium
 //
 // Notes:
 //
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using DaggerfallConnect.FallExe;
-using DaggerfallConnect.Save;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Entity;
-using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Utility.AssetInjection;
+using DaggerfallWorkshop.Game.Questing;
 
 namespace DaggerfallWorkshop.Game.Items
 {
@@ -30,19 +30,19 @@ namespace DaggerfallWorkshop.Game.Items
     public class ItemHelper
     {
         public const int wagonKgLimit = 750;
+        const string textDatabase = "DaggerfallUI";
 
         #region Fields
 
         // This array is in order of ItemEnums.ArtifactsSubTypes
         // Each element in array is the texture record index to use for that artifact in TEXTURE.432, TEXTURE.433
         // The actual equip placement and whether a left and right hand image exist is derived from item group/groupIndex from usual template data
-        int[] artifactTextureIndexMappings = new int[] { 12, 13, 10, 8, 19, 16, 25, 18, 21, 2, 24, 26, 0, 15, 3, 9, 23, 17, 7, 1, 22, 20, 5 };
+        readonly int[] artifactTextureIndexMappings = { 12, 13, 10, 8, 19, 16, 25, 18, 21, 2, 24, 26, 0, 15, 3, 9, 23, 17, 7, 1, 22, 20, 5 };
 
         const string itemTemplatesFilename = "ItemTemplates";
         const string magicItemTemplatesFilename = "MagicItemTemplates";
         const string containerIconsFilename = "INVE16I0.CIF";
         const string bookMappingFilename = "books";
-        const string recipeMappingFilename = "PotionRecipes";
 
         const int artifactMaleTextureArchive = 432;
         const int artifactFemaleTextureArchive = 433;
@@ -50,10 +50,9 @@ namespace DaggerfallWorkshop.Game.Items
         List<ItemTemplate> itemTemplates = new List<ItemTemplate>();
         List<MagicItemTemplate> allMagicItemTemplates = new List<MagicItemTemplate>();
         List<MagicItemTemplate> artifactItemTemplates = new List<MagicItemTemplate>();
-        Dictionary<int, ImageData> itemImages = new Dictionary<int, ImageData>();
-        Dictionary<InventoryContainerImages, ImageData> containerImages = new Dictionary<InventoryContainerImages, ImageData>();
-        Dictionary<int, String> bookIDNameMapping = new Dictionary<int, String>();
-        Dictionary<int, RecipeMapping> potionRecipeMapping = new Dictionary<int, RecipeMapping>();
+        readonly Dictionary<int, ImageData> itemImages = new Dictionary<int, ImageData>();
+        readonly Dictionary<InventoryContainerImages, ImageData> containerImages = new Dictionary<InventoryContainerImages, ImageData>();
+        readonly Dictionary<int, String> bookIDNameMapping = new Dictionary<int, String>();
 
         #endregion
 
@@ -64,7 +63,6 @@ namespace DaggerfallWorkshop.Game.Items
             LoadItemTemplates();
             LoadMagicItemTemplates();
             LoadBookIDNameMapping();
-            LoadPotionRecipeIDMapping();
         }
 
         #endregion
@@ -144,9 +142,13 @@ namespace DaggerfallWorkshop.Game.Items
             // Get item template
             ItemTemplate template = item.ItemTemplate;
 
-            // Return just the template name if item is unidentified or an Artifact.
+            // Return just the template name if item is unidentified.
             if (!item.IsIdentified)
                 return template.name;
+
+            // Return the shortName if item is an artifact
+            if (item.IsArtifact)
+                return item.shortName;
 
             // Books are handled differently
             if (item.ItemGroup == ItemGroups.Books)
@@ -156,7 +158,10 @@ namespace DaggerfallWorkshop.Game.Items
             string result = item.shortName;
 
             // Resolve %it parameter
-            result = result.Replace("%it", template.name);
+            if (!string.IsNullOrEmpty(template.name))
+                result = result.Replace("%it", template.name);
+            else
+                Debug.LogErrorFormat("Item template index {0} has a null template.name", template.index);
 
             return result;
         }
@@ -172,10 +177,16 @@ namespace DaggerfallWorkshop.Game.Items
             if (!item.IsIdentified || item.IsArtifact)
                 return result;
 
+            // Differentiate plant ingredients with 2 variants
+            if (item.ItemGroup == ItemGroups.PlantIngredients1 && item.TemplateIndex < 18)
+                return string.Format("{0} {1}", result, TextManager.Instance.GetText(textDatabase, "northern"));
+            if (item.ItemGroup == ItemGroups.PlantIngredients2 && item.TemplateIndex < 18)
+                return string.Format("{0} {1}", result, TextManager.Instance.GetText(textDatabase, "southern"));
+
             // Resolve weapon material
-            if (item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex != (int) Weapons.Arrow)
+            if (item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex != (int)Weapons.Arrow)
             {
-                WeaponMaterialTypes weaponMaterial = (WeaponMaterialTypes) item.nativeMaterialValue;
+                WeaponMaterialTypes weaponMaterial = (WeaponMaterialTypes)item.nativeMaterialValue;
                 string materialName = DaggerfallUnity.Instance.TextProvider.GetWeaponMaterialName(weaponMaterial);
                 result = string.Format("{0} {1}", materialName, result);
             }
@@ -183,14 +194,61 @@ namespace DaggerfallWorkshop.Game.Items
             // Resolve armor material
             if (item.ItemGroup == ItemGroups.Armor && ArmorShouldShowMaterial(item))
             {
-                ArmorMaterialTypes armorMaterial = (ArmorMaterialTypes) item.nativeMaterialValue;
+                ArmorMaterialTypes armorMaterial = (ArmorMaterialTypes)item.nativeMaterialValue;
                 string materialName = DaggerfallUnity.Instance.TextProvider.GetArmorMaterialName(armorMaterial);
                 result = string.Format("{0} {1}", materialName, result);
             }
 
             // Resolve potion names
-            if (item.ItemGroup == ItemGroups.UselessItems1 && item.TemplateIndex == (int)UselessItems1.Glass_Bottle)
+            if (item.IsPotion)
                 return MacroHelper.GetValue("%po", item);
+
+            // Resolve quest letters, get last 2 lines which should be the signoff
+            if (item.ItemGroup == ItemGroups.UselessItems2 && item.TemplateIndex == (int)UselessItems2.Parchment && item.IsQuestItem)
+            {
+                // Get the Item resource from quest
+                Quest quest = QuestMachine.Instance.GetQuest(item.QuestUID);
+                if (quest != null)
+                {
+                    Item questItem = quest.GetItem(item.QuestItemSymbol);
+                    if (questItem.UsedMessageID >= 0)
+                    {
+                        Message msg = quest.GetMessage(questItem.UsedMessageID);
+                        TextFile.Token[] tokens = msg.GetTextTokens();
+                        string signoff = "";
+                        int lines = 0;
+                        for (int i = tokens.Length-1; i >= 0; i--)
+                        {
+                            TextFile.Token token = tokens[i];
+                            if (!string.IsNullOrEmpty(token.text))
+                            {
+                                signoff = token.text.Trim() + " " + signoff;
+                                lines++;
+                            }
+                            if (lines >= 2)
+                                return HardStrings.letterPrefix + signoff;
+                        }
+                    }
+                }
+            }
+
+            // Show trapped soul name if any
+            if (item.ItemGroup == ItemGroups.MiscItems && item.TemplateIndex == (int)MiscItems.Soul_trap)
+            {
+                if (item.TrappedSoulType != MobileTypes.None)
+                {
+                    MobileEnemy soul;
+                    if (EnemyBasics.GetEnemy(item.TrappedSoulType, out soul))
+                    {
+                        MobileEnemy mobileEnemy = GameObjectHelper.EnemyDict[(int)item.TrappedSoulType];
+                        result += string.Format(" ({0})", soul.Name);
+                    }
+                }
+                //else
+                //{
+                //    // Considering showing (empty) for empty soul traps
+                //}
+            }
 
             return result;
         }
@@ -234,11 +292,9 @@ namespace DaggerfallWorkshop.Game.Items
             if (forPaperDoll)
             {
                 // 1H Weapons in right hand need record + 1
-                if (item.ItemGroup == ItemGroups.Weapons && item.EquipSlot == EquipSlots.RightHand)
-                {
-                    if (ItemEquipTable.GetItemHands(item) == ItemHands.Either)
-                        record += 1;
-                }
+                if (item.ItemGroup == ItemGroups.Weapons && item.EquipSlot == EquipSlots.RightHand &&
+                    ItemEquipTable.GetItemHands(item) == ItemHands.Either)
+                    record += 1;
             }
             else
             {
@@ -275,11 +331,17 @@ namespace DaggerfallWorkshop.Game.Items
                 data.offset = new DaggerfallConnect.Utility.DFPosition(237, 43);
             }
 
+            // Get mask texture where alpha 0 is umasked areas of image and alpha 1 are masked areas of image
+            Texture2D maskTexture;
+            if (TextureReplacement.TryImportTexture(archive, record, 0, item.dyeColor, TextureMap.Mask, out maskTexture))
+                data.maskTexture = maskTexture;
+            else
+                ImageReader.UpdateMaskTexture(ref data);
+
             Texture2D tex;
-            if (!forPaperDoll && TextureReplacement.TryImportTexture(archive, record, 0, item.dyeColor, out tex))
+            if (TextureReplacement.TryImportTexture(archive, record, 0, item.dyeColor, TextureMap.Albedo, out tex))
             {
                 // Assign imported texture
-                // Paperdoll is disabled for now
                 data.texture = tex;
             }
             else
@@ -372,18 +434,6 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
-        /// Gets the recipe(s) for a potion based on the recipe's ID
-        /// </summary>
-        /// <param name="id">The ID of the requested potion recipe</param>
-        /// <returns>A KeyValuePair<string, Recipe[]>, where the string is the name of the recipe and the Recipe array contains the different ways it can be made</returns>
-        public KeyValuePair<string, Recipe[]> getPotionRecipesByID(int id)
-        {
-            RecipeMapping mapping;
-            potionRecipeMapping.TryGetValue(id, out mapping);
-            return new KeyValuePair<string, Recipe[]>(mapping.name, mapping.recipes);
-        }
-
-        /// <summary>
         /// Gets the Daggerfall name of a book based on its "message" field. The ID is derived from this message using Daggerfall's
         /// bitmasking (message & 0xFF)
         /// </summary>
@@ -396,14 +446,53 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
+        /// Gets the filename for a book (classic or imported).
+        /// </summary>
+        /// <param name="message">The message field for the book Item, containing the book ID.</param>
+        /// <returns>The filename of the book or null.</returns>
+        internal string GetBookFileNameByMessage(int message)
+        {
+            BookReplacement.AssertCustomBooksImportEnabled();
+
+            if (message <= 111 || message == 10000)
+                return BookFile.messageToBookFilename(message);
+
+            BookMappingEntry entry;
+            if (BookReplacement.BookMappingEntries.TryGetValue(message, out entry))
+                return entry.Name;
+
+            Debug.LogErrorFormat("ID {0} is not assigned to any known book; a mod that provides books was probably removed.", message);
+            return null;
+        }
+
+        /// <summary>
         /// Obtaining a random book ID is useful for generating books in loot drops, store inventories, etc.
+        /// If custom books are available, they are chosen only if specified conditions are met.
         /// </summary>
         /// <returns>A random book ID</returns>
-        public int getRandomBookID()
+        public int GetRandomBookID()
         {
-            List<int> keys = new List<int>(bookIDNameMapping.Keys);
-            int size = bookIDNameMapping.Count;
-            return keys[UnityEngine.Random.Range(0, size-1)];
+            if (DaggerfallUnity.Settings.CustomBooksImport)
+            {
+                const int attempts = 6;
+
+                int[] keys = bookIDNameMapping.Keys.ToArray();
+
+                for (int i = 0; i < attempts; i++)
+                {
+                    int id = keys[UnityEngine.Random.Range(0, keys.Length)];
+                    if (BookReplacement.BookMeetsConditions(id))
+                        return id;
+                }
+
+                return UnityEngine.Random.Range(0, 112);
+            }
+            else
+            {
+                List<int> keys = new List<int>(bookIDNameMapping.Keys);
+                int size = bookIDNameMapping.Count;
+                return keys[UnityEngine.Random.Range(0, size)];
+            }
         }
 
         /// <summary>
@@ -451,8 +540,17 @@ namespace DaggerfallWorkshop.Game.Items
             if (data.type == ImageTypes.None)
                 throw new Exception("GetCloakBackImage() could not load image data.");
 
-            // Change dye
-            data = ChangeDye(data, (DyeColors)color, DyeTargets.Clothing);
+            Texture2D tex;
+            if (TextureReplacement.TryImportTexture(archive, record, 0, item.dyeColor, TextureMap.Albedo, out tex))
+            {
+                // Assign imported texture
+                data.texture = tex;
+            }
+            else
+            {
+                // Change dye
+                data = ChangeDye(data, (DyeColors)color, DyeTargets.Clothing);
+            }    
 
             return data;
         }
@@ -511,18 +609,18 @@ namespace DaggerfallWorkshop.Game.Items
                         return textProvider.GetRSCTokens(weaponTextId);             // Handle weapons
 
                 case ItemGroups.Books:
-                    if (item.legacyMagic != null && item.legacyMagic[0] == 26)
+                    if (item.legacyMagic != null && item.legacyMagic[0].type == EnchantmentTypes.SpecialArtifactEffect)
                         return textProvider.GetRSCTokens(oghmaInfiniumTextId);      // Handle Oghma Infinium
-                    else                                                      
+                    else
                         return textProvider.GetRSCTokens(bookTextId);               // Handle other books
 
                 case ItemGroups.Paintings:
-                    // TODO: Show painting. Uses file paint.dat.
-                    return textProvider.GetRSCTokens(paintingTextId);
+                    // Show painting. (Uses file paint.dat)
+                    return item.InitPaintingInfo(paintingTextId);
 
                 case ItemGroups.MiscItems:
                     // A few items in the MiscItems group have their own text display
-                    if (item.TemplateIndex == (int)MiscItems.Potion_recipe)
+                    if (item.IsPotionRecipe)
                         return GetPotionRecipeTokens();                             // Handle potion recipes
                     else if (item.TemplateIndex == (int)MiscItems.House_Deed)
                         return textProvider.GetRSCTokens(houseDeedTextId);          // Handle house deeds
@@ -536,12 +634,11 @@ namespace DaggerfallWorkshop.Game.Items
                 default:
                     // Handle potions in glass bottles
                     // In classic, the check is whether RecordRoot.SublistHead is non-null and of PotionMix type.
-                    // TODO: Do we need it or will glass bottles with typedependentdata cover it?
-                    if (item.ItemGroup == ItemGroups.UselessItems1 && item.TemplateIndex == (int) UselessItems1.Glass_Bottle)
+                    if (item.IsPotion)
                         return textProvider.GetRSCTokens(potionTextId);
 
                     // Handle Azura's Star
-                    if (item.legacyMagic != null && item.legacyMagic[0] == 26 && item.legacyMagic[1] == 9)
+                    if (item.legacyMagic != null && item.legacyMagic[0].type == EnchantmentTypes.SpecialArtifactEffect && item.legacyMagic[0].param == 9)
                         return textProvider.GetRSCTokens(soulTrapTextId);
 
                     // Default fallback if none of the above applied
@@ -602,7 +699,7 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Find FPS animation set for this weapon type
             // Daggerfall re-uses the same animations for many different weapons
-            WeaponTypes result = WeaponTypes.None;
+            WeaponTypes result;
             switch (item.TemplateIndex)
             {
                 case (int)Weapons.Dagger:
@@ -644,7 +741,7 @@ namespace DaggerfallWorkshop.Game.Items
             }
 
             // Handle enchanted weapons
-            if (item.legacyMagic != null && item.legacyMagic[0] != -1)
+            if (item.IsEnchanted)
             {
                 switch (result)
                 {
@@ -688,6 +785,32 @@ namespace DaggerfallWorkshop.Game.Items
             // Determine metal type
             if (item.ItemGroup == ItemGroups.Weapons)
             {
+                // Overrides for artifacts whose dyes do not match their materials
+                if (item.IsArtifact)
+                {
+                    foreach (DaggerfallEnchantment enchantment in item.LegacyEnchantments)
+                    {
+                        if (enchantment.type == EnchantmentTypes.SpecialArtifactEffect)
+                        {
+                            switch (enchantment.param)
+                            {
+                                case (int)ArtifactsSubTypes.Mehrunes_Razor: // Different from classic but Elven matches the paper doll more closely
+                                    return MetalTypes.Elven;
+                                case (int)ArtifactsSubTypes.Mace_of_Molag_Bal:
+                                    return MetalTypes.Ebony;
+                                case (int)ArtifactsSubTypes.Wabbajack:
+                                    return MetalTypes.Steel;
+                                default:
+                                    break;
+                            }
+                        }
+                    }
+                    // Artifact weapons with no unique effects
+                    if (item.ItemName == "Chrysamere")
+                        return MetalTypes.Elven;
+                    if (item.ItemName == "Staff of Magnus")
+                        return MetalTypes.Mithril;
+                }
                 WeaponMaterialTypes weaponMaterial = (WeaponMaterialTypes)item.nativeMaterialValue;
                 switch (weaponMaterial)
                 {
@@ -724,9 +847,6 @@ namespace DaggerfallWorkshop.Game.Items
                         return MetalTypes.Iron;
                     case ArmorMaterialTypes.Steel:
                         return MetalTypes.Steel;
-                    case ArmorMaterialTypes.Chain:
-                    case ArmorMaterialTypes.Chain2:
-                        return MetalTypes.Chain;
                     case ArmorMaterialTypes.Silver:
                         return MetalTypes.Silver;
                     case ArmorMaterialTypes.Elven:
@@ -783,8 +903,9 @@ namespace DaggerfallWorkshop.Game.Items
                 case WeaponMaterialTypes.Steel:
                     return DyeColors.Steel;
                 case WeaponMaterialTypes.Silver:
+                    return DyeColors.Silver;
                 case WeaponMaterialTypes.Elven:
-                    return DyeColors.SilverOrElven;
+                    return DyeColors.Elven;
                 case WeaponMaterialTypes.Dwarven:
                     return DyeColors.Dwarven;
                 case WeaponMaterialTypes.Mithril:
@@ -812,16 +933,14 @@ namespace DaggerfallWorkshop.Game.Items
         {
             switch (material)
             {
-                case ArmorMaterialTypes.Chain:
-                case ArmorMaterialTypes.Chain2:
-                    return DyeColors.Chain;
                 case ArmorMaterialTypes.Iron:
                     return DyeColors.Iron;
                 case ArmorMaterialTypes.Steel:
                     return DyeColors.Steel;
                 case ArmorMaterialTypes.Silver:
+                    return DyeColors.Silver;
                 case ArmorMaterialTypes.Elven:
-                    return DyeColors.SilverOrElven;
+                    return DyeColors.Elven;
                 case ArmorMaterialTypes.Dwarven:
                     return DyeColors.Dwarven;
                 case ArmorMaterialTypes.Mithril:
@@ -939,9 +1058,49 @@ namespace DaggerfallWorkshop.Game.Items
         }
 
         /// <summary>
+        /// Ensures that a player has a valid spellbook item on load.
+        /// </summary>
+        public void ValidateSpellbookItem(PlayerEntity playerEntity)
+        {
+            ItemCollection items = playerEntity.Items;
+
+            // Importing a classic save can result in a spellbook with itemgroup 0
+            // This ends up being sorted into ingredients in DFU
+            DaggerfallUnityItem badSpellbook = items.GetItem(ItemGroups.MiscItems, 0);
+            if (badSpellbook != null)
+            {
+                // Double-check this is a bad spellbook and not actually a ruby by using texture indices
+                if (badSpellbook.InventoryTextureArchive == 209 && badSpellbook.InventoryTextureRecord == 4)
+                {
+                    // Remove bad spellbook and assign a new one correctly from template
+                    items.RemoveItem(badSpellbook);
+                    items.AddItem(ItemBuilder.CreateItem(ItemGroups.MiscItems, (int)MiscItems.Spellbook));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gives a new spellbook item to player entity (if they don't already have one).
+        /// </summary>
+        /// <param name="playerEntity">Player entity to receive spellbook item.</param>
+        /// <returns>True if spellbook added, false is player already has a spellbook item.</returns>
+        public bool AddSpellbookItem(PlayerEntity playerEntity)
+        {
+            ItemCollection items = playerEntity.Items;
+            DaggerfallUnityItem spellbook = items.GetItem(ItemGroups.MiscItems, (int)MiscItems.Spellbook);
+            if (spellbook == null)
+            {
+                items.AddItem(ItemBuilder.CreateItem(ItemGroups.MiscItems, (int)MiscItems.Spellbook));
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Assigns basic starting gear to a new character.
         /// </summary>
-        public void AssignStartingGear(PlayerEntity playerEntity)
+        public void AssignStartingGear(PlayerEntity playerEntity, int classIndex, bool isCustom)
         {
             // Get references
             ItemCollection items = playerEntity.Items;
@@ -974,20 +1133,59 @@ namespace DaggerfallWorkshop.Game.Items
             equipTable.EquipItem(shortShirt, true, false);
             equipTable.EquipItem(casualPants, true, false);
 
-            // Always add ebony dagger until biography implemented
-            items.AddItem(ItemBuilder.CreateWeapon(Weapons.Dagger, WeaponMaterialTypes.Ebony));
+            if (!isCustom)
+            {
+                // Add class-specific starting weapon
+                Weapons[] StartingWeaponTypesByClass = { Weapons.Shortsword, // Mage
+                                                         Weapons.Saber,      // Spellsword
+                                                         Weapons.Saber,      // Battlemage
+                                                         Weapons.Shortsword, // Sorcerer
+                                                         Weapons.Mace,       // Healer
+                                                         Weapons.Shortsword, // Nightblade
+                                                         Weapons.Shortsword, // Bard
+                                                         Weapons.Tanto,      // Burglar
+                                                         Weapons.Saber,      // Rogue
+                                                         Weapons.Shortsword, // Acrobat
+                                                         Weapons.Shortsword, // Thief
+                                                         Weapons.Longsword,  // Assassin
+                                                         Weapons.Staff,      // Monk
+                                                         Weapons.Long_Bow,   // Archer
+                                                         Weapons.Battle_Axe, // Ranger
+                                                         Weapons.Warhammer,  // Barbarian
+                                                         Weapons.Broadsword, // Warrior
+                                                         Weapons.Longsword   // Knight
+                };
+                byte[] StartingWeaponMaterialsByClass = { 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0 }; // 0 = iron, 1 = steel
+                items.AddItem(ItemBuilder.CreateWeapon(StartingWeaponTypesByClass[classIndex], (WeaponMaterialTypes)StartingWeaponMaterialsByClass[classIndex]));
 
-            // Add a cuirass
-            items.AddItem(ItemBuilder.CreateArmor(playerEntity.Gender, playerEntity.Race, Armor.Cuirass, ArmorMaterialTypes.Leather));
-
-            // Add alternate weapons
-            items.AddItem(ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Steel));
-            items.AddItem(ItemBuilder.CreateWeapon(Weapons.Katana, WeaponMaterialTypes.Iron));
-            items.AddItem(ItemBuilder.CreateWeapon(Weapons.Staff, WeaponMaterialTypes.Silver));
-            items.AddItem(ItemBuilder.CreateWeapon(Weapons.Long_Bow, WeaponMaterialTypes.Silver));
+                // Archer also gets a steel battleaxe and some arrows
+                const int archerIndex = 13;
+                const int archerArrows = 24;
+                if (classIndex == archerIndex)
+                {
+                    items.AddItem(ItemBuilder.CreateWeapon(Weapons.Battle_Axe, WeaponMaterialTypes.Steel));
+                    DaggerfallUnityItem arrowPile = ItemBuilder.CreateWeapon(Weapons.Arrow, WeaponMaterialTypes.Iron);
+                    arrowPile.stackCount = archerArrows;
+                    items.AddItem(arrowPile);
+                }
+            }
+            else
+            {
+                // Custom classes only get an iron longsword
+                items.AddItem(ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Iron));
+            }
 
             // Add some starting gold
             playerEntity.GoldPieces += 100;
+
+            // Add some torches and candles if player torch is from items setting enabled
+            if (DaggerfallUnity.Settings.PlayerTorchFromItems)
+            {
+                for (int i=0; i < 5; i++)
+                    items.AddItem(ItemBuilder.CreateItem(ItemGroups.UselessItems2, (int)UselessItems2.Torch));
+                for (int i=0; i < 2; i++)
+                    items.AddItem(ItemBuilder.CreateItem(ItemGroups.UselessItems2, (int)UselessItems2.Candle));
+            }
         }
 
         #endregion
@@ -1002,12 +1200,12 @@ namespace DaggerfallWorkshop.Game.Items
         {
             try
             {
-                TextAsset templates = Resources.Load<TextAsset>(itemTemplatesFilename) as TextAsset;
+                TextAsset templates = Resources.Load<TextAsset>(itemTemplatesFilename);
                 itemTemplates = SaveLoadManager.Deserialize(typeof(List<ItemTemplate>), templates.text) as List<ItemTemplate>;
             }
             catch
             {
-                Debug.Log("Could not load ItemTemplates database from Resources. Check file exists and is in correct format.");
+                Debug.LogError("Could not load ItemTemplates database from Resources. Check file exists and is in correct format.");
             }
         }
 
@@ -1016,12 +1214,12 @@ namespace DaggerfallWorkshop.Game.Items
             try
             {
                 // Get full list of magic items
-                TextAsset templates = Resources.Load<TextAsset>(magicItemTemplatesFilename) as TextAsset;
+                TextAsset templates = Resources.Load<TextAsset>(magicItemTemplatesFilename);
                 allMagicItemTemplates = SaveLoadManager.Deserialize(typeof(List<MagicItemTemplate>), templates.text) as List<MagicItemTemplate>;
 
                 // Create list of just artifact item
                 artifactItemTemplates = new List<MagicItemTemplate>();
-                for(int i = 0; i < allMagicItemTemplates.Count; i++)
+                for (int i = 0; i < allMagicItemTemplates.Count; i++)
                 {
                     if (allMagicItemTemplates[i].type == MagicItemTypes.ArtifactClass1 ||
                         allMagicItemTemplates[i].type == MagicItemTypes.ArtifactClass2)
@@ -1032,7 +1230,7 @@ namespace DaggerfallWorkshop.Game.Items
             }
             catch
             {
-                Debug.Log("Could not load MagicItemTemplates database from Resources. Check file exists and is in correct format.");
+                Debug.LogError("Could not load MagicItemTemplates database from Resources. Check file exists and is in correct format.");
             }
         }
 
@@ -1045,7 +1243,7 @@ namespace DaggerfallWorkshop.Game.Items
         {
             try
             {
-                TextAsset bookNames = Resources.Load<TextAsset>(bookMappingFilename) as TextAsset;
+                TextAsset bookNames = Resources.Load<TextAsset>(bookMappingFilename);
                 List<BookMappingTemplate> mappings = SaveLoadManager.Deserialize(typeof(List<BookMappingTemplate>), bookNames.text) as List<BookMappingTemplate>;
                 foreach (BookMappingTemplate entry in mappings)
                 {
@@ -1056,29 +1254,9 @@ namespace DaggerfallWorkshop.Game.Items
             {
                 Debug.Log("Could not load the BookIDName mapping from Resources. Check file exists and is in correct format.");
             }
-        }
 
-        /// <summary>
-        /// Loads potion recipe ID mappings from JSON file. This is used whenever you need to read the content of a potion recipe item
-        /// It should be called once to initilaize the internal data structures used for potion-related helper functions.
-        /// This data was obtained by looking at the internal array of potion objects in the FALL.EXE file and combining it
-        /// with a known resource for potion ingredients. The IDs in the file correspond to the DFU IDs in the ItemTemplates.txt
-        /// </summary>
-        void LoadPotionRecipeIDMapping()
-        {
-            try
-            {
-                TextAsset recipeNames = Resources.Load<TextAsset>(recipeMappingFilename) as TextAsset;
-                List<RecipeMapping> mappings = SaveLoadManager.Deserialize(typeof(List<RecipeMapping>), recipeNames.text) as List<RecipeMapping>;
-                for (int x=0; x<mappings.Count; ++x)
-                {
-                    potionRecipeMapping.Add(x, mappings[x]);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.Log("Could not load the Potion recipe mapping from Resources. Check file exists and is in correct format. " + e.ToString());
-            }
+            if (DaggerfallUnity.Settings.CustomBooksImport)
+                BookReplacement.FindAdditionalBooks(bookIDNameMapping);
         }
 
         /// <summary>

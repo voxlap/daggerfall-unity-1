@@ -18,18 +18,16 @@ namespace DaggerfallWorkshop.Game
     public class PlayerMotor : MonoBehaviour
     {
         #region Fields
-        bool isCrouching = false;
 
-        // TODO: Placeholder integration of horse & cart riding - using same speed for cart to simplify PlayerMotor integration
-        // and avoid adding any references to TransportManager.
+        bool isCrouching = false;
 
         bool isRiding = false;
 
         // If true, diagonal speed (when strafing + moving forward or back) can't exceed normal move speed; otherwise it's about 1.4 times faster
         public bool limitDiagonalSpeed = true;
 
-        public float systemTimerUpdatesPerSecond = .055f; // Number of updates per second by the system timer at memory location 0x46C.
-                                                          // Used for timing various things in classic.
+        public float systemTimerUpdatesDivisor = .0549254f; // Divisor for updates by the system timer at memory location 0x46C.
+                                                            // Used for timing various things in classic.
 
         // FixedUpdate is too choppy to give smooth camera movement. This handles a smooth following child transform.
         public Transform smoothFollower;                // The Transform that follows; will lerp to this Transform's position.
@@ -44,14 +42,16 @@ namespace DaggerfallWorkshop.Game
         private bool grounded = false;
         private float speed;
 
-        private bool standingStill = false;
-
         private ClimbingMotor climbingMotor;
+        private RappelMotor rappelMotor;
+        //private HangingMotor hangingMotor;
         private PlayerHeightChanger heightChanger;
         private PlayerSpeedChanger speedChanger;
         private FrictionMotor frictionMotor;
         private AcrobatMotor acrobatMotor;
         private PlayerGroundMotor groundMotor;
+        private PlayerEnterExit playerEnterExit;
+        private PlayerMoveScanner playerScanner;
 
         private CollisionFlags collisionFlags = 0;
 
@@ -59,9 +59,30 @@ namespace DaggerfallWorkshop.Game
 
         LevitateMotor levitateMotor;
         float freezeMotor = 0;
+        OnExteriorWaterMethod onExteriorWaterMethod = OnExteriorWaterMethod.None;
+
+        #endregion
+
+        #region Enums
+
+        /// <summary>
+        /// Defines the way player can interact with exterior water tiles.
+        /// Unrelated to deep water swimming such as in dungeons.
+        /// </summary>
+        public enum OnExteriorWaterMethod
+        {
+            /// <summary>Player not touching exterior water at all.</summary>
+            None,
+            /// <summary>Player is swimming in exterior water.</summary>
+            Swimming,
+            /// <summary>Player is walking on exterior water.</summary>
+            WaterWalking,
+        }
+
         #endregion
 
         #region Properties
+
         public bool IsGrounded
         {
             get { return grounded; }
@@ -79,7 +100,16 @@ namespace DaggerfallWorkshop.Game
 
         public bool IsStandingStill
         {
-            get { return standingStill; }
+            get
+            {
+                if (grounded)
+                {
+                    // Set standing still while grounded flag
+                    // Casting moveDirection to a Vector2 so constant downward force of gravity not included in magnitude
+                    return (new Vector2(moveDirection.x, moveDirection.z).magnitude == 0);
+                }
+                return false;
+            }
         }
 
         public bool IsJumping
@@ -99,6 +129,30 @@ namespace DaggerfallWorkshop.Game
             set { isRiding = value; }
         }
 
+        public bool IsClimbing
+        {
+            get { return (climbingMotor) ? climbingMotor.IsClimbing : false; }
+        }
+
+        public bool IsSwimming
+        {
+            get { return (levitateMotor) ? levitateMotor.IsSwimming : false; }
+        }
+
+        public bool IsLevitating
+        {
+            get { return (levitateMotor) ? levitateMotor.IsLevitating : false; }
+        }
+
+        public CollisionFlags CollisionFlags
+        {
+            get { return collisionFlags; }
+            set {
+                //if (value != collisionFlags)
+                //    Debug.Log(collisionFlags + " -> " + value + "\n");
+                collisionFlags = value; }
+        }
+
         public bool IsMovingLessThanHalfSpeed
         {
             get
@@ -113,6 +167,18 @@ namespace DaggerfallWorkshop.Game
                 }
                 return (speedChanger.GetBaseSpeed() / 2) >= speed;
             }
+        }
+
+        public bool StartRestGroundedCheck()
+        {
+            // Standard grounded will pass check immediately
+            if (grounded)
+                return true;
+
+            // Collision fix for when player is levitating but feet are "close enough" to ground to rest
+            // This is required as controller physics requires movement to process grounded collision normally
+            Ray ray = new Ray(transform.position, Vector3.down);
+            return (Physics.Raycast(ray, controller.height / 2 + 0.2f));
         }
 
         /// <summary>
@@ -144,9 +210,19 @@ namespace DaggerfallWorkshop.Game
                 return moveDirection;
             }
         }
+
+        /// <summary>
+        /// The method by which player is standing on exterior water.
+        /// </summary>
+        public OnExteriorWaterMethod OnExteriorWater
+        {
+            get { return onExteriorWaterMethod; }
+        }
+
         #endregion
 
         #region Event Handlers
+
         void Start()
         {
             controller = GetComponent<CharacterController>();
@@ -158,14 +234,21 @@ namespace DaggerfallWorkshop.Game
             levitateMotor = GetComponent<LevitateMotor>();
             frictionMotor = GetComponent<FrictionMotor>();
             acrobatMotor = GetComponent<AcrobatMotor>();
+            playerScanner = GetComponent<PlayerMoveScanner>();
+            playerEnterExit = GameManager.Instance.PlayerEnterExit;
+            rappelMotor = GetComponent<RappelMotor>();
+            //hangingMotor = GetComponent<HangingMotor>();
 
             // Allow for resetting specific player state on new game or when game starts loading
             SaveLoadManager.OnStartLoad += SaveLoadManager_OnStartLoad;
             StartGameBehaviour.OnNewGame += StartGameBehaviour_OnNewGame;
         }
-
+      
         void FixedUpdate()
         {
+            // Check if on a solid surface
+            grounded = (collisionFlags & CollisionFlags.Below) != 0;
+
             // Clear movement
             if (cancelMovement)
             {
@@ -188,57 +271,62 @@ namespace DaggerfallWorkshop.Game
                 return;
             }
 
+            playerScanner.FindHeadHit(new Ray(controller.transform.position, Vector3.up));
+            playerScanner.SetHitSomethingInFront();
+            // Check if should hang
+            //hangingMotor.HangingChecks();
+            // Handle Rappeling
+            rappelMotor.RappelChecks();
             // Handle climbing
-            climbingMotor.ClimbingCheck(ref collisionFlags);
-
-            if (climbingMotor.IsClimbing)
-            {
-                acrobatMotor.Falling = false;
-            }
+            climbingMotor.ClimbingCheck();
 
             // Do nothing if player levitating/swimming or climbing - replacement motor will take over movement for levitating/swimming
-            if (levitateMotor && (levitateMotor.IsLevitating || levitateMotor.IsSwimming) || climbingMotor.IsClimbing)
+            if (levitateMotor && (levitateMotor.IsLevitating || levitateMotor.IsSwimming) || climbingMotor.IsClimbing /*|| hangingMotor.IsHanging*/)
+            {
+                moveDirection = Vector3.zero;
                 return;
+            }
 
-            // Player assumed to be in movement for now
-            standingStill = false;
+
+            if (climbingMotor.WallEject)
+            {   // True in terms of the player having their feet on solid surface.
+                grounded = true;
+            }
 
             if (grounded)
             {
-                // Set standing still while grounded flag
-                // Casting moveDirection to a Vector2 so constant downward force of gravity not included in magnitude
-                standingStill = (new Vector2(moveDirection.x, moveDirection.z).magnitude == 0);
-
                 acrobatMotor.Jumping = false;
 
                 acrobatMotor.CheckFallingDamage();
 
                 // checks if sliding and applies movement to moveDirection if true
-                frictionMotor.MoveIfSliding(ref moveDirection);
+                frictionMotor.GroundedMovement(ref moveDirection);
 
                 acrobatMotor.HandleJumpInput(ref moveDirection);
             }
             else
             {
-                acrobatMotor.CheckInitFall();
+                acrobatMotor.CheckInitFall(ref moveDirection);
 
                 acrobatMotor.CheckAirControl(ref moveDirection, speed);
             }
 
+            playerScanner.FindStep(moveDirection);
+            
             acrobatMotor.ApplyGravity(ref moveDirection);
 
-            // If we hit something above us AND we are moving up, reverse vertical movement
-            if ((controller.collisionFlags & CollisionFlags.Above) != 0)
-            {
-                if (moveDirection.y > 0)
-                    moveDirection.y = -moveDirection.y;
-            }
+            acrobatMotor.HitHead(ref moveDirection);
 
-            groundMotor.MoveOnGround(moveDirection, ref collisionFlags, ref grounded);
+            groundMotor.MoveWithMovingPlatform(moveDirection);
         }
 
         void Update()
         {
+            // Update on water check
+            onExteriorWaterMethod = GetOnExteriorWaterMethod();
+
+            heightChanger.DecideHeightAction();
+
             // Do nothing if player levitating - replacement motor will take over movement.
             // Don't return here for swimming because player should still be able to crouch when swimming.
             if (levitateMotor && levitateMotor.IsLevitating)
@@ -246,8 +334,8 @@ namespace DaggerfallWorkshop.Game
 
             speed = speedChanger.GetBaseSpeed();
             speedChanger.HandleInputSpeedAdjustment(ref speed);
-
-            heightChanger.HandlePlayerInput();
+            if (playerEnterExit.IsPlayerSwimming && !GameManager.Instance.PlayerEntity.IsWaterWalking)
+                speed = speedChanger.GetSwimSpeed(speed);
 
             UpdateSmoothFollower();
         }
@@ -281,6 +369,7 @@ namespace DaggerfallWorkshop.Game
         #endregion
 
         #region Public Methods
+
         /// <summary>
         /// Attempts to find the ground position below player, even if player is jumping/falling
         /// </summary>
@@ -316,6 +405,7 @@ namespace DaggerfallWorkshop.Game
         {
             return Vector3.Distance(transform.position, position);
         }
+
         #endregion
 
         #region Private Methods
@@ -350,6 +440,43 @@ namespace DaggerfallWorkshop.Game
             // This prevents levitation flag carrying over and effect system can still restore it if needed
             if (levitateMotor)
                 levitateMotor.IsLevitating = false;
+        }
+
+        /// <summary>
+        /// Check if player is really standing on an outdoor water tile, not just positioned above one.
+        /// For example when player is on their ship they are standing above water but should not be swimming.
+        /// Same when player is levitating above water they should not hear splash sounds.
+        /// </summary>
+        /// <returns>True if player is physically in range of an outdoor water tile.</returns>
+        OnExteriorWaterMethod GetOnExteriorWaterMethod()
+        {
+            const float walkingRayDistance = 1.0f;
+            const float ridingRayDistance = 2.0f;
+
+            float rayDistance = (GameManager.Instance.TransportManager.IsOnFoot) ? walkingRayDistance : ridingRayDistance;
+
+            // Must be outside and over a water tile
+            if (GameManager.Instance.PlayerEnterExit.IsPlayerInside || GameManager.Instance.StreamingWorld.PlayerTileMapIndex != 0)
+                return OnExteriorWaterMethod.None;
+
+            // Must actually be standing on a terrain object not some other object (e.g. player ship)
+            RaycastHit hit;
+            if (!Physics.Raycast(transform.position, Vector3.down, out hit, rayDistance))
+            {
+                return OnExteriorWaterMethod.None;
+            }
+            else
+            {
+                DaggerfallTerrain terrain = hit.transform.GetComponent<DaggerfallTerrain>();
+                if (!terrain)
+                    return OnExteriorWaterMethod.None;
+            }
+
+            // Handle swimming/waterwalking
+            if (GameManager.Instance.PlayerEntity.IsWaterWalking)
+                return OnExteriorWaterMethod.WaterWalking;
+            else
+                return OnExteriorWaterMethod.Swimming;
         }
 
         #endregion
