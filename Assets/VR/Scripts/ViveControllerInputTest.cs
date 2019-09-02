@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Valve.VR;
 using Valve.VR.InteractionSystem;
+using DaggerfallWorkshop.Game.UserInterface;
 
 public class ViveControllerInputTest : MonoBehaviour
 {
@@ -12,38 +13,46 @@ public class ViveControllerInputTest : MonoBehaviour
     private GameObject laser;
     private Transform laserTransform;
     private Vector3 hitPoint;
+    private bool wasUIPressed = false;
     private SteamVR_Action_Boolean interactUI = SteamVR_Input.GetBooleanAction("InteractUI");
     private SteamVR_Action_Boolean openMenu = SteamVR_Input.GetBooleanAction("OpenMenu");
 
-    private bool InteractUIPressedDown { get { return interactUI.GetStateDown(trackedObj.handType); } }
-    private bool OpenMenuPressed { get { return openMenu.GetState(trackedObj.handType); } }
+    private Hand myHand;
 
-    // Use this for initialization
+
+    private bool InteractUIPressed { get { return interactUI.GetState(myHand.handType); } }
+    private bool OpenMenuPressed { get { return openMenu.GetState(myHand.handType); } }
+    
     void Start()
     {
         laser = Instantiate(LaserPrefab);
         laserTransform = laser.transform;
     }
 
-    private Hand trackedObj;
-
     private void Awake()
     {
-        trackedObj = GetComponent<Hand>();
+        myHand = GetComponent<Hand>();
+    }
+
+    private void OnDisable()
+    {
+        if (wasUIPressed)
+            SetMousePressed(false);
     }
 
     private void ShowLaser(RaycastHit hit)
     {
         laser.SetActive(true);
-        laserTransform.position = Vector3.Lerp(trackedObj.transform.position, hitPoint, 0.5f);
+        laserTransform.position = Vector3.Lerp(myHand.transform.position, hitPoint, 0.5f);
         laserTransform.LookAt(hitPoint);
         laserTransform.localScale = new Vector3(laserTransform.localScale.x, laserTransform.localScale.y, hit.distance);
     }
-
-    // Update is called once per frame
-    void Update() { 
+    
+    void Update()
+    {
+        //set activity of laser and position of UI pointer
         RaycastHit hit;
-        if (Physics.Raycast(trackedObj.transform.position, transform.forward, out hit, 100, LayerMask.GetMask("UI")))
+        if (Physics.Raycast(myHand.transform.position, transform.forward, out hit, 100, LayerMask.GetMask("UI")))
         {
             hitPoint = hit.point;
             ShowLaser(hit);
@@ -57,10 +66,13 @@ public class ViveControllerInputTest : MonoBehaviour
         else
             laser.SetActive(false);
 
-        if (InteractUIPressedDown)
-        {
-            InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
-            Debug.Log(gameObject.name + " UI clicked with VR");
-        }
+        //set custom mouse state for ui mouse down events
+        SetMousePressed(InteractUIPressed);
 	}
+
+    private void SetMousePressed(bool isPressed)
+    {
+        DaggerfallInput.SetMouseButton(0, isPressed);
+        wasUIPressed = isPressed;
+    }
 }
