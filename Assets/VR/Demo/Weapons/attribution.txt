@@ -1,0 +1,2 @@
+* The wood grain texture on the flail was taken from https://assetstore.unity.com/packages/3d/props/tools/sledge-hammer-20498
+* The dirty-metal texture on the flail was taken from https://www.flickr.com/photos/layout_nu/6695107965/in/photostream/
