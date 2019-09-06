@@ -8,6 +8,8 @@ TagManager:
   - QuestFoe
   - QuestItem
   - StaticGeometry
+  - FxTemporaire
+  - projectile
   layers:
   - Default
   - TransparentFX
@@ -24,7 +26,7 @@ TagManager:
   - BankPurchase
   - Player
   - SpellMissiles
-  - 
+  - VREquipment
   - 
   - 
   - 
