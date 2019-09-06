@@ -125,6 +125,9 @@ public class VRInjector : MonoBehaviour {
         vruiManager = GameObject.Instantiate(VRUIManagerPrefab);
         BillboardRotationCorrection();
 
+        //spawn equipment
+        VREquipmentManager.Instance.SpawnAllEquipment();
+
         //Make sure the head position is on top of the character controller
         yield return null;
         vrPlayer.ResetPlayerPosition();

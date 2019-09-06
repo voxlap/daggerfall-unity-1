@@ -151,6 +151,8 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Allow entity effect manager to start any enchantments on this item
             StartEquippedItem(item);
+            
+            RaiseOnItemEquippedEvent(item);
 
             //Debug.Log(string.Format("Equipped {0} to {1}", item.LongName, slot.ToString()));
 
@@ -165,6 +167,8 @@ namespace DaggerfallWorkshop.Game.Items
 
             // Allow entity effect manager to stop any enchantments on this item
             StopEquippedItem(item);
+
+            RaiseOnItemUnequippedEvent(item);
         }
 
         /// <summary>
@@ -205,6 +209,8 @@ namespace DaggerfallWorkshop.Game.Items
                 // Allow entity effect manager to stop any enchantments on this item
                 StopEquippedItem(item);
 
+                RaiseOnItemUnequippedEvent(item);
+
                 return item;
             }
 
@@ -227,6 +233,7 @@ namespace DaggerfallWorkshop.Game.Items
                 {
                     equipTable[i].EquipSlot = EquipSlots.None;
                     equipTable[i] = null;
+                    RaiseOnItemUnequippedEvent(item);
                     return true;
                 }
             }
@@ -586,6 +593,25 @@ namespace DaggerfallWorkshop.Game.Items
                 if (manager)
                     manager.DoItemEnchantmentPayloads(EnchantmentPayloadFlags.Unequipped, item);
             }
+        }
+
+        #endregion
+
+        #region Events
+
+        public delegate void OnItemEquippedHandler(DaggerfallUnityItem item, DaggerfallEntity entity);
+        public static event OnItemEquippedHandler OnItemEquipped;
+        private void RaiseOnItemEquippedEvent(DaggerfallUnityItem item)
+        {
+            if (OnItemEquipped != null)
+                OnItemEquipped(item, parentEntity);
+        }
+        public delegate void OnItemUnequippedHandler(DaggerfallUnityItem item, DaggerfallEntity entity);
+        public static event OnItemUnequippedHandler OnItemUnequipped;
+        private void RaiseOnItemUnequippedEvent(DaggerfallUnityItem item)
+        {
+            if (OnItemUnequipped != null)
+                OnItemUnequipped(item, parentEntity);
         }
 
         #endregion

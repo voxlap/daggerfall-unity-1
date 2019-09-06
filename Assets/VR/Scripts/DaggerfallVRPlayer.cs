@@ -1,4 +1,4 @@
-﻿// Project:         Daggerfall Tools For Unity
+// Project:         Daggerfall Tools For Unity
 // Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -37,7 +37,7 @@ public class DaggerfallVRPlayer : MonoBehaviour
     #region Singleton
 
     public static DaggerfallVRPlayer Instance { get; private set; }
-    private void Awake()
+    private void SetupSingleton()
     {
         if (!Instance)
             Instance = this;
@@ -48,6 +48,11 @@ public class DaggerfallVRPlayer : MonoBehaviour
     }
 
     #endregion
+
+    private void Awake()
+    {
+        SetupSingleton();
+    }
 
     private void Start()
     {

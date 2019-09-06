@@ -1159,6 +1159,62 @@ Prefab:
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0811f78212229814d8c469c916304789, type: 2}
   m_IsPrefabAsset: 0
+--- !u!1 &842694697
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 842694698}
+  - component: {fileID: 842694699}
+  m_Layer: 0
+  m_Name: VREquipment
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &842694698
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 842694697}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children:
+  - {fileID: 1137542119}
+  m_Father: {fileID: 2100762410}
+  m_RootOrder: 2
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &842694699
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 842694697}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba61864cc9b8a4c469f24940e84a9e74, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  resourcesPath: VR/Equipment/
+  backupResourcesPath: VR/EquipmentBackup/
+  equipmentParent: {fileID: 1137542119}
+  leatherColor: {r: 0.6666667, g: 0.6405229, b: 0.0052287583, a: 1}
+  chainColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+  ironColor: {r: 0.5283019, g: 0.5283019, b: 0.5283019, a: 1}
+  steelColor: {r: 0.6603774, g: 0.6603774, b: 0.6603774, a: 1}
+  silverColor: {r: 0.9056604, g: 0.9013884, b: 0.9013884, a: 1}
+  elvenColor: {r: 1, g: 1, b: 1, a: 1}
+  dwarvenColor: {r: 1, g: 0.46078432, b: 0.007843138, a: 1}
+  mithrilColor: {r: 0, g: 1, b: 1, a: 1}
+  adamantiumColor: {r: 0, g: 1, b: 0, a: 1}
+  ebonyColor: {r: 0.21698111, g: 0.21698111, b: 0.21698111, a: 1}
+  orcishColor: {r: 0.6132076, g: 0.3421573, b: 0.112807065, a: 1}
+  daedricColor: {r: 0.5, g: 0, b: 0, a: 1}
 --- !u!1 &916827718
 GameObject:
   m_ObjectHideFlags: 0
@@ -1441,6 +1497,34 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   RetroTexture320x200: {fileID: 8400000, guid: b7d08ce484b8fb54886d32a392814971, type: 2}
   RetroTexture640x400: {fileID: 8400000, guid: 5e6db3b61ca69e848afa2ff94164313b, type: 2}
+--- !u!1 &1137542118
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1137542119}
+  m_Layer: 0
+  m_Name: EquipmentParent
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1137542119
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 1137542118}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 842694698}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1154180354
 Prefab:
   m_ObjectHideFlags: 0
@@ -2466,6 +2550,7 @@ Transform:
   m_Children:
   - {fileID: 1154180355}
   - {fileID: 1371523011}
+  - {fileID: 842694698}
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

@@ -1,4 +1,4 @@
-﻿// Project:         Daggerfall Tools For Unity
+// Project:         Daggerfall Tools For Unity
 // Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
@@ -194,6 +194,7 @@ namespace DaggerfallWorkshop.Game.Items
 
     public enum Armor   //checked
     {
+        None = -1,
         Cuirass = 102,
         Gauntlets = 103,
         Greaves = 104,
@@ -209,6 +210,7 @@ namespace DaggerfallWorkshop.Game.Items
 
     public enum Weapons  //checked
     {
+        None = -1,
         Dagger = 113,
         Tanto = 114,
         Staff = 115,
