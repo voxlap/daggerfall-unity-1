@@ -159,13 +159,17 @@ public class VRController : MonoBehaviour
         else
             ShowLaser(100);
     }
+    private bool HintsRaycast(out RaycastHit hit)
+    {
+        return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, ~(LayerMask.GetMask("UI") | LayerMask.GetMask("Player")));
+    }
     private void ActivateHints()
     {
         RaycastHit hit;
-        if (Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, ~(LayerMask.GetMask("UI") | LayerMask.GetMask("Player"))))
+        if (HintsRaycast(out hit))
         {
             Debug.DrawRay(laserPositionTF.position, laserPositionTF.forward * hit.distance, Color.yellow);
-            MeshRenderer mr = hit.transform.GetComponent<MeshRenderer>();
+            MeshRenderer mr = hit.collider.transform.GetComponent<MeshRenderer>();
             if (mr && mr.transform.tag != "StaticGeometry")
             {
                 Vector3 newScale = mr.bounds.size;
@@ -223,13 +227,24 @@ public class VRController : MonoBehaviour
         DaggerfallInput.SetMouseButton(0, isPressed);
         wasUIPressed = isPressed;
     }
+    private void TryGrabVREquipment()
+    {
+        RaycastHit hit;
+        VREquipment equipment;
+        if (HintsRaycast(out hit) && (equipment = hit.transform.GetComponent<VREquipment>()) != null)
+        {
+            equipment.ForceAttachToHand(hand.handType);
+        }
+    }
 
     // SteamVR actions
-
     private void SelectWorldObject_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
         Debug.Log("SteamVR input action detected: SelectWorldObject from " + fromSource + " on hand " + hand.handType);
-        if(!inputManager.IsPaused)
+        if (!inputManager.IsPaused)
+        {
             TrySelectObject();
+            TryGrabVREquipment();
+        }
     }
 }

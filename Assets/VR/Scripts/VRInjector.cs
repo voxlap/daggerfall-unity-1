@@ -126,7 +126,7 @@ public class VRInjector : MonoBehaviour {
         BillboardRotationCorrection();
 
         //spawn equipment
-        VREquipmentManager.Instance.SpawnAllEquipment();
+        VREquipmentManager.Instance.Init();
 
         //Make sure the head position is on top of the character controller
         yield return null;

@@ -20,7 +20,7 @@ public class VREquipment : MonoBehaviour
     protected Rigidbody rb;
     // properties
     public bool IsEquipped { get; private set; }
-    public ulong UID { get { return daggerfallItem.UID; } }
+    public ulong UID { get { return daggerfallItem == null ? ulong.MaxValue : daggerfallItem.UID; } }
     public virtual Throwable Throwable { get { return throwable; } }
     public virtual Interactable Interactable { get { return interactable; } }
     public virtual VelocityEstimator VelocityEstimator { get { return velocityEstimator; } }
@@ -32,6 +32,7 @@ public class VREquipment : MonoBehaviour
         interactable = GetComponent<Interactable>();
         velocityEstimator = GetComponent<VelocityEstimator>();
         rb = GetComponent<Rigidbody>();
+        throwable.onDetachFromHand.AddListener(delegate { rb.isKinematic = false; });
     }
     
     public virtual void Equip(DaggerfallUnityItem daggerfallItem)
@@ -55,10 +56,11 @@ public class VREquipment : MonoBehaviour
     }
     public virtual void ForceAttachToHand(SteamVR_Input_Sources handType)
     {
-        if(handType == SteamVR_Input_Sources.LeftHand)
-            Player.instance.leftHand.AttachObject(gameObject, GrabTypes.None, throwable.attachmentFlags, throwable.attachmentOffset);
-        else
-            Player.instance.rightHand.AttachObject(gameObject, GrabTypes.None, throwable.attachmentFlags, throwable.attachmentOffset);
+        Hand handToAttach = handType == SteamVR_Input_Sources.LeftHand ? Player.instance.leftHand : Player.instance.rightHand;
+        transform.position = handToAttach.transform.position;
+        Rigidbody.isKinematic = true;
+        if(handToAttach.grabGripAction.GetState(handToAttach.handType))
+            handToAttach.AttachObject(gameObject, GrabTypes.Grip, throwable.attachmentFlags, throwable.attachmentOffset);
     }
     public virtual void ForceDetachFromHand()
     {

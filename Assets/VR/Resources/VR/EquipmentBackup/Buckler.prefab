@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 224479392190735988}
   - component: {fileID: 222422744251368702}
   - component: {fileID: 114355288032200304}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -39,7 +39,7 @@ GameObject:
   - component: {fileID: 223189049851754418}
   - component: {fileID: 114185796746937160}
   - component: {fileID: 114247740438425794}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -57,7 +57,7 @@ GameObject:
   - component: {fileID: 33700757656470066}
   - component: {fileID: 23103198471923334}
   - component: {fileID: 65103388447546932}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 114181096959098074}
   - component: {fileID: 114860127423667912}
   - component: {fileID: 114658734334459070}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Buckler
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 33848190602937852}
   - component: {fileID: 23026300164040486}
   - component: {fileID: 65340394553705022}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -280,7 +280,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

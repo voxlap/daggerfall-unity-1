@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 224301444325056190}
   - component: {fileID: 222002188918927182}
   - component: {fileID: 114603145994079962}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -39,7 +39,7 @@ GameObject:
   - component: {fileID: 223151318242505330}
   - component: {fileID: 114604244239835634}
   - component: {fileID: 114546446610718180}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -57,7 +57,7 @@ GameObject:
   - component: {fileID: 33821890817643082}
   - component: {fileID: 23334153421266064}
   - component: {fileID: 65618694421096538}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 114582359453418620}
   - component: {fileID: 114818028213924148}
   - component: {fileID: 114720112270659770}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Dagger
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 33895675423494180}
   - component: {fileID: 23143555904168940}
   - component: {fileID: 65907101352343350}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -308,7 +308,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

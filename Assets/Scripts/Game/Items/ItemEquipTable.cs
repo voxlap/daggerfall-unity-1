@@ -603,14 +603,14 @@ namespace DaggerfallWorkshop.Game.Items
         public static event OnItemEquippedHandler OnItemEquipped;
         private void RaiseOnItemEquippedEvent(DaggerfallUnityItem item)
         {
-            if (OnItemEquipped != null)
+            if (OnItemEquipped != null && item != null)
                 OnItemEquipped(item, parentEntity);
         }
         public delegate void OnItemUnequippedHandler(DaggerfallUnityItem item, DaggerfallEntity entity);
         public static event OnItemUnequippedHandler OnItemUnequipped;
         private void RaiseOnItemUnequippedEvent(DaggerfallUnityItem item)
         {
-            if (OnItemUnequipped != null)
+            if (OnItemUnequipped != null && item != null)
                 OnItemUnequipped(item, parentEntity);
         }
 

@@ -10,8 +10,9 @@ using DaggerfallWorkshop.Game.UserInterface;
  **/
 public class VRUIManager : MonoBehaviour
 {
-    public const string UI_LAYER_NAME = "UI";
-    public const string PLAYER_LAYER_NAME = "Player";
+    public const string k_uiLayerName = "UI";
+    public const string k_playerLayerName = "Player";
+    public const string k_vrEquipmentLayerName = "VREquipment";
 
     public GameObject FloatingUIPrefab;
     public GameObject floatingUI;
@@ -32,6 +33,7 @@ public class VRUIManager : MonoBehaviour
     // used to hide game world when floating UI is up
     private int playerLayerMask;
     private int uiLayerMask;
+    private int vrEquipmentLayerMask;
 
     #region Singleton
 
@@ -52,8 +54,9 @@ public class VRUIManager : MonoBehaviour
     private void Awake()
     {
         SetupSingleton();
-        playerLayerMask = LayerMask.GetMask(PLAYER_LAYER_NAME);
-        uiLayerMask = LayerMask.GetMask(UI_LAYER_NAME);
+        playerLayerMask = LayerMask.GetMask(k_playerLayerName);
+        uiLayerMask = LayerMask.GetMask(k_uiLayerName);
+        vrEquipmentLayerMask = LayerMask.GetMask(k_vrEquipmentLayerName);
     }
 
     void Start()
@@ -103,7 +106,7 @@ public class VRUIManager : MonoBehaviour
         {
             // Window count increased--display the UI!
             floatingUI.SetActive(true);
-            mainCamera.cullingMask = uiLayerMask | playerLayerMask;
+            mainCamera.cullingMask = uiLayerMask | playerLayerMask | vrEquipmentLayerMask;
             stickFloatingUIInFrontOfPlayer();
         }
         else if (windowCount <= 0)

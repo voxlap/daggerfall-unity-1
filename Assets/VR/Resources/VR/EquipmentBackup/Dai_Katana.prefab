@@ -22,7 +22,7 @@ GameObject:
   - component: {fileID: 223299589805418064}
   - component: {fileID: 114831309923949076}
   - component: {fileID: 114574902121227306}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -40,7 +40,7 @@ GameObject:
   - component: {fileID: 33200299054486464}
   - component: {fileID: 23593837088130404}
   - component: {fileID: 65050860125952062}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -58,7 +58,7 @@ GameObject:
   - component: {fileID: 33120223132789642}
   - component: {fileID: 23937898636791626}
   - component: {fileID: 65563720457065810}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -75,7 +75,7 @@ GameObject:
   - component: {fileID: 224074950911352956}
   - component: {fileID: 222123965624243872}
   - component: {fileID: 114238638006459756}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 114829873614850988}
   - component: {fileID: 114500683608945454}
   - component: {fileID: 114899749411673046}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Dai_Katana
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -458,7 +458,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

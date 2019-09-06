@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 224078794188445882}
   - component: {fileID: 222876152058445602}
   - component: {fileID: 114422781737264726}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -43,7 +43,7 @@ GameObject:
   - component: {fileID: 114496598799047740}
   - component: {fileID: 114895350884523568}
   - component: {fileID: 114377394840214660}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Mace
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -61,7 +61,7 @@ GameObject:
   - component: {fileID: 33528273351006240}
   - component: {fileID: 23743842130362428}
   - component: {fileID: 65732271773409198}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 33221624731787930}
   - component: {fileID: 23194215161426632}
   - component: {fileID: 65443283698035338}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 223841981360411626}
   - component: {fileID: 114058677720965164}
   - component: {fileID: 114033849901012552}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -442,7 +442,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

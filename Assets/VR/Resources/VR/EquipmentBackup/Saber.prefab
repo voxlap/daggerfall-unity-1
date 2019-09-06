@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 224215418595836066}
   - component: {fileID: 222783722782570736}
   - component: {fileID: 114711651956955008}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -39,7 +39,7 @@ GameObject:
   - component: {fileID: 223894943687953762}
   - component: {fileID: 114729562220928118}
   - component: {fileID: 114707007966852722}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -61,7 +61,7 @@ GameObject:
   - component: {fileID: 114870628932902048}
   - component: {fileID: 114965560740101990}
   - component: {fileID: 114491999490687734}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Saber
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 33912240635435118}
   - component: {fileID: 23116937231509266}
   - component: {fileID: 65489429244910662}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 33597066870516212}
   - component: {fileID: 23058451112239430}
   - component: {fileID: 65258577963988080}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -454,7 +454,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

@@ -26,7 +26,7 @@ GameObject:
   - component: {fileID: 114468217405404470}
   - component: {fileID: 114826226021701518}
   - component: {fileID: 114097424540330404}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Long_Bow
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -44,7 +44,7 @@ GameObject:
   - component: {fileID: 223289252946887806}
   - component: {fileID: 114790046913322188}
   - component: {fileID: 114587971923873218}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -62,7 +62,7 @@ GameObject:
   - component: {fileID: 33849976506215066}
   - component: {fileID: 23021615908431460}
   - component: {fileID: 65493360944061326}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 224670921507407162}
   - component: {fileID: 222296903076680008}
   - component: {fileID: 114882863760961982}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 33091188386642392}
   - component: {fileID: 23882404042164192}
   - component: {fileID: 65956695853307682}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -322,7 +322,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

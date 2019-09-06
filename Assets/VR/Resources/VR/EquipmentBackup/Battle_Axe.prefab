@@ -22,7 +22,7 @@ GameObject:
   - component: {fileID: 33397103145099280}
   - component: {fileID: 23038901458015002}
   - component: {fileID: 65126293049450998}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -39,7 +39,7 @@ GameObject:
   - component: {fileID: 224622581047654350}
   - component: {fileID: 222898228729377708}
   - component: {fileID: 114220619493102292}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -57,7 +57,7 @@ GameObject:
   - component: {fileID: 33272387117699414}
   - component: {fileID: 23000619936877770}
   - component: {fileID: 65729519501680834}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -79,7 +79,7 @@ GameObject:
   - component: {fileID: 114933302449922464}
   - component: {fileID: 114572452821420968}
   - component: {fileID: 114460866809106150}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Battle_Axe
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 223312975531837020}
   - component: {fileID: 114463819653572214}
   - component: {fileID: 114307970871637016}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -507,7 +507,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

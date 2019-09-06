@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 224092944513089018}
   - component: {fileID: 222251233720180260}
   - component: {fileID: 114360553582764206}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Text
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -39,7 +39,7 @@ GameObject:
   - component: {fileID: 33659666878621044}
   - component: {fileID: 23108290139379432}
   - component: {fileID: 65445042984703912}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Cube
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -57,7 +57,7 @@ GameObject:
   - component: {fileID: 33513809000388768}
   - component: {fileID: 23493931933662790}
   - component: {fileID: 65936121151358384}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Highlight
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -75,7 +75,7 @@ GameObject:
   - component: {fileID: 223169700451119766}
   - component: {fileID: 114717573928453022}
   - component: {fileID: 114650402703057828}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -97,7 +97,7 @@ GameObject:
   - component: {fileID: 114260226008234388}
   - component: {fileID: 114064524118922910}
   - component: {fileID: 114946213425840522}
-  m_Layer: 0
+  m_Layer: 15
   m_Name: Wakazashi
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -333,7 +333,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffefbea063cab884ca33e5a449e5c22c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  attachmentFlags: 341
+  attachmentFlags: 109
   attachmentOffset: {fileID: 0}
   catchingSpeedThreshold: -1
   releaseVelocityStyle: 3

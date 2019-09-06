@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Entity;
 
@@ -52,18 +53,26 @@ public class VREquipmentManager : MonoBehaviour
     {
         SetupSingleton();
     }
-    private void Start()
-    {
-        ItemEquipTable.OnItemEquipped += ItemEquipTable_OnItemEquipped;
-        ItemEquipTable.OnItemUnequipped += ItemEquipTable_OnItemUnequipped;
-    }
     private void OnDestroy()
     {
         ItemEquipTable.OnItemEquipped -= ItemEquipTable_OnItemEquipped;
         ItemEquipTable.OnItemUnequipped -= ItemEquipTable_OnItemUnequipped;
     }
+    public void Init()
+    {
+        SpawnAllEquipment();
+        //FIX: these items are always null
+        DaggerfallUnityItem rightItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.RightHand);
+        DaggerfallUnityItem leftItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
+        if (rightItem != null)
+            EquipItem(rightItem);
+        if (leftItem != null)
+            EquipItem(leftItem);
+        ItemEquipTable.OnItemEquipped += ItemEquipTable_OnItemEquipped;
+        ItemEquipTable.OnItemUnequipped += ItemEquipTable_OnItemUnequipped;
+    }
 
-    public void SpawnAllEquipment()
+    private void SpawnAllEquipment()
     {
         for(Weapons w = k_weaponStart; w <= k_weaponEnd; w++)
         {
@@ -79,8 +88,11 @@ public class VREquipmentManager : MonoBehaviour
 
     private bool IsEquipable(DaggerfallUnityItem item)
     {
-        if (item.EquipSlot != EquipSlots.LeftHand && item.EquipSlot != EquipSlots.RightHand) //no support, yet, for showing anything but what you're holding
+        if(item == null)
+        {
+            Debug.LogWarning("Couldn't equip a null item.");
             return false;
+        }
         return IsEquipable(item.ItemGroup, item.TemplateIndex);
     }
     private bool IsEquipable(ItemGroups group, int templateIndex)
@@ -90,7 +102,7 @@ public class VREquipmentManager : MonoBehaviour
             case ItemGroups.Armor:
                 return (Armor)templateIndex >= k_armorStart && (Armor)templateIndex <= k_armorEnd;
             case ItemGroups.Weapons:
-                return (Weapons)templateIndex >= k_weaponStart && (Weapons)templateIndex <= k_weaponStart;
+                return (Weapons)templateIndex >= k_weaponStart && (Weapons)templateIndex <= k_weaponEnd;
             case ItemGroups.Artifacts:
                 return GetWeaponEquivalentForArtifact((ArtifactsSubTypes)templateIndex) != Weapons.None &&
                     GetArmorEquivalentForArtifact((ArtifactsSubTypes)templateIndex) != Armor.None;
@@ -144,7 +156,7 @@ public class VREquipmentManager : MonoBehaviour
             return;
         }
         int itemIndex = vrItems.FindIndex(p => p.UID == item.UID);
-        if (itemIndex < 0)
+        if (itemIndex < 0) //this is currently always the case the first time you unequip something, because I can't seem to get a reference to the filled equip table on Init()
             Debug.LogError("Unable to unequip item " + item.TemplateIndex + " because a spawned VR item of UID " + item.UID + " was not found.");
         else
             vrItems[itemIndex].Unequip();
