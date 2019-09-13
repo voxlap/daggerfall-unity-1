@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Valve.VR.InteractionSystem;
@@ -9,14 +9,16 @@ public class Flail : MonoBehaviour
 {
     public Transform chain;
     public ConfigurableJoint spikeBall;
-    public Rigidbody handle;
 
     private SteamVR_TrackedObject trackedObj;
     private Rigidbody spikeRB;
+    private GameObject[] chainlinks = new GameObject[0];
+    private VRWeapon daggerfallVRWeapon;
+    private Interactable interactable;
+
     private Vector3 startSpikeballPos;
     private Vector3 startChainPos;
     private Vector3 spikeballAnchor;
-    private GameObject[] chainlinks = new GameObject[0];
     private int lastNumEnabledChainlinks = 0;
 
     private void Awake()
@@ -25,6 +27,12 @@ public class Flail : MonoBehaviour
         startChainPos = chain.transform.localPosition;
         spikeballAnchor = spikeBall.connectedAnchor;
         spikeRB = spikeBall.GetComponent<Rigidbody>();
+        interactable = GetComponent<Interactable>();
+        
+        interactable.onAttachedToHand += Interactable_onAttachedToHand;
+        interactable.onDetachedFromHand += Interactable_onDetachedFromHand;
+        if (interactable.attachedToHand != null)
+            Interactable_onAttachedToHand(interactable.attachedToHand);
     }
 
     private void Start()
@@ -39,8 +47,7 @@ public class Flail : MonoBehaviour
     private void OnEnable()
     {
         spikeBall.gameObject.SetActive(true);
-        spikeBall.connectedAnchor = spikeballAnchor;
-        spikeBall.transform.position = transform.TransformPoint(startSpikeballPos);
+        ResetBallPosition();
     }
     private void OnDisable()
     {
@@ -75,4 +82,24 @@ public class Flail : MonoBehaviour
         }
         lastNumEnabledChainlinks = numEnabledChainlinks;
     }
+
+    private void ResetBallPosition()
+    {
+        spikeBall.connectedAnchor = spikeballAnchor;
+        spikeBall.transform.position = transform.TransformPoint(startSpikeballPos);
+    }
+
+    private void Interactable_onAttachedToHand(Hand hand)
+    {
+        //set spike ball's parent to the parent of the hand. We want it rotated/translated with player, not with the hand itself
+        spikeRB.transform.SetParent(hand.transform.parent);
+        ResetBallPosition();
+    }
+
+    private void Interactable_onDetachedFromHand(Hand hand)
+    {
+        if (spikeRB)
+            spikeRB.transform.SetParent(null);
+    }
+
 }

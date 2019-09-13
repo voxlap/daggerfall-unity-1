@@ -31,18 +31,9 @@
       "skeleton": "/skeleton/hand/right"
     },
     {
-      "name": "/actions/default/in/Squeeze",
-      "type": "vector1",
-      "requirement": "optional"
-    },
-    {
       "name": "/actions/default/in/HeadsetOnHead",
       "type": "boolean",
       "requirement": "optional"
-    },
-    {
-      "name": "/actions/default/in/Point",
-      "type": "boolean"
     },
     {
       "name": "/actions/default/in/Rotate",
@@ -61,6 +52,21 @@
     {
       "name": "/actions/default/in/SelectWorldObject",
       "type": "boolean"
+    },
+    {
+      "name": "/actions/default/in/ActivateWalk",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/default/in/ActivateRotate",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/default/in/Squeeze",
+      "type": "vector1",
+      "requirement": "optional"
     },
     {
       "name": "/actions/default/out/Haptic",

@@ -26,7 +26,7 @@ public class VREquipment : MonoBehaviour
     public virtual VelocityEstimator VelocityEstimator { get { return velocityEstimator; } }
     public virtual Rigidbody Rigidbody { get { return rb; } }
 
-    private void Awake()
+    protected virtual void Awake()
     {
         throwable = GetComponent<Throwable>();
         interactable = GetComponent<Interactable>();
@@ -57,8 +57,7 @@ public class VREquipment : MonoBehaviour
     public virtual void ForceAttachToHand(SteamVR_Input_Sources handType)
     {
         Hand handToAttach = handType == SteamVR_Input_Sources.LeftHand ? Player.instance.leftHand : Player.instance.rightHand;
-        transform.position = handToAttach.transform.position;
-        Rigidbody.isKinematic = true;
+        //transform.position = handToAttach.transform.position;
         if(handToAttach.grabGripAction.GetState(handToAttach.handType))
             handToAttach.AttachObject(gameObject, GrabTypes.Grip, throwable.attachmentFlags, throwable.attachmentOffset);
     }

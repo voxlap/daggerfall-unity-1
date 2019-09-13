@@ -31,18 +31,22 @@ public class VRInjector : MonoBehaviour {
     public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
 
     private bool _init = false;
+    private void Awake()
+    {
+        DaggerfallBillboard.OnCreated += DaggerfallBillboard_OnCreated;
+    }
 
     private void Start() {
         StartCoroutine(Setup());
     }
-    private void OnEnable()
+
+    private void OnDestroy()
     {
-        if (_init)
-            BillboardRotationCorrection();
+        DaggerfallBillboard.OnCreated -= DaggerfallBillboard_OnCreated;
     }
+
     private IEnumerator Setup() {
         // the game starts paused. When unpaused, it'll inject
-        yield return new WaitForSeconds(.1f);
         while (GameManager.IsGamePaused)
             yield return new WaitForEndOfFrame();
 
@@ -142,14 +146,8 @@ public class VRInjector : MonoBehaviour {
             if (!billboards[i].GetComponent<BillboardRotationCorrector>())
                 billboards[i].gameObject.AddComponent<BillboardRotationCorrector>();
     }
-
-    private IEnumerator BillboardRotationCorrectionCoroutine()
+    private void DaggerfallBillboard_OnCreated(DaggerfallBillboard createdBillboard)
     {
-        while (true)
-        {
-            BillboardRotationCorrection();
-            yield return new WaitForSeconds(60f);
-        }
+        createdBillboard.gameObject.AddComponent<BillboardRotationCorrector>();
     }
-
 }

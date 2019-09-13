@@ -27,7 +27,6 @@ public class VRController : MonoBehaviour
 
     // UI targetting
     private GameObject laser;
-    private bool laserOn = false;
     private InputManager inputManager;
     private bool wasUIPressed = false;
 
@@ -65,21 +64,8 @@ public class VRController : MonoBehaviour
     void LateUpdate() {
         if (!_init) return;
 
-        switch (hand.handType)
-        {
-            case SteamVR_Input_Sources.Any:
-                HandleLeftController();
-                HandleRightController();
-                break;
-            case SteamVR_Input_Sources.LeftHand:
-                HandleLeftController();
-                break;
-            case SteamVR_Input_Sources.RightHand:
-                HandleRightController();
-                break;
-            default:
-                break;
-        }
+        HandleControllerInput();
+
         HandleLaser();
         //set custom mouse state for ui mouse down events
         SetMousePressed(VRInputActions.InteractUIAction.GetState(hand.handType));
@@ -92,25 +78,22 @@ public class VRController : MonoBehaviour
         InputManager.Instance.AddAction(InputManager.Actions.ActivateCenterObject);
     }
 
-    private void HandleRightController()
+    private void HandleControllerInput()
     {
-        if(!inputManager.IsPaused && VRInputActions.RotateAction.active )
+        if(!inputManager.IsPaused)
         {
-            RotatePlayerWithJoystick();
+            if(!VRInputActions.ActivateWalk.active || VRInputActions.ActivateWalk.GetState(hand.handType))
+                WalkWithJoystick();
+            if(!VRInputActions.ActivateRotate.active || VRInputActions.ActivateRotate.GetState(hand.handType))
+                RotatePlayerWithJoystick();
         }
     }
-    private void HandleLeftController()
-    {
-        if (!inputManager.IsPaused && VRInputActions.WalkAction.active)
-        {
-            WalkWithJoystick();
-        }
-    }
-
     private void RotatePlayerWithJoystick()
     {
+        //get current rotation speed from joystick X position
         float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
-        playerMoter.transform.Rotate(Vector3.up, 135f * curRotation * Time.deltaTime);
+        //rotate player's playspace around the camera position, so we're not moving the player laterally with the rotation
+        mainCamera.transform.parent.RotateAround(mainCamera.transform.position, Vector3.up, 135f * curRotation * Time.deltaTime);
     }
     private void WalkWithJoystick()
     {
@@ -118,18 +101,18 @@ public class VRController : MonoBehaviour
         Vector3 moveDir = Vector3.zero;
         if (touchpad.y > 0.15f || touchpad.y < -0.15f)
         {
-            Vector3 camForward = mainCamera.transform.forward;
-            camForward.y = 0;
-            moveDir += camForward.normalized * touchpad.y;
+            Vector3 controllerForward = transform.forward;
+            controllerForward.y = 0;
+            moveDir += controllerForward.normalized * touchpad.y;
         }
         else
             touchpad.y = 0;
 
         if (touchpad.x > 0.15f || touchpad.x < -0.15f)
         {
-            Vector3 camRight = mainCamera.transform.right;
-            camRight.y = 0;
-            moveDir += camRight.normalized * touchpad.x;
+            Vector3 controllerRight = transform.right;
+            controllerRight.y = 0;
+            moveDir += controllerRight.normalized * touchpad.x;
         }
         else
             touchpad.x = 0;
@@ -159,14 +142,14 @@ public class VRController : MonoBehaviour
         else
             ShowLaser(100);
     }
-    private bool HintsRaycast(out RaycastHit hit)
+    private bool HintsRaycast(out RaycastHit hit, int layerMask)
     {
-        return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, ~(LayerMask.GetMask("UI") | LayerMask.GetMask("Player")));
+        return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, layerMask);
     }
     private void ActivateHints()
     {
         RaycastHit hit;
-        if (HintsRaycast(out hit))
+        if (HintsRaycast(out hit, ~(LayerMask.GetMask("UI") | LayerMask.GetMask("Player"))))
         {
             Debug.DrawRay(laserPositionTF.position, laserPositionTF.forward * hit.distance, Color.yellow);
             MeshRenderer mr = hit.collider.transform.GetComponent<MeshRenderer>();
@@ -231,9 +214,19 @@ public class VRController : MonoBehaviour
     {
         RaycastHit hit;
         VREquipment equipment;
-        if (HintsRaycast(out hit) && (equipment = hit.transform.GetComponent<VREquipment>()) != null)
+        if (HintsRaycast(out hit, LayerMask.GetMask("VREquipment")) && hit.rigidbody != null)
         {
-            equipment.ForceAttachToHand(hand.handType);
+            equipment = hit.rigidbody.GetComponent<VREquipment>();
+            if(equipment)
+                equipment.ForceAttachToHand(hand.handType);
+            else //Maybe it's a spike ball
+            {
+                ConfigurableJoint joint = hit.rigidbody.GetComponent<ConfigurableJoint>();
+                if (joint && (equipment = joint.connectedBody.GetComponent<VREquipment>()))
+                {
+                    equipment.ForceAttachToHand(hand.handType);
+                }
+            }
         }
     }
 

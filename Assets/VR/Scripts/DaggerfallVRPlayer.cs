@@ -29,10 +29,13 @@ public class DaggerfallVRPlayer : MonoBehaviour
     public LayerMask positionMask = -1;
 
     private bool wasPaused = false;
+    private Vector3 offsetPosition = Vector3.zero;
+    private Quaternion offsetRotation;
 
     private GameObject playerObject { get { return GameManager.Instance.PlayerObject; } }
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private CharacterController playerController { get { return GameManager.Instance.PlayerController; } }
+    private PlayerMotor playerMotor { get { return GameManager.Instance.PlayerMotor; } }
 
     #region Singleton
 
@@ -65,7 +68,7 @@ public class DaggerfallVRPlayer : MonoBehaviour
 
     private void Update()
     {
-        transform.position = playerController.transform.position + Vector3.down * (playerController.height / 2f);
+        transform.position = playerObject.transform.position + Vector3.down * (playerController.height / 2f) + offsetPosition;
         transform.rotation = playerObject.transform.rotation;
 
         if (Input.GetKeyDown(KeyCode.P))
@@ -76,16 +79,15 @@ public class DaggerfallVRPlayer : MonoBehaviour
 
     public void ResetPlayerPosition()
     {
-        Vector3 headPos = HeadTF.localPosition;
-        Vector3 headParentPos = HeadTF.parent.localPosition;
-        headParentPos = new Vector3(-headPos.x, headParentPos.y, -headPos.z);
-        HeadTF.parent.localPosition = headParentPos;
+        Vector3 newOffsetPosition = -transform.InverseTransformPoint(HeadTF.position);
+        newOffsetPosition.y = 0;
+        offsetPosition = newOffsetPosition;
     }
 
     private void UpdateTagsOnPause()
     {
         if (!wasPaused && InputManager.Instance.IsPaused)
-            SetLayerRecursively(transform, LayerMask.NameToLayer("Player"));
+            SetLayerRecursively(transform, LayerMask.NameToLayer("Player"), LayerMask.NameToLayer("VREquipment"));
         wasPaused = InputManager.Instance.IsPaused;
     }
 
@@ -99,12 +101,13 @@ public class DaggerfallVRPlayer : MonoBehaviour
     /// <summary>
     /// Sets the layer of a transform and all of its children (and subchildren) to be the given layer.
     /// </summary>
-    public static void SetLayerRecursively(Transform tf, int layer)
+    public static void SetLayerRecursively(Transform tf, int layer, int ignoreLayer = -1)
     {
-        tf.gameObject.layer = layer;
+        if(tf.gameObject.layer != ignoreLayer)
+            tf.gameObject.layer = layer;
         for (int i = 0; i < tf.childCount; ++i)
         {
-            SetLayerRecursively(tf.GetChild(i), layer);
+            SetLayerRecursively(tf.GetChild(i), layer, ignoreLayer);
         }
     }
 

@@ -73,27 +73,11 @@ namespace Valve.VR
             }
         }
         
-        public virtual SteamVR_Action_Single Squeeze
-        {
-            get
-            {
-                return SteamVR_Actions.default_Squeeze;
-            }
-        }
-        
         public virtual SteamVR_Action_Boolean HeadsetOnHead
         {
             get
             {
                 return SteamVR_Actions.default_HeadsetOnHead;
-            }
-        }
-        
-        public virtual SteamVR_Action_Boolean Point
-        {
-            get
-            {
-                return SteamVR_Actions.default_Point;
             }
         }
         
@@ -126,6 +110,30 @@ namespace Valve.VR
             get
             {
                 return SteamVR_Actions.default_SelectWorldObject;
+            }
+        }
+        
+        public virtual SteamVR_Action_Boolean ActivateWalk
+        {
+            get
+            {
+                return SteamVR_Actions.default_ActivateWalk;
+            }
+        }
+        
+        public virtual SteamVR_Action_Boolean ActivateRotate
+        {
+            get
+            {
+                return SteamVR_Actions.default_ActivateRotate;
+            }
+        }
+        
+        public virtual SteamVR_Action_Single Squeeze
+        {
+            get
+            {
+                return SteamVR_Actions.default_Squeeze;
             }
         }
         

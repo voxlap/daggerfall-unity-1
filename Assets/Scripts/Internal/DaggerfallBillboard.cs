@@ -99,6 +99,9 @@ namespace DaggerfallWorkshop
                     // Example is the treasury in Daggerfall castle, some action records flow through the quest item marker
                     meshRenderer.enabled = false;
                 }
+
+                // Trigger OnCreated event
+                RaiseOnCreatedEvent();
             }
         }
 
@@ -462,5 +465,19 @@ namespace DaggerfallWorkshop
             return null;
         }
 #endif
+
+        #region Event Handlers
+
+        // OnCreated
+        public delegate void OnCreatedEventHandler(DaggerfallBillboard createdBillboard);
+        public static event OnCreatedEventHandler OnCreated;
+        protected virtual void RaiseOnCreatedEvent()
+        {
+            if (OnCreated != null)
+                OnCreated(this);
+        }
+
+        #endregion
     }
+
 }
