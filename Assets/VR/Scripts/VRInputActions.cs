@@ -24,6 +24,7 @@ public class VRInputActions
     private static SteamVR_Action_Boolean activateWalk = null;
     private static SteamVR_Action_Boolean activateRotate = null;
     private static SteamVR_Action_Boolean interactUI = null;
+    private static SteamVR_Action_Boolean resetPosition = null;
     private static SteamVR_Action_Vector2 rotate = null;
     private static SteamVR_Action_Vector2 walk = null;
 
@@ -59,7 +60,12 @@ public class VRInputActions
     }
     public static SteamVR_Action_Boolean ActivateWalk
     {
-        get { return (activateWalk != null) ? activateWalk : activateWalk = SteamVR_Input.GetBooleanAction("ActivateWalk", true); }
+        get { return (resetPosition != null) ? resetPosition : resetPosition = SteamVR_Input.GetBooleanAction("ActivateWalk", true); }
+        set { resetPosition = value; }
+    }
+    public static SteamVR_Action_Boolean ResetPosition
+    {
+        get { return (activateWalk != null) ? activateWalk : activateWalk = SteamVR_Input.GetBooleanAction("ResetPosition", true); }
         set { activateWalk = value; }
     }
     public static SteamVR_Action_Vector2 RotateAction

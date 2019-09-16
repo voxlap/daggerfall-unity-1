@@ -5,13 +5,20 @@ using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop;
+using Valve.VR.InteractionSystem;
 
 public class VRWeapon : VREquipment
 {
     public float minVelocityMagnitudeForDamage = 1f;
+    [Tooltip("Auxiliary pieces of a weapon disconnected from this rigidbody, i.e. the Flail's spike ball")]
     public List<VRWeaponPiece> weaponPieces = new List<VRWeaponPiece>();
     public AudioClip noDamageSound;
     public ParticleSystem noDamageParticles;
+
+    private int lastFrameHitAThing = 0;
+
+    protected Vector3 lastVelocity;
+    protected Vector3 lastAngularVelocity;
 
     protected virtual void Start()
     {
@@ -19,20 +26,66 @@ public class VRWeapon : VREquipment
             weaponPieces[i].Init(this);
     }
 
-    private void OnCollisionEnter(Collision collision)
+    protected virtual void OnCollisionEnter(Collision collision)
     {
-        TryToHitThing(collision, transform);
+        TryToHitThing(collision, Rigidbody, lastVelocity, lastAngularVelocity);
+    }
+    protected virtual void FixedUpdate()
+    {
+        lastVelocity = Rigidbody.velocity;
+        lastAngularVelocity = Rigidbody.angularVelocity;
+    }
+    private void SetScreenWeaponState(Vector3 vel, Vector3 angularVel, Vector3 point)
+    {
+        Vector3 point2 = point + vel + Quaternion.Euler(angularVel) * point;
+        Vector3 dir = point2 - point;
+        dir = GameManager.Instance.MainCamera.transform.InverseTransformVector(dir);
+        dir.z = 0;
+        dir = dir.normalized;
+
+        WeaponStates state;
+        if (dir.y < -0.96f)
+            state = WeaponStates.StrikeDown;
+        else if (dir.y < -0.383f)
+        {
+            if (dir.x > 0)
+                state = WeaponStates.StrikeDownRight;
+            else
+                state = WeaponStates.StrikeDownLeft;
+        }
+        else if (dir.y > .383f)
+            state = WeaponStates.StrikeUp;
+        else if (dir.x > 0)
+            state = WeaponStates.StrikeRight;
+        else
+            state = WeaponStates.StrikeLeft;
+
+        Debug.Log("Striking with vr weapon in direction " + dir.ToString("0.00") + " which translates to: " + state.ToString());
+        GameManager.Instance.WeaponManager.ScreenWeapon.ChangeWeaponState(state);
     }
 
-    public void TryToHitThing(Collision collision, Transform fromTF)
+    public void TryToHitThing(Collision collision, Rigidbody rb, Vector3 lastVelocity, Vector3 lastAngularVelocity)
     {
-        if (fromTF.GetComponent<Rigidbody>().velocity.magnitude >= minVelocityMagnitudeForDamage)
+        if (Time.frameCount - lastFrameHitAThing < 3)
+            return;
+        if (lastVelocity.magnitude >= minVelocityMagnitudeForDamage)
         {
-            Debug.Log("Hit something with weapon! Attempting damage.");
-            Vector3 weaponToEnemyV = collision.collider.transform.position - fromTF.position;
+            Debug.Log("Hit " + collision.collider.gameObject.name + " with weapon! Attempting damage.");
             RaycastHit hit;
-            if (Physics.Raycast(fromTF.position, weaponToEnemyV, out hit, weaponToEnemyV.magnitude * 2f, 1 << collision.gameObject.layer))
+            Vector3 colPoint = collision.contacts[0].point;
+            Vector3 direction = -collision.contacts[0].normal;
+            Vector3 origin = colPoint + direction * VREquipmentManager.Instance.OriginOffset;
+            float distance = VREquipmentManager.Instance.Distance;
+
+            VREquipmentManager.Instance.DebugRaycastOriginAndDirection(origin, direction, distance);
+
+            if (Physics.Raycast(origin, direction, out hit, distance, 1 << collision.gameObject.layer))
             {
+                if(hit.transform != collision.transform)
+                {
+                    Debug.Log("Hit " + hit.transform.name + " with raycast when was expecting to hit " + collision.transform.name);
+                    return;
+                }
                 //get all possible things we might be hitting
                 DaggerfallEntityBehaviour entity = collision.gameObject.GetComponent<DaggerfallEntityBehaviour>();
                 DaggerfallAction dagAction = collision.gameObject.GetComponent<DaggerfallAction>();
@@ -41,23 +94,31 @@ public class VRWeapon : VREquipment
                 int actionActivatedCount = dagAction ? dagAction.activationCount : 0;
                 bool willDoorBeBashed = door ? !door.IsOpen && !door.IsMagicallyHeld : false;
 
-                if (GameManager.Instance.WeaponManager.WeaponDamage(hit, collision.impulse.normalized)) // we hit an enemy
+                if (entity || dagAction || door)
                 {
-                    ActivateHitFeedback(hit);
-                    if (entity && entity.Entity.CurrentHealth == entityHealth)
-                        ActivateNoDamageFeedback(hit);
-                    //Debug.Log("Damaged enemy. Yay!");
-                }
-                else // we hit something other than an enemy
-                {
-                    //activate VR feedback for bashing doors and activating things
-                    if (willDoorBeBashed || dagAction && dagAction.activationCount > actionActivatedCount)
+                    //set screen animation
+                    lastFrameHitAThing = Time.frameCount;
+                    SetScreenWeaponState(lastVelocity, lastAngularVelocity, collision.contacts[0].point - rb.position);
+
+                    if (GameManager.Instance.WeaponManager.WeaponDamage(hit, collision.impulse.normalized)) // we hit an enemy
+                    {
                         ActivateHitFeedback(hit);
+                        if (entity && entity.Entity.CurrentHealth == entityHealth)
+                            ActivateNoDamageFeedback(hit);
+                        //Debug.Log("Damaged enemy. Yay!");
+                    }
+                    else // we hit something other than an enemy
+                    {
+                        //activate VR feedback for bashing doors and activating things
+                        if (willDoorBeBashed || dagAction && dagAction.activationCount > actionActivatedCount)
+                            ActivateHitFeedback(hit);
+                        ActivateNoDamageFeedback(hit);
+                    }
                 }
             }
             else
             {
-                Debug.Log("Couldn't damage anything with " + gameObject.name + ". Raycast failed :(");
+                Debug.Log("Couldn't damage " + collision.transform.name + " with " + gameObject.name + ". Raycast failed.");
             }
         }
     }

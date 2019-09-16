@@ -40,8 +40,6 @@ public class Flail : MonoBehaviour
         chainlinks = new GameObject[chain.childCount];
         for (int i = 0; i < chainlinks.Length; ++i)
             chainlinks[i] = chain.GetChild(i).gameObject;
-        //Valve.VR.InteractionSystem.Player.instance.rightHand.AttachObject(gameObject, Valve.VR.InteractionSystem.GrabTypes.None);
-        spikeBall.transform.parent = null;
     }
 
     private void OnEnable()

@@ -146,7 +146,7 @@
             {
                "inputs" : {
                   "click" : {
-                     "output" : "/actions/default/in/openmenu"
+                     "output" : "/actions/default/in/resetposition"
                   }
                },
                "mode" : "button",

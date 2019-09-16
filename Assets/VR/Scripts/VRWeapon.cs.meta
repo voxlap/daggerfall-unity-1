@@ -3,7 +3,11 @@ guid: 8c29d9e924ef3974b8dcc42f5db1dc5e
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - metalMeshRenderer: {instanceID: 0}
+  - noDamageSound: {fileID: 8300000, guid: b4454ac97ba52a8478fba2943c3a423e, type: 3}
+  - noDamageParticles: {fileID: 198623351156222524, guid: a5292e525af6eb348af4b005167e056b,
+      type: 2}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

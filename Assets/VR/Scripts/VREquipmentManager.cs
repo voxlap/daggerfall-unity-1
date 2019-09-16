@@ -4,12 +4,25 @@ using UnityEngine;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Entity;
+using Valve.VR.InteractionSystem;
 
 public class VREquipmentManager : MonoBehaviour
 {
     public string resourcesPath = "VR/Equipment/";
     public string backupResourcesPath = "VR/EquipmentBackup/"; //used if there are missing assets in VR/Equipment.
     public Transform equipmentParent;
+    public Transform leftHandEquippedItemParent;
+    public Transform rightHandEquippedItemParent;
+
+    [Header("Debug")]
+    public bool shouldDebugRaycasts = false;
+    public Transform debugOrigin;
+    public Transform debugDirection;
+    private Color originalOriginColor, originalDirectionColor;
+
+    [Header("Raycast params")]
+    public float Distance = 1f;
+    public float OriginOffset = -.2f;
 
     [Header("Item material colors")]
     public Color leatherColor = (Color.green + Color.yellow + Color.red) / 3f;
@@ -24,10 +37,12 @@ public class VREquipmentManager : MonoBehaviour
     public Color ebonyColor = (Color.black + Color.grey * 2f) / 3f;
     public Color orcishColor = (Color.red + Color.yellow + Color.grey) / 3f;
     public Color daedricColor = (Color.red + Color.black) / 2f;
-
+    
     /// <summary> Dictionary of instantiated weapons. It's a list of equipment because some weapons can be dual weilded, so two will be spawned.
     /// The key is the item's template index. </summary>
     private Dictionary<int, List<VREquipment>> instantiatedEquipment = new Dictionary<int, List<VREquipment>>();
+
+    private List<VREquipment> currentlyEquippedItems = new List<VREquipment>();
     
     const Weapons k_weaponStart = Weapons.Dagger;
     const Weapons k_weaponEnd = Weapons.Long_Bow;
@@ -53,6 +68,13 @@ public class VREquipmentManager : MonoBehaviour
     {
         SetupSingleton();
     }
+    private void Start()
+    {
+        originalOriginColor = debugOrigin.GetComponentInChildren<MeshRenderer>().material.color;
+        originalDirectionColor = debugDirection.GetComponentInChildren<MeshRenderer>().material.color;
+        debugOrigin.gameObject.SetActive(false);
+        debugDirection.gameObject.SetActive(false);
+    }
     private void OnDestroy()
     {
         ItemEquipTable.OnItemEquipped -= ItemEquipTable_OnItemEquipped;
@@ -61,15 +83,60 @@ public class VREquipmentManager : MonoBehaviour
     public void Init()
     {
         SpawnAllEquipment();
-        //FIX: these items are always null
-        DaggerfallUnityItem rightItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.RightHand);
-        DaggerfallUnityItem leftItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
-        if (rightItem != null)
-            EquipItem(rightItem);
-        if (leftItem != null)
-            EquipItem(leftItem);
         ItemEquipTable.OnItemEquipped += ItemEquipTable_OnItemEquipped;
         ItemEquipTable.OnItemUnequipped += ItemEquipTable_OnItemUnequipped;
+        StartCoroutine(EquipItemsOnLoad());
+        //attach floating item parents to VR player
+        leftHandEquippedItemParent.parent.SetParent(Player.instance.trackingOriginTransform);
+        leftHandEquippedItemParent.parent.localPosition = Vector3.zero;
+        leftHandEquippedItemParent.parent.localRotation = Quaternion.identity;
+    }
+    public void DebugRaycastOriginAndDirection(Vector3 origin, Vector3 direction, float distance, bool succeeded = true)
+    {
+        if (!shouldDebugRaycasts)
+            return;
+
+        debugOrigin.gameObject.SetActive(true);
+        debugDirection.gameObject.SetActive(true);
+
+        debugOrigin.position = origin;
+        debugDirection.position = origin;
+        debugDirection.forward = direction;
+        debugDirection.localScale = new Vector3(1, 1, distance);
+
+        debugOrigin.GetComponentInChildren<MeshRenderer>().material.color = succeeded ? originalOriginColor : Color.red;
+        debugDirection.GetComponentInChildren<MeshRenderer>().material.color = succeeded ? originalDirectionColor : Color.red;
+    }
+
+    private IEnumerator EquipItemsOnLoad()
+    {
+        while (!GameManager.Instance.SaveLoadManager.IsReady() || GameManager.Instance.SaveLoadManager.LoadInProgress || GameManager.IsGamePaused)
+            yield return null;
+
+        Valve.VR.InteractionSystem.Hand rightHand = DaggerfallVRPlayer.Instance.RightHand;
+        Valve.VR.InteractionSystem.Hand leftHand = DaggerfallVRPlayer.Instance.LeftHand;
+        bool didSpawnLeft = false, didSpawnRight = false;
+       
+        while(!didSpawnLeft && !didSpawnRight)
+        {
+            yield return new WaitForSeconds(.1f);
+            if (rightHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
+            {
+                yield return new WaitForSeconds(.5f);
+                didSpawnRight = true;
+                DaggerfallUnityItem rightItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.RightHand);
+                if (rightItem != null)
+                    EquipItem(rightItem);
+            }
+            if (leftHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
+            {
+                yield return new WaitForSeconds(.5f);
+                didSpawnLeft = true;
+                DaggerfallUnityItem leftItem = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
+                if (leftItem != null)
+                    EquipItem(leftItem);
+            }
+        }
     }
 
     private void SpawnAllEquipment()
@@ -97,6 +164,8 @@ public class VREquipmentManager : MonoBehaviour
     }
     private bool IsEquipable(ItemGroups group, int templateIndex)
     {
+        Armor artifactArmor;
+        Weapons artifactWeapon;
         switch (group)
         {
             case ItemGroups.Armor:
@@ -104,8 +173,8 @@ public class VREquipmentManager : MonoBehaviour
             case ItemGroups.Weapons:
                 return (Weapons)templateIndex >= k_weaponStart && (Weapons)templateIndex <= k_weaponEnd;
             case ItemGroups.Artifacts:
-                return GetWeaponEquivalentForArtifact((ArtifactsSubTypes)templateIndex) != Weapons.None &&
-                    GetArmorEquivalentForArtifact((ArtifactsSubTypes)templateIndex) != Armor.None;
+                return GetWeaponEquivalentForArtifact((ArtifactsSubTypes)templateIndex, out artifactWeapon) ||
+                    GetArmorEquivalentForArtifact((ArtifactsSubTypes)templateIndex, out artifactArmor);
             default:
                 return false;
         }
@@ -118,13 +187,36 @@ public class VREquipmentManager : MonoBehaviour
             return instantiatedEquipment[forItem.TemplateIndex];
 
         //it's an artifact. Check if it's a weapon
-        int equivalentItemIndexForArtifact = (int)GetWeaponEquivalentForArtifact((ArtifactsSubTypes)forItem.TemplateIndex);
-        if (equivalentItemIndexForArtifact < 0)
+        Weapons equivalentWeaponForArtifact;
+        Armor equivalentArmorForArtifact;
+        if (GetWeaponEquivalentForArtifact((ArtifactsSubTypes)forItem.TemplateIndex, out equivalentWeaponForArtifact))
+            return instantiatedEquipment[(int)equivalentWeaponForArtifact];
+        else if(GetArmorEquivalentForArtifact((ArtifactsSubTypes)forItem.TemplateIndex, out equivalentArmorForArtifact))
             //not a weapon. Check if it's a shield
-            equivalentItemIndexForArtifact = (int)GetArmorEquivalentForArtifact((ArtifactsSubTypes)forItem.TemplateIndex);
+            return instantiatedEquipment[(int)equivalentArmorForArtifact];
+        else
+            //return. If it's not a weapon or shield, the list will be null.
+            return null;
+    }
 
-        //return. If it's not a weapon or shield, the list will be null.
-        return instantiatedEquipment[equivalentItemIndexForArtifact];
+    public void FloatItemInFrontOfPlayer(VREquipment item, Valve.VR.SteamVR_Input_Sources handType = Valve.VR.SteamVR_Input_Sources.RightHand)
+    {
+        //parent item to floaty parent
+        item.transform.SetParent(handType == Valve.VR.SteamVR_Input_Sources.LeftHand ? leftHandEquippedItemParent : rightHandEquippedItemParent);
+        item.transform.localPosition = Vector3.zero;
+        item.transform.localRotation = Quaternion.identity;
+        item.Rigidbody.isKinematic = true;
+        //set floaty parent to be at hand position.
+        if(handType == Valve.VR.SteamVR_Input_Sources.LeftHand)
+        {
+            leftHandEquippedItemParent.position = DaggerfallVRPlayer.Instance.LeftHand.transform.position;
+            leftHandEquippedItemParent.rotation = DaggerfallVRPlayer.Instance.LeftHand.transform.rotation;
+        }
+        else
+        {
+            rightHandEquippedItemParent.position = DaggerfallVRPlayer.Instance.RightHand.transform.position;
+            rightHandEquippedItemParent.rotation = DaggerfallVRPlayer.Instance.RightHand.transform.rotation;
+        }
     }
 
     public void EquipItem(DaggerfallUnityItem item)
@@ -140,9 +232,16 @@ public class VREquipmentManager : MonoBehaviour
         }
         int itemIndex = vrItems.FindIndex(p => !p.IsEquipped);
         if (itemIndex < 0)
+        {
             Debug.LogError("Unable to equip item " + item.TemplateIndex + " because an unequipped vr equipment of that type was not found.");
+            return;
+        }
         else
+        {
             vrItems[itemIndex].Equip(item);
+            currentlyEquippedItems.Add(vrItems[itemIndex]);
+        }
+
     }
     public void UnequipItem(DaggerfallUnityItem item)
     {
@@ -159,7 +258,10 @@ public class VREquipmentManager : MonoBehaviour
         if (itemIndex < 0) //this is currently always the case the first time you unequip something, because I can't seem to get a reference to the filled equip table on Init()
             Debug.LogError("Unable to unequip item " + item.TemplateIndex + " because a spawned VR item of UID " + item.UID + " was not found.");
         else
+        {
+            currentlyEquippedItems.Remove(vrItems[itemIndex]);
             vrItems[itemIndex].Unequip();
+        }
     }
     public static bool IsWeaponTwoHanded(Weapons weaponType)
     {
@@ -191,43 +293,56 @@ public class VREquipmentManager : MonoBehaviour
         }
     }
 
-    public static Weapons GetWeaponEquivalentForArtifact(ArtifactsSubTypes artifactType)
+    public static bool GetWeaponEquivalentForArtifact(ArtifactsSubTypes artifactType, out Weapons weaponEquivalent)
     {
         switch (artifactType)
         {
             case ArtifactsSubTypes.Mehrunes_Razor:
-                return Weapons.Dagger;
+                weaponEquivalent = Weapons.Dagger;
+                break;
             case ArtifactsSubTypes.Mace_of_Molag_Bal:
-                return Weapons.Mace;
+                weaponEquivalent = Weapons.Mace;
+                break;
             case ArtifactsSubTypes.Wabbajack:
             case ArtifactsSubTypes.Skull_of_Corruption:
             case ArtifactsSubTypes.Staff_of_Magnus:
-                return Weapons.Staff;
+                weaponEquivalent = Weapons.Staff;
+                break;
             case ArtifactsSubTypes.Volendrung:
-                return Weapons.Warhammer;
+                weaponEquivalent = Weapons.Warhammer;
+                break;
             case ArtifactsSubTypes.Auriels_Bow:
-                return Weapons.Long_Bow;
+                weaponEquivalent = Weapons.Long_Bow;
+                break;
             case ArtifactsSubTypes.Chrysamere:
-                return Weapons.Claymore;
+                weaponEquivalent = Weapons.Claymore;
+                break;
             case ArtifactsSubTypes.Ebony_Blade:
-                return Weapons.Katana;
+                weaponEquivalent = Weapons.Katana;
+                break;
             default:
-                return Weapons.None;
+                weaponEquivalent = Weapons.Arrow;
+                return false;
         }
+        return true;
     }
-    public static Armor GetArmorEquivalentForArtifact(ArtifactsSubTypes artifactType)
+    public static bool GetArmorEquivalentForArtifact(ArtifactsSubTypes artifactType, out Armor armorEquivalent)
     {
         switch (artifactType)
         {
             case ArtifactsSubTypes.Lords_Mail:
             case ArtifactsSubTypes.Ebony_Mail:
-                return Armor.Cuirass;
+                armorEquivalent = Armor.Cuirass;
+                break;
             case ArtifactsSubTypes.Auriels_Shield:
             case ArtifactsSubTypes.Spell_Breaker:
-                return Armor.Tower_Shield;
+                armorEquivalent = Armor.Tower_Shield;
+                break;
             default:
-                return Armor.None;
+                armorEquivalent = Armor.Helm;
+                return false;
         }
+        return true;
     }
     private VREquipment InstantiateEquipment(int templateIndex, string itemName)
     {

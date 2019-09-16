@@ -29,6 +29,14 @@ public class VRController : MonoBehaviour
     private GameObject laser;
     private InputManager inputManager;
     private bool wasUIPressed = false;
+    private VREquipment lastHighlightedEquipment;
+
+    //laser physics masks
+    private LayerMask equipmentMask;
+    private LayerMask uiMask;
+    private LayerMask playerMask;
+    private LayerMask hintsMask;
+    private int equipmentLayer;
 
     private bool _init = false;
 
@@ -46,6 +54,13 @@ public class VRController : MonoBehaviour
 
         // initiate SteamVR action listeners
         VRInputActions.SelectWorldObjectAction.AddOnStateDownListener(SelectWorldObject_onStateDown, hand.handType);
+
+        //set layermasks
+        uiMask = LayerMask.GetMask("UI");
+        playerMask = LayerMask.GetMask("Player");
+        equipmentLayer = LayerMask.NameToLayer("VREquipment");
+        equipmentMask = LayerMask.GetMask("VREquipment");
+        hintsMask = ~(uiMask | playerMask);
 
         _init = true;
 	}
@@ -93,7 +108,7 @@ public class VRController : MonoBehaviour
         //get current rotation speed from joystick X position
         float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
         //rotate player's playspace around the camera position, so we're not moving the player laterally with the rotation
-        mainCamera.transform.parent.RotateAround(mainCamera.transform.position, Vector3.up, 135f * curRotation * Time.deltaTime);
+        Player.instance.trackingOriginTransform.RotateAround(mainCamera.transform.position, Vector3.up, 135f * curRotation * Time.deltaTime);
     }
     private void WalkWithJoystick()
     {
@@ -125,10 +140,14 @@ public class VRController : MonoBehaviour
         }
     }
 
+    private bool LaserRaycast(out RaycastHit hit, int layerMask)
+    {
+        return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, layerMask);
+    }
     private void ActivateUI()
     {
         RaycastHit hit;
-        if (Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 100, LayerMask.GetMask("UI")))
+        if (LaserRaycast(out hit, uiMask))
         {
             ShowLaser(hit.distance);
 
@@ -140,63 +159,124 @@ public class VRController : MonoBehaviour
             }
         }
         else
-            ShowLaser(100);
+            ShowLaser(75);
     }
-    private bool HintsRaycast(out RaycastHit hit, int layerMask)
+    private cakeslice.Outline lastOutline;
+    /// <summary>
+    /// Activates a hint that the daggerfall item you're pointing at with a laser can be activated
+    /// </summary>
+    /// <param name="hit">The raycast hit result from the laser raycast, using hintsMask which excludes Player and UI layers</param>
+    /// <returns>true if a hint was activated, false otherwise</returns>
+    private bool ActivateDaggerfallInteractableHints(out RaycastHit hit)
     {
-        return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, layerMask);
-    }
-    private void ActivateHints()
-    {
-        RaycastHit hit;
-        if (HintsRaycast(out hit, ~(LayerMask.GetMask("UI") | LayerMask.GetMask("Player"))))
+        if (LaserRaycast(out hit, hintsMask))
         {
+            ShowLaser(hit.distance);
             Debug.DrawRay(laserPositionTF.position, laserPositionTF.forward * hit.distance, Color.yellow);
             MeshRenderer mr = hit.collider.transform.GetComponent<MeshRenderer>();
-            if (mr && mr.transform.tag != "StaticGeometry")
-            {
-                Vector3 newScale = mr.bounds.size;
-                BillboardRotationCorrector billboardCorrector;
-                if (billboardCorrector = mr.GetComponent<BillboardRotationCorrector>())
-                { // billboards' mesh sizes are all screwy if not rotated to zero
-                    mr.transform.rotation = Quaternion.identity;
-                    newScale = mr.bounds.size;
-                    newScale.z = .1f;
-                    billboardCorrector.CorrectRotation();
-                }
-                newScale *= 1.05f;
-                vrUIManager.repositionHint(mr.bounds.center, newScale, mr.transform.rotation);
 
-                ShowLaser(hit.distance);
-            }
-            else
+            if (mr && mr.transform.tag != "StaticGeometry" && mr.gameObject.layer != equipmentLayer)
             {
-                vrUIManager.HideHint();
-                ShowLaser(75);
+                if (lastOutline)
+                    lastOutline.enabled = false;
+
+                cakeslice.Outline outline = mr.GetComponent<cakeslice.Outline>();
+                if (outline)
+                    outline.enabled = true;
+                else
+                {
+                    outline = mr.gameObject.AddComponent<cakeslice.Outline>();
+                    outline.color = 1;
+                }
+                lastOutline = outline;
+                //Vector3 newScale = mr.bounds.size;
+                //BillboardRotationCorrector billboardCorrector;
+                //if (billboardCorrector = mr.GetComponent<BillboardRotationCorrector>())
+                //{ // billboards' mesh sizes are all screwy if not rotated to zero
+                //    mr.transform.rotation = Quaternion.identity;
+                //    newScale = mr.bounds.size;
+                //    newScale.z = .1f;
+                //    billboardCorrector.CorrectRotation();
+                //}
+                //newScale *= 1.05f;
+                //vrUIManager.repositionHint(mr.bounds.center, newScale, mr.transform.rotation);
+                return true;
             }
         }
         else
-            vrUIManager.HideHint();
+            ShowLaser(75);
+
+        if (lastOutline)
+            lastOutline.enabled = false;
+        //vrUIManager.HideHint();
+        return false;
     }
 
-
+    /// <summary>
+    /// set activity of laser and position of UI pointer
+    /// </summary>
     private void HandleLaser()
     {
-        //set activity of laser and position of UI pointer
-        if (VRInputActions.GrabGripAction.GetState(hand.handType) && !VRInputActions.GrabPinchAction.GetState(hand.handType))
+        //we only want to show laser if you grip the controller and you're not holding anything
+        if (VRInputActions.GrabGripAction.GetState(hand.handType) && hand.AttachedObjects.Count == 0)
         {
             laser.SetActive(true);
             if (inputManager.IsPaused)
             {
+                //activate UI with laser
                 ActivateUI();
+                //no highlighting of weapons when paused
+                DeactivateHighlightOnVRWeapon();
             }
             else
             {
-                ActivateHints();
+                //try activating hints out in the daggerfall world
+                RaycastHit hit;
+                bool didActivateHint = ActivateDaggerfallInteractableHints(out hit);
+
+                //if no hints were activated, perhaps a VR weapon was blocking the cast? Highlight it if so.
+                if (!didActivateHint && hit.transform != null && hit.transform.gameObject.layer == equipmentLayer)
+                {
+                    //the only things that should be on this layer are VREquipment and VRWeaponPieces
+                    VREquipment equipment = hit.transform.GetComponent<VREquipment>();
+                    if (!equipment)
+                    {
+                        try
+                        {
+                            equipment = hit.transform.GetComponent<VRWeaponPiece>().Weapon;
+                        }
+                        catch
+                        {
+                            Debug.LogError(hit.transform.name + " is on the VREquipment layer but does not have a VREquipment (or adjacent) script. Unable to highlight.");
+                            return;
+                        }
+                    }
+                    //Highlight equipment. Handle last highlighted equipment.
+                    if (lastHighlightedEquipment && equipment != lastHighlightedEquipment)
+                        lastHighlightedEquipment.UnHighlight();
+                    equipment.Highlight();
+                    lastHighlightedEquipment = equipment;
+                }
+                //No vr weapon was highlighted this frame, so unhighlight any weapon we were previously highlighting
+                else
+                    DeactivateHighlightOnVRWeapon();
             }
         }
         else
+        {
             laser.SetActive(false);
+            if (lastOutline)
+                lastOutline.enabled = false;
+            DeactivateHighlightOnVRWeapon();
+        }
+    }
+    private void DeactivateHighlightOnVRWeapon()
+    {
+        if (lastHighlightedEquipment != null)
+        {
+            lastHighlightedEquipment.UnHighlight();
+            lastHighlightedEquipment = null;
+        }
     }
     private void ShowLaser(float distance)
     {
@@ -214,7 +294,7 @@ public class VRController : MonoBehaviour
     {
         RaycastHit hit;
         VREquipment equipment;
-        if (HintsRaycast(out hit, LayerMask.GetMask("VREquipment")) && hit.rigidbody != null)
+        if (LaserRaycast(out hit, LayerMask.GetMask("VREquipment")) && hit.rigidbody != null)
         {
             equipment = hit.rigidbody.GetComponent<VREquipment>();
             if(equipment)

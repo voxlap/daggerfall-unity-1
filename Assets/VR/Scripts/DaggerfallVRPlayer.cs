@@ -60,19 +60,18 @@ public class DaggerfallVRPlayer : MonoBehaviour
     private void Start()
     {
         VRInputActions.OpenMenuAction.onStateDown += OpenMenu_onStateDown;
+        VRInputActions.ResetPosition.onStateDown += ResetPosition_onStateDown;
     }
     private void OnDestroy()
     {
         VRInputActions.OpenMenuAction.onStateDown -= OpenMenu_onStateDown;
+        VRInputActions.ResetPosition.onStateDown -= ResetPosition_onStateDown;
     }
 
     private void Update()
     {
         transform.position = playerObject.transform.position + Vector3.down * (playerController.height / 2f) + offsetPosition;
         transform.rotation = playerObject.transform.rotation;
-
-        if (Input.GetKeyDown(KeyCode.P))
-            ResetPlayerPosition();
 
         UpdateTagsOnPause();
     }
@@ -94,7 +93,16 @@ public class DaggerfallVRPlayer : MonoBehaviour
     private void OpenMenu_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
         Debug.Log("SteamVR input action detected: OpenMenu");
-        InputManager.Instance.AddAction(InputManager.Actions.CharacterSheet);
+        if (VRUIManager.Instance.IsOpen)
+            VRUIManager.Instance.CloseAllDaggerfallWindows();
+        else
+            InputManager.Instance.AddAction(InputManager.Actions.CharacterSheet);
+    }
+
+    private void ResetPosition_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
+    {
+        Debug.Log("SteamVR input action detected: ResetPosition");
+        ResetPlayerPosition();
     }
 
     //TODO: This would go well in a general utilities class.

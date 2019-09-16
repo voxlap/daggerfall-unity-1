@@ -1644,7 +1644,7 @@ GameObject:
   - component: {fileID: 114370469265351846}
   - component: {fileID: 114508972166709298}
   m_Layer: 15
-  m_Name: Flail
+  m_Name: Flail_old
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -10338,6 +10338,8 @@ MonoBehaviour:
   minVelocityMagnitudeForDamage: 1
   weaponPieces:
   - {fileID: 114422565426625734}
+  noDamageSound: {fileID: 0}
+  noDamageParticles: {fileID: 0}
 --- !u!114 &114508972166709298
 MonoBehaviour:
   m_ObjectHideFlags: 1

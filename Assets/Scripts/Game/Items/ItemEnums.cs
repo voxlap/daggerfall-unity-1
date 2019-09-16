@@ -194,7 +194,6 @@ namespace DaggerfallWorkshop.Game.Items
 
     public enum Armor   //checked
     {
-        None = -1,
         Cuirass = 102,
         Gauntlets = 103,
         Greaves = 104,
@@ -210,7 +209,6 @@ namespace DaggerfallWorkshop.Game.Items
 
     public enum Weapons  //checked
     {
-        None = -1,
         Dagger = 113,
         Tanto = 114,
         Staff = 115,

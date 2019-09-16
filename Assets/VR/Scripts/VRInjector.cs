@@ -29,10 +29,27 @@ public class VRInjector : MonoBehaviour {
     private PlayerMouseLook playerMouseLook { get { return GameManager.Instance.PlayerMouseLook; } }
 
     public static bool IsVRDevicePresent { get { return UnityEngine.XR.XRDevice.isPresent; } }
+    public bool IsInitialized { get; private set; }
+    public static event Action OnInitialized;
 
-    private bool _init = false;
+    #region Singleton
+
+    public static VRInjector Instance { get; private set; }
+    private void SetupSingleton()
+    {
+        if (!Instance)
+            Instance = this;
+        else
+        {
+            Debug.LogError("Second VRInjector singleton has been spawned in the scene. This obviously shouldn't happen.");
+        }
+    }
+
+    #endregion
+
     private void Awake()
     {
+        SetupSingleton();
         DaggerfallBillboard.OnCreated += DaggerfallBillboard_OnCreated;
     }
 
@@ -136,8 +153,10 @@ public class VRInjector : MonoBehaviour {
         yield return null;
         vrPlayer.ResetPlayerPosition();
 
-        //done
-        _init = true;
+        //done. Set initialized true and trigger event.
+        IsInitialized = true;
+        if (OnInitialized != null)
+            OnInitialized();
     }
     private void BillboardRotationCorrection()
     {

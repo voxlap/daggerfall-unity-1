@@ -964,7 +964,7 @@ namespace DaggerfallWorkshop.Game.Formulas
             // DF Chronicles says -60 is applied at the end, but it actually seems to be -50.
             chanceToHit -= 50;
 
-            Mathf.Clamp(chanceToHit, 3, 97);
+            chanceToHit = Mathf.Clamp(chanceToHit, 3, 97);
 
             if (Dice100.SuccessRoll(chanceToHit))
                 return 1;
