@@ -16,12 +16,12 @@ public class VRUIManager : MonoBehaviour
     public const string k_vrEquipmentLayerName = "VREquipment";
 
     public GameObject FloatingUIPrefab;
-    public GameObject floatingUI;
     public GameObject FollowingUIPrefab;
     
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private GameObject followingUI;
-    
+    private GameObject floatingUI;
+
     public bool IsOpen { get { return floatingUI && floatingUI.activeSelf; } }
     private IUserInterfaceManager uiManager;
 

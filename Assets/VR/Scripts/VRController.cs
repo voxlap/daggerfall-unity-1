@@ -104,25 +104,54 @@ public class VRController : MonoBehaviour
             if(!VRInputActions.ActivateWalk.active || VRInputActions.ActivateWalk.GetState(hand.handType))
                 WalkWithJoystick();
             if(!VRInputActions.ActivateRotate.active || VRInputActions.ActivateRotate.GetState(hand.handType))
-                RotatePlayerWithJoystick();
+            {
+                switch (VRSettingsMenu.Instance.TurningMode)
+                {
+                    case VRTurningMode.Smooth:
+                        RotatePlayerWithJoystick();
+                        break;
+                    case VRTurningMode.Snap:
+                        if (!VRInputActions.ActivateRotate.active && VRInputActions.RotateAction.GetLastAxis(hand.handType).x == 0 && VRInputActions.RotateAction.GetAxis(hand.handType).x != 0
+                            || VRInputActions.ActivateRotate.GetStateDown(hand.handType))
+                            RotatePlayerWithJoystick();
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
     }
     private void RotatePlayerWithJoystick()
     {
         //get current rotation speed from joystick X position
         float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
-        //rotate player's playspace around the camera position, so we're not moving the player laterally with the rotation
-        Player.instance.trackingOriginTransform.RotateAround(mainCamera.transform.position, Vector3.up, 135f * curRotation * Time.deltaTime);
+        Transform playerTF = Player.instance.trackingOriginTransform;
+        //rotate player
+        if (VRSettingsMenu.Instance.TurningMode == VRTurningMode.Smooth)
+            DaggerfallVRPlayer.Instance.Rotate(VRSettingsMenu.Instance.SmoothTurningSpeed * curRotation * Time.deltaTime);
+        else if (VRSettingsMenu.Instance.TurningMode == VRTurningMode.Snap)
+        {
+            int rotationAmount = (int)VRSettingsMenu.Instance.SnapTurningSpeed;
+            float nearestRotation = (Mathf.RoundToInt(playerTF.eulerAngles.y) / rotationAmount) * rotationAmount;
+            nearestRotation += rotationAmount * (curRotation > 0 ? 1f : -1f);
+            if (nearestRotation < 0)
+                nearestRotation = 360 + nearestRotation;
+            nearestRotation %= 360;
+            DaggerfallVRPlayer.Instance.SetRotation(nearestRotation);
+        }
+
         //set mouselook yaw so that save games save your current rotation.
-        GameManager.Instance.PlayerMouseLook.Yaw = Player.instance.trackingOriginTransform.eulerAngles.y;
+        GameManager.Instance.PlayerMouseLook.Yaw = playerTF.eulerAngles.y;
     }
     private void WalkWithJoystick()
     {
         Vector2 touchpad = VRInputActions.WalkAction.GetAxis(hand.handType);
         Vector3 moveDir = Vector3.zero;
+        Transform tf = VRSettingsMenu.Instance.MovementMode == VRMovementMode.Controller ? transform : mainCamera.transform;
+
         if (touchpad.y > 0.15f || touchpad.y < -0.15f)
         {
-            Vector3 controllerForward = transform.forward;
+            Vector3 controllerForward = tf.forward;
             controllerForward.y = 0;
             moveDir += controllerForward.normalized * touchpad.y;
         }
@@ -131,7 +160,7 @@ public class VRController : MonoBehaviour
 
         if (touchpad.x > 0.15f || touchpad.x < -0.15f)
         {
-            Vector3 controllerRight = transform.right;
+            Vector3 controllerRight = tf.right;
             controllerRight.y = 0;
             moveDir += controllerRight.normalized * touchpad.x;
         }
