@@ -57,7 +57,7 @@ public class FloatingUI : MonoBehaviour
     protected virtual void LateUpdate()
     {
         if (cursor.gameObject.activeSelf && lastActivatedFrame != Time.frameCount)
-            SetCursorActive(true);
+            SetCursorActive(false);
     }
     protected virtual void SetCursorActive(bool active)
     {
