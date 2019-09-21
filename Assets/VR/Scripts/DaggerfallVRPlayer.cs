@@ -16,6 +16,7 @@ using Valve.VR;
 using Valve.VR.InteractionSystem;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.Serialization;
 
 public class DaggerfallVRPlayer : MonoBehaviour
 {
@@ -36,6 +37,7 @@ public class DaggerfallVRPlayer : MonoBehaviour
     private Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
     private CharacterController playerController { get { return GameManager.Instance.PlayerController; } }
     private PlayerMotor playerMotor { get { return GameManager.Instance.PlayerMotor; } }
+    private Transform trackingOriginTransform { get { return Player.instance.trackingOriginTransform; } }
 
     #region Singleton
 
@@ -61,26 +63,86 @@ public class DaggerfallVRPlayer : MonoBehaviour
     {
         VRInputActions.OpenMenuAction.onStateDown += OpenMenu_onStateDown;
         VRInputActions.ResetPosition.onStateDown += ResetPosition_onStateDown;
+        SaveLoadManager.OnStartLoad += SaveLoadManager_OnStartLoad;
+        SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
+        
     }
+
     private void OnDestroy()
     {
         VRInputActions.OpenMenuAction.onStateDown -= OpenMenu_onStateDown;
         VRInputActions.ResetPosition.onStateDown -= ResetPosition_onStateDown;
+        SaveLoadManager.OnStartLoad -= SaveLoadManager_OnStartLoad;
+        SaveLoadManager.OnLoad -= SaveLoadManager_OnLoad;
     }
 
     private void Update()
     {
-        transform.position = playerObject.transform.position + Vector3.down * (playerController.height / 2f) + offsetPosition;
-        transform.rotation = playerObject.transform.rotation;
-
+        UpdatePositionAndRotation();
         UpdateTagsOnPause();
+    }
+
+    public void FadeIn(float duration = 0, float delay = 0)
+    {
+        if (delay > 0)
+            StartCoroutine(FadeInCoroutine(duration, delay));
+        else
+        {
+            SteamVR_Fade.Start(Color.clear, duration);
+        }
+    }
+    public void FadeOut(float duration = 0, float delay = 0)
+    {
+        if (delay > 0)
+            StartCoroutine(FadeOutCoroutine(duration, delay));
+        else
+        {
+            SteamVR_Fade.Start(Color.black, duration);
+        }
+    }
+
+    private IEnumerator FadeInCoroutine(float duration, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        FadeIn(duration, 0);
+    }
+    private IEnumerator FadeOutCoroutine(float duration, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        FadeOut(duration, 0);
     }
 
     public void ResetPlayerPosition()
     {
+        //get the new offset position
         Vector3 newOffsetPosition = -transform.InverseTransformPoint(HeadTF.position);
         newOffsetPosition.y = 0;
         offsetPosition = newOffsetPosition;
+    }
+
+    /// <summary>
+    /// Add rotation to player so that the VR camera stays in the same position.
+    /// </summary>
+    /// <param name="yaw"></param>
+    public void Rotate(float yaw)
+    {
+        trackingOriginTransform.RotateAround(mainCamera.transform.position, Vector3.up, yaw);
+        playerObject.transform.rotation = trackingOriginTransform.rotation;
+    }
+    /// <summary>
+    /// Set rotation of player so that the VR camera stays in the same position.
+    /// </summary>
+    /// <param name="yaw"></param>
+    public void SetRotation(float yaw)
+    {
+        Rotate(yaw - trackingOriginTransform.eulerAngles.y);
+    }
+
+    private void UpdatePositionAndRotation()
+    {
+        transform.position = playerObject.transform.position + Vector3.down * (playerController.height / 2f) + offsetPosition;
+        //transform.rotation = playerObject.transform.rotation;
+        playerObject.transform.rotation = trackingOriginTransform.rotation;
     }
 
     private void UpdateTagsOnPause()
@@ -105,6 +167,19 @@ public class DaggerfallVRPlayer : MonoBehaviour
         ResetPlayerPosition();
     }
 
+    private void SaveLoadManager_OnLoad(SaveData_v1 saveData)
+    {
+        //fade from black
+        FadeIn(0f, 2f);
+        //rotate player to the saved rotation
+        SetRotation(saveData.playerData.playerPosition.yaw);
+    }
+
+    private void SaveLoadManager_OnStartLoad(SaveData_v1 saveData)
+    {
+        FadeOut();
+    }
+
     //TODO: This would go well in a general utilities class.
     /// <summary>
     /// Sets the layer of a transform and all of its children (and subchildren) to be the given layer.
@@ -118,7 +193,6 @@ public class DaggerfallVRPlayer : MonoBehaviour
             SetLayerRecursively(tf.GetChild(i), layer, ignoreLayer);
         }
     }
-
 
     /* possibly obsolete
     

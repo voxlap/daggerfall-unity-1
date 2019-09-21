@@ -3,7 +3,9 @@ guid: 09a67c803d08efa4a9219b2a3be23ed3
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2
-  defaultReferences: []
+  defaultReferences:
+  - CursorImage: {fileID: 2800000, guid: 91c29223d6ebe994182279f8d1aceca6, type: 3}
+  - ControllerCamera: {instanceID: 0}
   executionOrder: 0
   icon: {instanceID: 0}
   userData: 

@@ -4,6 +4,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Valve.VR;
 
 public class VRInjector : MonoBehaviour {
     public DaggerfallVRPlayer VRPlayerPrefab;
@@ -90,12 +91,21 @@ public class VRInjector : MonoBehaviour {
         catch (Exception) {
             Debug.LogError("Unable to get the original camera and/or the old AudioListenerer to disable it for VR! If you continue, VR support will most likely be broken.");
         }
-        
-        vrPlayer = Instantiate(VRPlayerPrefab);
 
-        //vrPlayer.transform.SetParent(playerObject.transform);
-        //vrPlayer.transform.localPosition = Vector3.zero;
-        //vrPlayer.transform.localRotation = Quaternion.identity;
+        //add VREquipment to layers illuminated by torch
+        try
+        {
+            GameManager.Instance.PlayerMotor.transform.Find("SmoothFollower").Find("Torch").GetComponent<Light>().cullingMask |= (1 << LayerMask.NameToLayer("VREquipment"));
+        }
+        catch
+        {
+            Debug.LogError("Couldn't find player torch. VR Equipment will not be illuminated.");
+        }
+        
+        //spawn player
+        vrPlayer = Instantiate(VRPlayerPrefab);
+        //fade out, so player doesn't see all the jankiness of the level loading. The player wil handle the fade in.
+        vrPlayer.FadeOut();
 
         controllerRight = vrPlayer.RightHand.gameObject;
         controllerLeft = vrPlayer.LeftHand.gameObject;

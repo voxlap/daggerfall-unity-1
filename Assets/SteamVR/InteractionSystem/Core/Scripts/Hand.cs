@@ -459,40 +459,26 @@ namespace Valve.VR.InteractionSystem
 
             if (attachedObject.HasAttachFlag(AttachmentFlags.SnapOnAttach))
             {
-                if (attachedObject.interactable != null && attachedObject.interactable.skeletonPoser != null && HasSkeleton())
+                //Daggerfall SteamVR change: Simplified SnapOnAttach. It no longer transforms the poser, instead assuming you set up poser with attachment offset in mind.
+                Transform followPoint = objectToAttach.transform;
+                if (attachmentOffset != null)
                 {
-                    SteamVR_Skeleton_PoseSnapshot pose = attachedObject.interactable.skeletonPoser.GetBlendedPose(skeleton);
+                    //offset the object from the hand by the positional and rotational difference between the offset transform and the attached object
+                    Quaternion rotDiff = Quaternion.Inverse(attachmentOffset.transform.rotation) * objectToAttach.transform.rotation;
+                    objectToAttach.transform.rotation = attachedObject.handAttachmentPointTransform.rotation * rotDiff;
 
-                    //snap the object to the center of the attach point
-                    objectToAttach.transform.position = this.transform.TransformPoint(pose.position);
-                    objectToAttach.transform.rotation = this.transform.rotation * pose.rotation;
-
-                    attachedObject.initialPositionalOffset = attachedObject.handAttachmentPointTransform.InverseTransformPoint(objectToAttach.transform.position);
-                    attachedObject.initialRotationalOffset = Quaternion.Inverse(attachedObject.handAttachmentPointTransform.rotation) * objectToAttach.transform.rotation;
+                    Vector3 posDiff = objectToAttach.transform.position - attachmentOffset.transform.position;
+                    objectToAttach.transform.position = attachedObject.handAttachmentPointTransform.position + posDiff;
                 }
                 else
-                { 
-                    if (attachmentOffset != null)
-                    {
-                        //offset the object from the hand by the positional and rotational difference between the offset transform and the attached object
-                        Quaternion rotDiff = Quaternion.Inverse(attachmentOffset.transform.rotation) * objectToAttach.transform.rotation;
-                        objectToAttach.transform.rotation = attachedObject.handAttachmentPointTransform.rotation * rotDiff;
-
-                        Vector3 posDiff = objectToAttach.transform.position - attachmentOffset.transform.position;
-                        objectToAttach.transform.position = attachedObject.handAttachmentPointTransform.position + posDiff;
-                    }
-                    else
-                    {
-                        //snap the object to the center of the attach point
-                        objectToAttach.transform.rotation = attachedObject.handAttachmentPointTransform.rotation;
-                        objectToAttach.transform.position = attachedObject.handAttachmentPointTransform.position;
-                    }
-
-                    Transform followPoint = objectToAttach.transform;
-
-                    attachedObject.initialPositionalOffset = attachedObject.handAttachmentPointTransform.InverseTransformPoint(followPoint.position);
-                    attachedObject.initialRotationalOffset = Quaternion.Inverse(attachedObject.handAttachmentPointTransform.rotation) * followPoint.rotation;
+                {
+                    //snap the object to the center of the attach point
+                    objectToAttach.transform.rotation = attachedObject.handAttachmentPointTransform.rotation;
+                    objectToAttach.transform.position = attachedObject.handAttachmentPointTransform.position;
                 }
+
+                attachedObject.initialPositionalOffset = attachedObject.handAttachmentPointTransform.InverseTransformPoint(followPoint.position);
+                attachedObject.initialRotationalOffset = Quaternion.Inverse(attachedObject.handAttachmentPointTransform.rotation) * followPoint.rotation;
             }
             else
             {
@@ -1116,12 +1102,26 @@ namespace Valve.VR.InteractionSystem
                         Quaternion targetHandRotation;
                         Vector3 targetHandPosition;
 
-                        if (pose == null)
+                        //Daggerfall SteamVR Change: set hand position to object's attachedOffset if it's present
+                        Transform attachedOffset = currentAttachedObjectInfo.Value.attachedOffsetTransform;
+                        if (attachedOffset)
                         {
-                            Quaternion offset = Quaternion.Inverse(this.transform.rotation) * currentAttachedObjectInfo.Value.handAttachmentPointTransform.rotation;
+                            targetHandPosition = attachedOffset.position;
+                            targetHandRotation = attachedOffset.rotation;
+                            if (pose != null)
+                            {
+                                targetHandPosition -= pose.position;
+                                targetHandRotation *= Quaternion.Inverse(pose.rotation);
+                            }
+                        }
+                        else if (pose == null)
+                        {
+                            Transform attachmentPoint = currentAttachedObjectInfo.Value.handAttachmentPointTransform;
+
+                            Quaternion offset = Quaternion.Inverse(this.transform.rotation) * attachmentPoint.rotation;
                             targetHandRotation = currentAttachedObjectInfo.Value.interactable.transform.rotation * Quaternion.Inverse(offset);
 
-                            Vector3 worldOffset = (this.transform.position - currentAttachedObjectInfo.Value.handAttachmentPointTransform.position);
+                            Vector3 worldOffset = (this.transform.position - attachmentPoint.position);
                             Quaternion rotationDiff = mainRenderModel.GetHandRotation() * Quaternion.Inverse(this.transform.rotation);
                             Vector3 localOffset = rotationDiff * worldOffset;
                             targetHandPosition = currentAttachedObjectInfo.Value.interactable.transform.position + localOffset;
@@ -1238,29 +1238,14 @@ namespace Valve.VR.InteractionSystem
 
         protected Vector3 TargetItemPosition(AttachedObject attachedObject)
         {
-            if (attachedObject.interactable != null && attachedObject.interactable.skeletonPoser != null && HasSkeleton())
-            {
-                Vector3 tp = attachedObject.handAttachmentPointTransform.InverseTransformPoint(transform.TransformPoint(attachedObject.interactable.skeletonPoser.GetBlendedPose(skeleton).position));
-                //tp.x *= -1;
-                return currentAttachedObjectInfo.Value.handAttachmentPointTransform.TransformPoint(tp);
-            }
-            else
-            {
-                return currentAttachedObjectInfo.Value.handAttachmentPointTransform.TransformPoint(attachedObject.initialPositionalOffset);
-            }
+            //Daggerfall SteamVR Change: Removed case for skeleton poser. We're assuming the poser is secondary to the actual item positon.
+            return currentAttachedObjectInfo.Value.handAttachmentPointTransform.TransformPoint(attachedObject.initialPositionalOffset);
         }
 
         protected Quaternion TargetItemRotation(AttachedObject attachedObject)
         {
-            if (attachedObject.interactable != null && attachedObject.interactable.skeletonPoser != null && HasSkeleton())
-            {
-                Quaternion tr = Quaternion.Inverse(attachedObject.handAttachmentPointTransform.rotation) * (transform.rotation * attachedObject.interactable.skeletonPoser.GetBlendedPose(skeleton).rotation);
-                return currentAttachedObjectInfo.Value.handAttachmentPointTransform.rotation * tr;
-            }
-            else
-            {
-                return currentAttachedObjectInfo.Value.handAttachmentPointTransform.rotation * attachedObject.initialRotationalOffset;
-            }
+            //Daggerfall SteamVR Change: Removed case for skeleton poser. We're assuming the poser is secondary to the actual item positon.
+            return currentAttachedObjectInfo.Value.handAttachmentPointTransform.rotation * attachedObject.initialRotationalOffset;
         }
 
         protected bool GetUpdatedAttachedVelocities(AttachedObject attachedObjectInfo, out Vector3 velocityTarget, out Vector3 angularTarget)

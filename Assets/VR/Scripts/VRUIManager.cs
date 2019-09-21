@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using DaggerfallWorkshop.Game.UserInterface;
+using UnityEngine.EventSystems;
 
 /** * This component disables the default UI and replaces it with VR logic
  **/
@@ -53,6 +54,13 @@ public class VRUIManager : MonoBehaviour
         playerLayerMask = LayerMask.GetMask(k_playerLayerName);
         uiLayerMask = LayerMask.GetMask(k_uiLayerName);
         vrEquipmentLayerMask = LayerMask.GetMask(k_vrEquipmentLayerName);
+
+        DaggerfallWorkshop.Game.Serialization.SaveLoadManager.OnStartLoad += SaveLoadManager_OnStartLoad;
+    }
+
+    private void SaveLoadManager_OnAttemptLoad(string path)
+    {
+        DisableUI();
     }
 
     void Start()
@@ -84,11 +92,15 @@ public class VRUIManager : MonoBehaviour
         uiManager.OnWindowChange += UIManager_OnWindowChange;
 
         cachedMask = mainCamera.cullingMask;
+
+        //add our InputModule
+        FindObjectOfType<EventSystem>().gameObject.AddComponent<ViveControllerInput>();
     }
     private void OnDestroy()
     {
         if(uiManager != null)
             uiManager.OnWindowChange -= UIManager_OnWindowChange;
+        DaggerfallWorkshop.Game.Serialization.SaveLoadManager.OnStartLoad -= SaveLoadManager_OnStartLoad;
     }
 
     public void CloseAllDaggerfallWindows()
@@ -102,16 +114,30 @@ public class VRUIManager : MonoBehaviour
         if (windowCount > 0 && !floatingUI.activeSelf)
         {
             // Window count increased--display the UI!
-            floatingUI.SetActive(true);
-            mainCamera.cullingMask = uiLayerMask | playerLayerMask | vrEquipmentLayerMask;
-            StickFloatingUIInFrontOfPlayer();
+            EnableUI();
         }
         else if (windowCount <= 0)
         {
             // Window count decreased--disable the UI
-            floatingUI.SetActive(false);
-            mainCamera.cullingMask = cachedMask;
+            DisableUI();
         }
+    }
+    public void EnableUI()
+    {
+        if (floatingUI.activeSelf) //already enabled
+            return;
+        floatingUI.SetActive(true);
+        mainCamera.cullingMask = uiLayerMask | playerLayerMask | vrEquipmentLayerMask;
+        StickFloatingUIInFrontOfPlayer();
+    }
+    public void DisableUI()
+    {
+        if (!floatingUI.activeSelf) //already disabled
+            return;
+        floatingUI.SetActive(false);
+        mainCamera.cullingMask = cachedMask;
+
+
     }
     void StickFloatingUIInFrontOfPlayer() {
         if (!floatingUI || !mainCamera) return;
@@ -125,4 +151,10 @@ public class VRUIManager : MonoBehaviour
         floatingUI.transform.LookAt(lookPos);
         floatingUI.transform.Rotate(Vector3.up, 180);
     }
+
+    private void SaveLoadManager_OnStartLoad(DaggerfallWorkshop.Game.Serialization.SaveData_v1 saveData)
+    {
+        DisableUI();
+    }
+
 }

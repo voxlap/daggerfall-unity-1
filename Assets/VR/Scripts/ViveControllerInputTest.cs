@@ -54,8 +54,8 @@ public class ViveControllerInputTest : MonoBehaviour
         if (Physics.Raycast(myController.transform.position, transform.forward, out hit, 100, LayerMask.GetMask("UI")))
         {
             ShowLaser(hit);
-            FloatingUITest floatingUI;
-            if (floatingUI = hit.transform.GetComponent<FloatingUITest>())
+            FloatingDaggerfallUI floatingUI;
+            if (floatingUI = hit.transform.GetComponent<FloatingDaggerfallUI>())
             {
                 Vector3 localPoint = hit.transform.GetComponent<RectTransform>().InverseTransformPoint(hit.point);
                 floatingUI.HandlePointer(localPoint);

@@ -153,8 +153,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6185eb9daf31e9b47a93c8317fe10d23, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugIndicatorPrefab: {fileID: 1488424162085398, guid: 94e6cb6d437b3a84588a1fe31f3c74f1,
-    type: 2}
   cursor: {fileID: 114533726384314480}
   cursorResourcePath: Cursor
 --- !u!222 &222156535147795908

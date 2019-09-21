@@ -248,13 +248,15 @@ namespace cakeslice
 
         private void OnEnable()
         {
-            Outline[] o = FindObjectsOfType<Outline>();
+            //Daggerfall change: removed this enabling of every outline on enable of the outline singleton. No reason for it, and it leads to unintended consequences.
 
-            foreach (Outline oL in o)
-            {
-                oL.enabled = false;
-                oL.enabled = true;
-            }
+            //Outline[] o = FindObjectsOfType<Outline>();
+
+            //foreach (Outline oL in o)
+            //{
+            //    oL.enabled = false;
+            //    oL.enabled = true;
+            //}
         }
 
         void OnDestroy()

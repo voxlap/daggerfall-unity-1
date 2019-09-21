@@ -29,7 +29,10 @@ public class VRController : MonoBehaviour
     private GameObject laser;
     private InputManager inputManager;
     private bool wasUIPressed = false;
-    private VREquipment lastHighlightedEquipment;
+
+    //Highlighting
+    private VREquipment lastHighlightedVREquipment;
+    private cakeslice.Outline lastHighlightedDaggerfallInteractable;
 
     //laser physics masks
     private LayerMask equipmentMask;
@@ -54,6 +57,7 @@ public class VRController : MonoBehaviour
 
         // initiate SteamVR action listeners
         VRInputActions.SelectWorldObjectAction.AddOnStateDownListener(SelectWorldObject_onStateDown, hand.handType);
+        VRInputActions.InteractUIAction.AddOnChangeListener(InteractUIAction_onChange, hand.handType);
 
         //set layermasks
         uiMask = LayerMask.GetMask("UI");
@@ -109,6 +113,8 @@ public class VRController : MonoBehaviour
         float curRotation = VRInputActions.RotateAction.GetAxis(hand.handType).x;
         //rotate player's playspace around the camera position, so we're not moving the player laterally with the rotation
         Player.instance.trackingOriginTransform.RotateAround(mainCamera.transform.position, Vector3.up, 135f * curRotation * Time.deltaTime);
+        //set mouselook yaw so that save games save your current rotation.
+        GameManager.Instance.PlayerMouseLook.Yaw = Player.instance.trackingOriginTransform.eulerAngles.y;
     }
     private void WalkWithJoystick()
     {
@@ -140,28 +146,32 @@ public class VRController : MonoBehaviour
         }
     }
 
-    private bool LaserRaycast(out RaycastHit hit, int layerMask)
+    public bool LaserRaycast(out RaycastHit hit, int layerMask)
     {
         return Physics.Raycast(laserPositionTF.position, laserPositionTF.forward, out hit, 75, layerMask);
     }
-    private void ActivateUI()
+    private void ActivateUI(bool doClick = false, bool doUnclick = false)
     {
         RaycastHit hit;
         if (LaserRaycast(out hit, uiMask))
         {
             ShowLaser(hit.distance);
 
-            FloatingUITest floatingUI;
-            if (floatingUI = hit.transform.GetComponent<FloatingUITest>())
+            FloatingUI floatingUI;
+            if (floatingUI = hit.transform.GetComponent<FloatingUI>())
             {
                 Vector3 localPoint = hit.transform.GetComponent<RectTransform>().InverseTransformPoint(hit.point);
-                floatingUI.HandlePointer(localPoint);
+                if (doClick)
+                    floatingUI.HandleClick(localPoint);
+                else if (doUnclick)
+                    floatingUI.HandleUnclick(localPoint);
+                else
+                    floatingUI.HandlePointer(localPoint);
             }
         }
         else
             ShowLaser(75);
     }
-    private cakeslice.Outline lastOutline;
     /// <summary>
     /// Activates a hint that the daggerfall item you're pointing at with a laser can be activated
     /// </summary>
@@ -177,8 +187,8 @@ public class VRController : MonoBehaviour
 
             if (mr && mr.transform.tag != "StaticGeometry" && mr.gameObject.layer != equipmentLayer)
             {
-                if (lastOutline)
-                    lastOutline.enabled = false;
+                if (lastHighlightedDaggerfallInteractable)
+                    lastHighlightedDaggerfallInteractable.enabled = false;
 
                 cakeslice.Outline outline = mr.GetComponent<cakeslice.Outline>();
                 if (outline)
@@ -188,27 +198,15 @@ public class VRController : MonoBehaviour
                     outline = mr.gameObject.AddComponent<cakeslice.Outline>();
                     outline.color = 1;
                 }
-                lastOutline = outline;
-                //Vector3 newScale = mr.bounds.size;
-                //BillboardRotationCorrector billboardCorrector;
-                //if (billboardCorrector = mr.GetComponent<BillboardRotationCorrector>())
-                //{ // billboards' mesh sizes are all screwy if not rotated to zero
-                //    mr.transform.rotation = Quaternion.identity;
-                //    newScale = mr.bounds.size;
-                //    newScale.z = .1f;
-                //    billboardCorrector.CorrectRotation();
-                //}
-                //newScale *= 1.05f;
-                //vrUIManager.repositionHint(mr.bounds.center, newScale, mr.transform.rotation);
+                lastHighlightedDaggerfallInteractable = outline;
                 return true;
             }
         }
         else
             ShowLaser(75);
 
-        if (lastOutline)
-            lastOutline.enabled = false;
-        //vrUIManager.HideHint();
+        if (lastHighlightedDaggerfallInteractable)
+            lastHighlightedDaggerfallInteractable.enabled = false;
         return false;
     }
 
@@ -226,7 +224,7 @@ public class VRController : MonoBehaviour
                 //activate UI with laser
                 ActivateUI();
                 //no highlighting of weapons when paused
-                DeactivateHighlightOnVRWeapon();
+                DeactivateHighlightOnVREquipment();
             }
             else
             {
@@ -252,30 +250,32 @@ public class VRController : MonoBehaviour
                         }
                     }
                     //Highlight equipment. Handle last highlighted equipment.
-                    if (lastHighlightedEquipment && equipment != lastHighlightedEquipment)
-                        lastHighlightedEquipment.UnHighlight();
-                    equipment.Highlight();
-                    lastHighlightedEquipment = equipment;
+                    if (equipment != lastHighlightedVREquipment)
+                    {
+                        DeactivateHighlightOnVREquipment();
+                        equipment.Highlight();
+                    }
+                    lastHighlightedVREquipment = equipment;
                 }
                 //No vr weapon was highlighted this frame, so unhighlight any weapon we were previously highlighting
                 else
-                    DeactivateHighlightOnVRWeapon();
+                    DeactivateHighlightOnVREquipment();
             }
         }
         else
         {
             laser.SetActive(false);
-            if (lastOutline)
-                lastOutline.enabled = false;
-            DeactivateHighlightOnVRWeapon();
+            if (lastHighlightedDaggerfallInteractable)
+                lastHighlightedDaggerfallInteractable.enabled = false;
+            DeactivateHighlightOnVREquipment();
         }
     }
-    private void DeactivateHighlightOnVRWeapon()
+    private void DeactivateHighlightOnVREquipment()
     {
-        if (lastHighlightedEquipment != null)
+        if (lastHighlightedVREquipment != null)
         {
-            lastHighlightedEquipment.UnHighlight();
-            lastHighlightedEquipment = null;
+            lastHighlightedVREquipment.UnHighlight();
+            lastHighlightedVREquipment = null;
         }
     }
     private void ShowLaser(float distance)
@@ -313,11 +313,17 @@ public class VRController : MonoBehaviour
     // SteamVR actions
     private void SelectWorldObject_onStateDown(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource)
     {
-        Debug.Log("SteamVR input action detected: SelectWorldObject from " + fromSource + " on hand " + hand.handType);
+        Debug.Log("SteamVR input action detected: SelectWorldObject on hand " + hand.handType);
         if (!inputManager.IsPaused)
         {
             TrySelectObject();
             TryGrabVREquipment();
         }
+    }
+
+    private void InteractUIAction_onChange(SteamVR_Action_Boolean fromAction, SteamVR_Input_Sources fromSource, bool newState)
+    {
+        if(laser.gameObject.activeSelf)
+            ActivateUI(newState, !newState);
     }
 }

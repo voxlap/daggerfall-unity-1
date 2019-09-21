@@ -4,6 +4,7 @@ using UnityEngine;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Serialization;
 using Valve.VR.InteractionSystem;
 
 public class VREquipmentManager : MonoBehaviour
@@ -37,13 +38,17 @@ public class VREquipmentManager : MonoBehaviour
     public Color ebonyColor = (Color.black + Color.grey * 2f) / 3f;
     public Color orcishColor = (Color.red + Color.yellow + Color.grey) / 3f;
     public Color daedricColor = (Color.red + Color.black) / 2f;
+
+    //properties
+    private ItemEquipTable itemEquipTable { get { return GameManager.Instance.PlayerEntity.ItemEquipTable; } }
     
     /// <summary> Dictionary of instantiated weapons. It's a list of equipment because some weapons can be dual weilded, so two will be spawned.
     /// The key is the item's template index. </summary>
     private Dictionary<int, List<VREquipment>> instantiatedEquipment = new Dictionary<int, List<VREquipment>>();
 
     private List<VREquipment> currentlyEquippedItems = new List<VREquipment>();
-    
+    private Coroutine equipItemsCoroutine;
+
     const Weapons k_weaponStart = Weapons.Dagger;
     const Weapons k_weaponEnd = Weapons.Long_Bow;
     const Armor k_armorStart = Armor.Buckler;
@@ -79,17 +84,20 @@ public class VREquipmentManager : MonoBehaviour
     {
         ItemEquipTable.OnItemEquipped -= ItemEquipTable_OnItemEquipped;
         ItemEquipTable.OnItemUnequipped -= ItemEquipTable_OnItemUnequipped;
+        SaveLoadManager.OnLoad -= SaveLoadManager_OnLoad;
     }
     public void Init()
     {
-        SpawnAllEquipment();
-        ItemEquipTable.OnItemEquipped += ItemEquipTable_OnItemEquipped;
-        ItemEquipTable.OnItemUnequipped += ItemEquipTable_OnItemUnequipped;
-        StartCoroutine(EquipItemsOnLoad());
         //attach floating item parents to VR player
         leftHandEquippedItemParent.parent.SetParent(Player.instance.trackingOriginTransform);
         leftHandEquippedItemParent.parent.localPosition = Vector3.zero;
         leftHandEquippedItemParent.parent.localRotation = Quaternion.identity;
+        //spawn equipment
+        SpawnAllEquipment();
+        //set up event listeners
+        ItemEquipTable.OnItemEquipped += ItemEquipTable_OnItemEquipped;
+        ItemEquipTable.OnItemUnequipped += ItemEquipTable_OnItemUnequipped;
+        SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
     }
     public void DebugRaycastOriginAndDirection(Vector3 origin, Vector3 direction, float distance, bool succeeded = true)
     {
@@ -108,19 +116,44 @@ public class VREquipmentManager : MonoBehaviour
         debugDirection.GetComponentInChildren<MeshRenderer>().material.color = succeeded ? originalDirectionColor : Color.red;
     }
 
-    private IEnumerator EquipItemsOnLoad()
+    private void UnequipAllItems()
     {
-        while (!GameManager.Instance.SaveLoadManager.IsReady() || GameManager.Instance.SaveLoadManager.LoadInProgress || GameManager.IsGamePaused)
+        for (int i = 0; i < currentlyEquippedItems.Count; ++i)
+            UnequipItem(currentlyEquippedItems[i].DaggerfallItem);
+        Debug.Assert(currentlyEquippedItems.Count == 0, "Tried to unequip all items, but we still have " + currentlyEquippedItems.Count + " items equipped.");
+    }
+
+    private bool IsEquipTableLoaded()
+    {
+        var table = itemEquipTable.EquipTable;
+        for (int i = 0; i < table.Length; ++i)
+            if (table[i] != null)
+                return true;
+        return false;
+    }
+    private void EquipItemsOnLoad()
+    {
+        //stop current coroutine if it's running
+        if(equipItemsCoroutine != null)
+            StopCoroutine(equipItemsCoroutine);
+        //start a new iteration of the coroutine
+        equipItemsCoroutine = StartCoroutine(EquipItemsOnLoadCoroutine());
+    }
+    private IEnumerator EquipItemsOnLoadCoroutine()
+    {
+        while (!GameManager.Instance.SaveLoadManager.IsReady() || GameManager.Instance.SaveLoadManager.LoadInProgress || GameManager.IsGamePaused || !IsEquipTableLoaded())
             yield return null;
 
-        Valve.VR.InteractionSystem.Hand rightHand = DaggerfallVRPlayer.Instance.RightHand;
-        Valve.VR.InteractionSystem.Hand leftHand = DaggerfallVRPlayer.Instance.LeftHand;
+        UnequipAllItems();
+
+        Hand rightHand = DaggerfallVRPlayer.Instance.RightHand;
+        Hand leftHand = DaggerfallVRPlayer.Instance.LeftHand;
         bool didSpawnLeft = false, didSpawnRight = false;
        
-        while(!didSpawnLeft && !didSpawnRight)
+        while(!didSpawnLeft || !didSpawnRight)
         {
             yield return new WaitForSeconds(.1f);
-            if (rightHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
+            if (!didSpawnRight && rightHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
             {
                 yield return new WaitForSeconds(.5f);
                 didSpawnRight = true;
@@ -128,7 +161,7 @@ public class VREquipmentManager : MonoBehaviour
                 if (rightItem != null)
                     EquipItem(rightItem);
             }
-            if (leftHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
+            if (!didSpawnLeft && leftHand.GetTrackedObjectVelocity().sqrMagnitude > .001f)
             {
                 yield return new WaitForSeconds(.5f);
                 didSpawnLeft = true;
@@ -157,7 +190,6 @@ public class VREquipmentManager : MonoBehaviour
     {
         if(item == null)
         {
-            Debug.LogWarning("Couldn't equip a null item.");
             return false;
         }
         return IsEquipable(item.ItemGroup, item.TemplateIndex);
@@ -389,6 +421,10 @@ public class VREquipmentManager : MonoBehaviour
             EquipItem(item);
     }
 
+    private void SaveLoadManager_OnLoad(SaveData_v1 saveData)
+    {
+        EquipItemsOnLoad();
+    }
 
     public Color GetDaggerfallItemMaterialColor(DaggerfallUnityItem item)
     {

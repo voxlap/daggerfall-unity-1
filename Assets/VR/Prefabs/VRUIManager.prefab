@@ -51,9 +51,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dbc259d87e8ced54a951e3bc0a47a0c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  FloatingUIPrefab: {fileID: 1309422617389174, guid: 1dc6d20d97703634ab0535825856e3b4,
+  FloatingUIPrefab: {fileID: 1744048206755802, guid: 289d6e074c3d1384286be82c193b8760,
     type: 2}
   floatingUI: {fileID: 0}
   FollowingUIPrefab: {fileID: 1978699560337488, guid: 39cbe0dcd268a1e43b6cd8f687b1b96e,
     type: 2}
-  HintPrefab: {fileID: 1785574018573570, guid: 76b775ba9014898478657a7961f4ff35, type: 2}

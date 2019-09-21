@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Game;
 using Valve.VR;
 using Valve.VR.InteractionSystem;
 
@@ -17,12 +18,15 @@ public class VREquipment : MonoBehaviour
     // properties
     public bool IsEquipped { get; private set; }
     public ulong UID { get { return daggerfallItem == null ? ulong.MaxValue : daggerfallItem.UID; } }
+    public EquipSlots EquipSlot { get { return daggerfallItem == null ? EquipSlots.None : daggerfallItem.EquipSlot; } }
 
     public virtual Throwable Throwable { get; protected set; }
     public virtual Interactable Interactable { get; protected set; }
     public virtual VelocityEstimator VelocityEstimator { get; protected set; }
     public virtual Rigidbody Rigidbody { get; protected set; }
     public virtual InteractableHoverEvents InteractableHoverEvents { get; protected set; }
+    public virtual SteamVR_Skeleton_Poser SkeletonPoser { get; protected set; }
+    public virtual DaggerfallUnityItem DaggerfallItem { get { return daggerfallItem; } }
     private cakeslice.Outline[] outlines = new cakeslice.Outline[0];
 
     protected virtual void Awake()
@@ -33,7 +37,8 @@ public class VREquipment : MonoBehaviour
         VelocityEstimator = GetComponent<VelocityEstimator>();
         Rigidbody = GetComponent<Rigidbody>();
         InteractableHoverEvents = GetComponent<InteractableHoverEvents>();
-        outlines = gameObject.GetComponentsInChildren<cakeslice.Outline>();
+        SkeletonPoser = GetComponent<SteamVR_Skeleton_Poser>();
+        outlines = gameObject.GetComponentsInChildren<cakeslice.Outline>(true);
         UnHighlight();
         //add event listeners
         Throwable.onPickUp.AddListener(OnPickup);
@@ -89,6 +94,7 @@ public class VREquipment : MonoBehaviour
     {
         IsEquipped = false;
         ForceDetachFromHand();
+        transform.parent = VREquipmentManager.Instance.equipmentParent;
         gameObject.SetActive(false);
 
         Debug.Log("Unequipped " + daggerfallItem.LongName);
@@ -121,6 +127,7 @@ public class VREquipment : MonoBehaviour
     {
         transform.SetParent(VREquipmentManager.Instance.equipmentParent);
         Rigidbody.isKinematic = false;
+        Rigidbody.AddForce(GameManager.Instance.PlayerController.velocity, ForceMode.VelocityChange);
     }
     protected virtual void OnHoverHandBegins()
     {

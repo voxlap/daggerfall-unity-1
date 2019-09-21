@@ -47,6 +47,9 @@ namespace Valve.VR
 
         private bool PoseChanged = false;
 
+        //Daggerfall SteamVR Change: keep track of attachment offset, to set position of pose preview correctly
+        private Transform attachmentOffset;
+
         protected void OnEnable()
         {
             skeletonMainPoseProperty = serializedObject.FindProperty("skeletonMainPose");
@@ -73,6 +76,11 @@ namespace Valve.VR
 
 
             poser = (SteamVR_Skeleton_Poser)target;
+
+            //Daggerfall SteamVR Change: adding reference to attachment offset, so we can position the preview hands appropriately.
+            InteractionSystem.Throwable throwable;
+            if (throwable = poser.GetComponent<Valve.VR.InteractionSystem.Throwable>())
+                attachmentOffset = throwable.attachmentOffset;
         }
 
         protected void LoadDefaultPreviewHands()
@@ -152,6 +160,14 @@ namespace Valve.VR
 
                         preview.transform.localRotation = Quaternion.Inverse(handData.rotation);
                         preview.transform.position = preview.transform.TransformPoint(-handData.position);
+                        //Daggerfall SteamVR Change: if present, apply attachment offset position and rotation to preview transform
+                        if (attachmentOffset)
+                        {
+                            //preview.transform.localRotation *= attachmentOffset.localRotation;
+                            //preview.transform.position += attachmentOffset.position - poser.transform.position;
+                            preview.transform.localRotation = attachmentOffset.localRotation;
+                            preview.transform.localPosition = attachmentOffset.localPosition;
+                        }
 
 
                         for (int boneIndex = 0; boneIndex < handData.bonePositions.Length; boneIndex++)
@@ -195,8 +211,14 @@ namespace Valve.VR
         protected void SaveHandData(SteamVR_Skeleton_Pose_Hand handData, SteamVR_Behaviour_Skeleton thisSkeleton)
         {
             handData.position = thisSkeleton.transform.InverseTransformPoint(poser.transform.position);
-            //handData.position = thisSkeleton.transform.localPosition;
             handData.rotation = Quaternion.Inverse(thisSkeleton.transform.localRotation);
+
+            //Daggerfall SteamVR Change: If attachment offset is present, save the current transform data without its presence
+            if (attachmentOffset)
+            {
+                handData.rotation *= attachmentOffset.localRotation;
+                handData.position += thisSkeleton.transform.InverseTransformVector(attachmentOffset.position - poser.transform.position);
+            }
 
             handData.bonePositions = new Vector3[SteamVR_Action_Skeleton.numBones];
             handData.boneRotations = new Quaternion[SteamVR_Action_Skeleton.numBones];
@@ -242,14 +264,19 @@ namespace Valve.VR
                     bool confirm = EditorUtility.DisplayDialog("SteamVR", string.Format("This will overwrite your current {0} skeleton data. (with data from the {1} skeleton)", thisSourceString, oppositeSourceString), "Overwrite", "Cancel");
                     if (confirm)
                     {
-                        Vector3 reflectedPosition = new Vector3(-oppositeSkeleton.transform.localPosition.x, oppositeSkeleton.transform.localPosition.y, oppositeSkeleton.transform.localPosition.z);
+                        //Daggerfall SteamVR change: reflecting along y axis instead of x axis. 
+                        //Applying the reflection to each bone, rather than keeping the root positional and rotational offset.
+
+                        Vector3 oppositePosition = oppositeSkeleton.transform.localPosition;
+                        Vector3 reflectedPosition = new Vector3(oppositePosition.x, -oppositePosition.y, oppositePosition.z);
                         thisSkeleton.transform.localPosition = reflectedPosition;
 
-                        Quaternion oppositeRotation = oppositeSkeleton.transform.localRotation;
-                        Quaternion reflectedRotation = new Quaternion(-oppositeRotation.x, oppositeRotation.y, oppositeRotation.z, -oppositeRotation.w);
+                        Vector3 oppositeRotation = oppositeSkeleton.transform.localEulerAngles;
+                        Quaternion reflectedRotation = Quaternion.Euler(-oppositeRotation.x, oppositeRotation.y, oppositeRotation.z);
                         thisSkeleton.transform.localRotation = reflectedRotation;
 
-
+                        Vector3[] boneWorldPositions = new Vector3[SteamVR_Action_Skeleton.numBones];
+                        Quaternion[] boneWorldRotations = new Quaternion[SteamVR_Action_Skeleton.numBones];
                         for (int boneIndex = 0; boneIndex < SteamVR_Action_Skeleton.numBones; boneIndex++)
                         {
                             Transform boneThis = thisSkeleton.GetBone(boneIndex);
@@ -257,7 +284,18 @@ namespace Valve.VR
 
                             boneThis.localPosition = boneOpposite.localPosition;
                             boneThis.localRotation = boneOpposite.localRotation;
+                            boneWorldPositions[boneIndex] = boneThis.position;
+                            boneWorldRotations[boneIndex] = boneThis.rotation;
+                        }
+                        thisSkeleton.transform.localPosition = oppositePosition;
+                        thisSkeleton.transform.localRotation = Quaternion.Euler(oppositeRotation);
+                        for (int boneIndex = 0; boneIndex < SteamVR_Action_Skeleton.numBones; boneIndex++)
+                        {
+                            Transform boneThis = thisSkeleton.GetBone(boneIndex);
+                            Transform boneOpposite = oppositeSkeleton.GetBone(boneIndex);
 
+                            boneThis.position = boneWorldPositions[boneIndex];
+                            boneThis.rotation = boneWorldRotations[boneIndex];
                         }
 
                         handData.thumbFingerMovementType = otherData.thumbFingerMovementType;

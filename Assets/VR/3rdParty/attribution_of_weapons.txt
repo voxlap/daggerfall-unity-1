@@ -1,0 +1,37 @@
+Attribution of weapons:
+    * War Axe: Poleaxe from Free Medieval Weapons
+    * Battle Axe: Axe_2h from Free Medieval Weapons
+    * Broadsword: Sword from Free Medieval Weapons
+    * Longsword: sword_2h from Free Medieval Weapons
+    * Dagger: Medieval Dagger
+    * Claymore: claymore from Basic Sword Pack
+    * Warhammer: SledgeHammer
+    * Saber: Realistic Saber
+    * Shortsword: broadsword3 from Basic Sword Pack
+    * Wakizashi: Wakizashi Short Sword
+    * Katana: katana from Basic Sword Pack
+    * Daikatana: Free Katana and Scabbard
+    * Tanto: Tanto
+    * SpikeBall: Spike Ball from Ball Pack
+
+Links:
+    * Ball Pack by Youngen Tech:
+        https://assetstore.unity.com/packages/3d/props/ball-pack-446
+    * Free Medieval Weapons by Gnarly Potato:
+        https://assetstore.unity.com/packages/3d/props/weapons/free-medieval-weapons-72541
+    * Medieval Dagger by Cahy Design: 
+        https://assetstore.unity.com/packages/3d/props/weapons/medieval-dagger-aaa-pbr-141202
+    * Basic Sword Pack by Rereke:
+        https://assetstore.unity.com/packages/3d/basic-sword-pack-62096
+    * Wakizashi Short Sword by Tanuki Digital: 
+        https://assetstore.unity.com/packages/3d/props/weapons/wakizashi-short-sword-144679
+    * Sledge Hammer by RRFreelance: 
+        https://assetstore.unity.com/packages/3d/props/tools/sledge-hammer-20498
+    * Realistic Saber by Rain GS: 
+        https://assetstore.unity.com/packages/3d/props/weapons/realistic-saber-60838
+    * Free Katana and Scabbard by Hideout Studio:
+        https://assetstore.unity.com/packages/3d/props/weapons/free-katana-and-scabbard-67185
+    * Tanto by Black Light Studios:
+        https://assetstore.unity.com/packages/3d/props/weapons/tanto-knife-83268
+    * Ball Pack by Youngen Tech:
+        https://assetstore.unity.com/packages/3d/props/ball-pack-446

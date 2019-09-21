@@ -11,8 +11,7 @@ public class ViveControllerInput : BaseInputModule
     public static ViveControllerInput Instance;
 
     [Header(" [Cursor setup]")]
-    public Sprite CursorSprite;
-    public Material CursorMaterial;
+    public string CursorTextureResourceName = "Cursor";
     public float NormalCursorScale = 0.00025f;
 
     [Space(10)]
@@ -30,7 +29,7 @@ public class ViveControllerInput : BaseInputModule
     private GameObject[] CurrentPoint;
     private GameObject[] CurrentPressed;
     private GameObject[] CurrentDragging;
-    private Hand[] Controllers;
+    private VRController[] Controllers;
 
     private PointerEventData[] PointEvents;
 
@@ -50,10 +49,11 @@ public class ViveControllerInput : BaseInputModule
             ControllerCamera = new GameObject("Controller UI Camera").AddComponent<Camera>();
             ControllerCamera.clearFlags = CameraClearFlags.Nothing; //CameraClearFlags.Depth;
             ControllerCamera.cullingMask = 0; // 1 << LayerMask.NameToLayer("UI"); 
+            ControllerCamera.stereoTargetEye = StereoTargetEyeMask.None;
 
-            Controllers = new Hand[Player.instance.handCount];
+            Controllers = new VRController[Player.instance.handCount];
             for (int i = 0; i < Controllers.Length; ++i)
-                Controllers[i] = Player.instance.GetHand(i);
+                Controllers[i] = Player.instance.GetHand(i).GetComponent<VRController>();
 
             Cursors = new RectTransform[Controllers.Length];
             for (int index = 0; index < Cursors.Length; index++)
@@ -68,13 +68,12 @@ public class ViveControllerInput : BaseInputModule
                 canvas.renderMode = RenderMode.WorldSpace;
                 canvas.sortingOrder = 1000; //set to be on top of everything
 
-                Image image = cursor.AddComponent<Image>();
-                image.sprite = CursorSprite;
-                image.material = CursorMaterial;
+                RawImage image = cursor.AddComponent<RawImage>();
+                image.texture = Resources.Load<Texture2D>(CursorTextureResourceName);
 
 
-                if (CursorSprite == null)
-                    Debug.LogError("Set CursorSprite on " + this.gameObject.name + " to the sprite you want to use as your cursor.", this.gameObject);
+                if (image.texture == null)
+                    Debug.LogWarning("Set CursorSprite on " + this.gameObject.name + " to the sprite you want to use as your cursor.", this.gameObject);
 
                 Cursors[index] = cursor.GetComponent<RectTransform>();
             }
@@ -189,8 +188,8 @@ public class ViveControllerInput : BaseInputModule
 
     private void UpdateCameraPosition(int index)
     {
-        ControllerCamera.transform.position = Controllers[index].transform.position;
-        ControllerCamera.transform.forward = Controllers[index].transform.forward;
+        ControllerCamera.transform.position = Controllers[index].laserPositionTF.position;
+        ControllerCamera.transform.forward = Controllers[index].laserPositionTF.forward;
     }
 
     // Process is called by UI system to process events
@@ -308,11 +307,11 @@ public class ViveControllerInput : BaseInputModule
 
     private bool ButtonDown(int index)
     {
-        return VRInputActions.GrabGripAction.GetStateDown(Controllers[index].handType);
+        return VRInputActions.InteractUIAction.GetStateDown(Controllers[index].VRHand.handType);
     }
 
     private bool ButtonUp(int index)
     {
-        return VRInputActions.GrabGripAction.GetStateUp(Controllers[index].handType);
+        return VRInputActions.InteractUIAction.GetStateUp(Controllers[index].VRHand.handType);
     }
 }
