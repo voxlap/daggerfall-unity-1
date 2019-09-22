@@ -1,7 +1,6 @@
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
 using System;
-using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.UI;
 using Valve.VR;
