@@ -388,8 +388,11 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport
         public bool TryGetAsset<T>(string name, bool clone, out T asset) where T : UnityEngine.Object
         {
             var query = from mod in EnumerateModsReverse()
-                        where mod.AssetBundle != null
-                        where mod.AssetBundle.Contains(name)
+#if UNITY_EDITOR
+                        where (mod.AssetBundle != null && mod.AssetBundle.Contains(name)) || (mod.IsVirtual && mod.HasAsset(name))
+#else
+                        where mod.AssetBundle != null && mod.AssetBundle.Contains(name)
+#endif
                         select mod.GetAsset<T>(name, clone);
 
             return (asset = query.FirstOrDefault()) != null;
@@ -410,8 +413,13 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport
         public bool TryGetAsset<T>(string[] names, bool clone, out T asset) where T : UnityEngine.Object
         {
             var query = from mod in EnumerateModsReverse()
+#if UNITY_EDITOR
+                        where mod.AssetBundle != null || mod.IsVirtual
+                        from name in names where mod.IsVirtual ? mod.HasAsset(name) : mod.AssetBundle.Contains(name)
+#else
                         where mod.AssetBundle != null
                         from name in names where mod.AssetBundle.Contains(name)
+#endif
                         select mod.GetAsset<T>(name, clone);
 
             return (asset = query.FirstOrDefault()) != null;
@@ -851,6 +859,22 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport
                 return;
             else
                 mod.MessageReceiver(message, data, callback);
+        }
+
+        /// <summary>
+        /// Combines an array of strings into a path.
+        /// This is a substitute of an overload of <see cref="Path.Combine(string, string)"/> which is not available with current .NET version.
+        /// </summary>
+        /// <param name="paths">An array of parts of the path.</param>
+        /// <returns>The combined paths.</returns>
+        public static string CombinePaths(params string[] paths)
+        {
+            string path = string.Empty;
+
+            for (int i = 0; i < paths.Length; i++)
+                path = Path.Combine(path, paths[i]);
+
+            return path;
         }
 
 #if UNITY_EDITOR

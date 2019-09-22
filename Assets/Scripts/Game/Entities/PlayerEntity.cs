@@ -153,7 +153,7 @@ namespace DaggerfallWorkshop.Game.Entity
         public uint TimeOfLastSkillTraining { get { return timeOfLastSkillTraining; } set { timeOfLastSkillTraining = value; } }
         public uint TimeOfLastStealthCheck { get { return timeOfLastStealthCheck; } set { timeOfLastStealthCheck = value; } }
         public int StartingLevelUpSkillSum { get { return startingLevelUpSkillSum; } set { startingLevelUpSkillSum = value; } }
-        public int CurrentLevelUpSkillSum { get { return currentLevelUpSkillSum; } }
+        public int CurrentLevelUpSkillSum { get { return currentLevelUpSkillSum; } internal set { currentLevelUpSkillSum = value; } }
         public bool ReadyToLevelUp { get { return readyToLevelUp; } set { readyToLevelUp = value; } }
         public bool OghmaLevelUp { get { return oghmaLevelUp; } set { oghmaLevelUp = value; } }
         public short[] SGroupReputations { get { return sGroupReputations; } set { sGroupReputations = value; } }
@@ -177,6 +177,7 @@ namespace DaggerfallWorkshop.Game.Entity
         public Crimes CrimeCommitted { get { return crimeCommitted; } set { SetCrimeCommitted(value); } }
         public bool HaveShownSurrenderToGuardsDialogue { get { return haveShownSurrenderToGuardsDialogue; } set { haveShownSurrenderToGuardsDialogue = value; } }
         public bool Arrested { get { return arrested; } set { arrested = value; } }
+        public bool InPrison { get ; set ; }
         public bool IsInBeastForm { get; set; }
         public List<string> BackStory { get; set; }
         public VampireClans PreviousVampireClan { get; set; }
@@ -1548,9 +1549,25 @@ namespace DaggerfallWorkshop.Game.Entity
             List<int> keys = new List<int>(factionData.FactionDict.Keys);
             foreach (int key in keys)
             {
-                if (factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Province ||
-                        factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Group ||
-                        factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Subgroup)
+                // Classic does not do any check on factions included in rumor mill.
+                // Here we exclude all generic factions and those which should clearly not be
+                // included like Oblivion or The Septim Empire.
+                if ((factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Province ||
+                     factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Group ||
+                     factionData.FactionDict[key].type == (int)FactionFile.FactionTypes.Subgroup) &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Oblivion &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Children &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Generic_Knightly_Order &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Smiths &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Questers &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Healers &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Seneschal &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Temple_Missionaries &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Temple_Treasurers &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Temple_Healers &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Temple_Blessers &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.Random_Ruler &&
+                    factionData.FactionDict[key].id != (int)FactionFile.FactionIDs.The_Septim_Empire)
                 {
                     // Get power mod from allies
                     int[] allies = { factionData.FactionDict[key].ally1, factionData.FactionDict[key].ally2, factionData.FactionDict[key].ally3 };

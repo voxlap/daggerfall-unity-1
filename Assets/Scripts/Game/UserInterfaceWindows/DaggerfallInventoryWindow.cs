@@ -315,7 +315,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Setup initial state
             SelectTabPage(TabPages.WeaponsAndArmor);
-            SetupDefaultActionMode();
+            SelectActionMode((lootTarget != null) ? ActionModes.Remove : ActionModes.Equip);
+            CheckWagonAccess();
 
             // Setup initial display
             FilterLocalItems();
@@ -541,35 +542,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
-        private void SetupDefaultActionMode()
-        {
-            bool dungeonExitPromptY = allowDungeonWagonAccess;
-            if (!allowDungeonWagonAccess &&
-                GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon &&
-                PlayerEntity.Items.Contains(ItemGroups.Transportation, (int)Transportation.Small_cart))
-                allowDungeonWagonAccess = DungeonWagonAccessProximityCheck();
-
-            if (lootTarget != null)
-                SelectActionMode(ActionModes.Remove);
-            else if (DaggerfallUnity.Settings.DungeonExitWagonPrompt)
-            {
-                if (dungeonExitPromptY)
-                {
-                    SelectActionMode(ActionModes.Remove);
-                    ShowWagon(true);
-                }
-            }
-            else
-            { // !DaggerfallUnity.Settings.DungeonExitWagonPrompt
-                SelectActionMode(ActionModes.Equip);
-                if (allowDungeonWagonAccess)
-                {
-                    ShowWagon(true);
-                    // do not change default ActionMode, this can be confusing
-                }
-            }
-        }
-
         public override void OnPush()
         {
             // Racial override can suppress inventory
@@ -645,7 +617,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
             if (IsSetup)
             {
-                SetupDefaultActionMode();
+                CheckWagonAccess();
                 // Reset item list scroll
                 localItemListScroller.ResetScroll();
                 remoteItemListScroller.ResetScroll();
@@ -1065,6 +1037,23 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             Refresh(false);
         }
 
+        private void CheckWagonAccess()
+        {
+            if (allowDungeonWagonAccess)
+            {
+                ShowWagon(true);
+                SelectActionMode(ActionModes.Remove);
+            }
+            else if (GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon &&
+                     PlayerEntity.Items.Contains(ItemGroups.Transportation, (int)Transportation.Small_cart) &&
+                     DungeonWagonAccessProximityCheck())
+            {
+                allowDungeonWagonAccess = true;
+                if (lootTarget == null)
+                    ShowWagon(true);
+            }
+        }
+
         bool DungeonWagonAccessProximityCheck()
         {
             const float proximityWagonAccessDistance = 5f;
@@ -1425,16 +1414,16 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 Item questItem = GetQuestItem(item);
 
                 // Player cannot drop most quest items
-                if (questItem == null | (!questItem.AllowDrop && from == localItems))
+                if (questItem == null || (!questItem.AllowDrop && from == localItems))
                 {
                     DaggerfallUI.MessageBox(TextManager.Instance.GetText(textDatabase, "cannotRemoveItem"));
                     return;
                 }
 
                 // Dropping or picking up quest item
-                if (questItem.AllowDrop && from == localItems && remoteTargetType == RemoteTargetTypes.Dropped)
+                if (questItem.AllowDrop && from == localItems && remoteTargetType != RemoteTargetTypes.Wagon)
                     questItem.PlayerDropped = true;
-                else if (questItem.AllowDrop && from == remoteItems && remoteTargetType == RemoteTargetTypes.Dropped)
+                else if (from == remoteItems)
                     questItem.PlayerDropped = false;
             }
             // Extinguish light sources when transferring out of player inventory
@@ -1516,8 +1505,10 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             Refresh(false);
             DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
 
-            if (chooseOne)
+            if (chooseOne && remoteItems == from && !usingWagon)
             {
+                while (uiManager.TopWindow != this)
+                    uiManager.PopWindow();
                 CloseWindow();
                 chooseOneCallback(item);
             }

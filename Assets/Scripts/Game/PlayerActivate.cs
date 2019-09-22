@@ -149,10 +149,8 @@ namespace DaggerfallWorkshop.Game
             }
 
             // Fire ray into scene
-            if (InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
+            if (InputManager.Instance.ActionComplete(InputManager.Actions.ActivateCenterObject))
             {
-                // TODO: Clean all this up
-
                 // Fire ray into scene for hit tests (excluding player so their ray does not intersect self)
                 Ray ray = new Ray(rayEmitter.transform.position, rayEmitter.transform.forward);
                 RaycastHit hit;
@@ -295,10 +293,10 @@ namespace DaggerfallWorkshop.Game
                     if (!buildingUnlocked && buildingType < DFLocation.BuildingTypes.Temple
                         && buildingType != DFLocation.BuildingTypes.HouseForSale)
                     {
-                        string storeClosedMessage = HardStrings.storeClosed;
-                        storeClosedMessage = storeClosedMessage.Replace("%d1", openHours[(int)buildingType].ToString());
-                        storeClosedMessage = storeClosedMessage.Replace("%d2", closeHours[(int)buildingType].ToString());
-                        DaggerfallUI.Instance.PopupMessage(storeClosedMessage);
+                        string buildingClosedMessage = (buildingType == DFLocation.BuildingTypes.GuildHall) ? HardStrings.guildClosed : HardStrings.storeClosed;
+                        buildingClosedMessage = buildingClosedMessage.Replace("%d1", openHours[(int)buildingType].ToString());
+                        buildingClosedMessage = buildingClosedMessage.Replace("%d2", closeHours[(int)buildingType].ToString());
+                        DaggerfallUI.Instance.PopupMessage(buildingClosedMessage);
                     }
                 }
             }
