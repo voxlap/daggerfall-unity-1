@@ -2389,6 +2389,8 @@ GameObject:
   - component: {fileID: 96605712229344630}
   - component: {fileID: 114885318543534530}
   - component: {fileID: 114987903309960694}
+  - component: {fileID: 114538636927383426}
+  - component: {fileID: 82874706435729692}
   m_Layer: 15
   m_Name: SpikeBall
   m_TagString: Untagged
@@ -4185,7 +4187,7 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1627620331450364}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0.000000119209275, y: 0.000000029802319, z: 0.9370439, w: 0.3492116}
   m_LocalPosition: {x: 1.7, y: -0, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -4197,7 +4199,7 @@ Transform:
   - {fileID: 4986486679095122}
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 139.12201}
 --- !u!4 &4893043967700890
 Transform:
   m_ObjectHideFlags: 1
@@ -6741,7 +6743,7 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RenderingLayerMask: 4294967295
   m_Materials:
-  - {fileID: 2100000, guid: bd38ee2ba1043fd49bea10e41fcd7f76, type: 2}
+  - {fileID: 2100000, guid: f3674d0d8b3c3d6439c26d99ea6b94a3, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -10135,6 +10137,101 @@ BoxCollider:
   serializedVersion: 2
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!82 &82874706435729692
+AudioSource:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1990290909005376}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 8300000, guid: e374bae5a7149fc46b71a8322cc0a0ca, type: 3}
+  m_PlayOnAwake: 1
+  m_Volume: 0
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 50
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
 --- !u!96 &96605712229344630
 TrailRenderer:
   serializedVersion: 2
@@ -10392,7 +10489,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c29d9e924ef3974b8dcc42f5db1dc5e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  metalMeshRenderer: {fileID: 23764126752104670}
+  metalMeshRenderer: {fileID: 23449741899223630}
+  metalColliders: []
+  woodColliders:
+  - {fileID: 136300986997793666}
   minVelocityMagnitudeForDamage: 1
   weaponPieces:
   - {fileID: 114885318543534530}
@@ -10412,6 +10512,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   color: 0
   eraseRenderer: 0
+--- !u!114 &114538636927383426
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1990290909005376}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93d2c712876f3ef448b7a4a2e72b1c8b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  minVelocity: 3
+  maxVelocity: 30
+  minVolume: 0.05
+  maxVolume: 1
 --- !u!114 &114571222830042782
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -10556,6 +10671,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1dd0dfc576ce7394a8a14aa343d743ac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isMetal: 0
 --- !u!114 &114987903309960694
 MonoBehaviour:
   m_ObjectHideFlags: 1

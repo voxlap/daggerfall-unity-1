@@ -194,8 +194,8 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1553590815351860}
-  m_LocalRotation: {x: -0.39203328, y: -0.27172583, z: 0.61852807, w: 0.62441826}
-  m_LocalPosition: {x: -0.08562863, y: 0.01605779, z: 0.12531257}
+  m_LocalRotation: {x: 0.064901054, y: -0.044723272, z: -0.7294207, w: -0.6795095}
+  m_LocalPosition: {x: -0.0066006184, y: 0.016057253, z: 0.17270643}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 4629663469860110}
@@ -309,7 +309,7 @@ Rigidbody:
   m_Drag: 0
   m_AngularDrag: 0.05
   m_UseGravity: 1
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
@@ -543,6 +543,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   metalMeshRenderer: {fileID: 23304657354567618}
+  metalColliders:
+  - {fileID: 65473989727818414}
+  - {fileID: 65091626373475792}
+  woodColliders:
+  - {fileID: 65722606267872910}
+  - {fileID: 65413989927634186}
   minVelocityMagnitudeForDamage: 1
   weaponPieces: []
   noDamageSound: {fileID: 8300000, guid: b4454ac97ba52a8478fba2943c3a423e, type: 3}

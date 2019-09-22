@@ -6,6 +6,8 @@ using UnityEngine;
 public class VRWeaponPiece : MonoBehaviour
 {
     public VRWeapon Weapon { get { return myWeapon; } }
+    [Tooltip("Determines things like whether to make wood sound or metal sound on hit")]
+    public bool isMetal = true;
     private VRWeapon myWeapon;
     private Rigidbody rb;
     private bool isInitialized = false;
@@ -33,5 +35,14 @@ public class VRWeaponPiece : MonoBehaviour
     {
         if (isInitialized && collision.transform != myWeapon.transform)
             myWeapon.TryToHitThing(collision, rb, lastVelocity, lastAngularVelocity);
+
+        float volume = VREquipment.GetVolumeForHit(rb.velocity.sqrMagnitude);
+        if(volume > 0)
+        {
+            if (isMetal)
+                VREquipmentManager.Instance.PlayRandomMetalHitSound(collision.contacts[0].point, volume);
+            else
+                VREquipmentManager.Instance.PlayRandomWoodHitSound(collision.contacts[0].point, volume);
+        }
     }
 }

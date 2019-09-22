@@ -1035,6 +1035,25 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   metalMeshRenderer: {fileID: 23161325897406888}
+  metalColliders:
+  - {fileID: 65671173253642370}
+  - {fileID: 65409449337573726}
+  - {fileID: 65429938540715000}
+  - {fileID: 65360380503974752}
+  woodColliders:
+  - {fileID: 65557901217012342}
+  - {fileID: 65085679669530270}
+  - {fileID: 65231330622744312}
+  - {fileID: 65470835692589468}
+  - {fileID: 65795830294646624}
+  - {fileID: 65627474886913142}
+  - {fileID: 65718005559732066}
+  - {fileID: 65392635485716086}
+  - {fileID: 65613794806893288}
+  - {fileID: 65406525704520870}
+  - {fileID: 65498520466213278}
+  - {fileID: 65685267314278782}
+  - {fileID: 135519253774965688}
   minVelocityMagnitudeForDamage: 1
   weaponPieces: []
   noDamageSound: {fileID: 8300000, guid: b4454ac97ba52a8478fba2943c3a423e, type: 3}

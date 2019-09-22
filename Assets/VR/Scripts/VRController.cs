@@ -131,6 +131,7 @@ public class VRController : MonoBehaviour
             DaggerfallVRPlayer.Instance.Rotate(VRSettingsMenu.Instance.SmoothTurningSpeed * curRotation * Time.deltaTime);
         else if (VRSettingsMenu.Instance.TurningMode == VRTurningMode.Snap)
         {
+            //snap to nearest grid rotation at given angle
             int rotationAmount = (int)VRSettingsMenu.Instance.SnapTurningSpeed;
             float nearestRotation = (Mathf.RoundToInt(playerTF.eulerAngles.y) / rotationAmount) * rotationAmount;
             nearestRotation += rotationAmount * (curRotation > 0 ? 1f : -1f);

@@ -490,6 +490,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   metalMeshRenderer: {fileID: 23709517014361524}
+  metalColliders: []
+  woodColliders:
+  - {fileID: 65127305111188546}
   minVelocityMagnitudeForDamage: 1
   weaponPieces: []
   noDamageSound: {fileID: 8300000, guid: b4454ac97ba52a8478fba2943c3a423e, type: 3}

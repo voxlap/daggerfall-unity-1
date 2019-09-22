@@ -39,6 +39,10 @@ public class VREquipmentManager : MonoBehaviour
     public Color orcishColor = (Color.red + Color.yellow + Color.grey) / 3f;
     public Color daedricColor = (Color.red + Color.black) / 2f;
 
+    [Header("Sounds")]
+    public List<AudioClip> woodHitSounds = new List<AudioClip>();
+    public List<AudioClip> metalHitSounds = new List<AudioClip>();
+
     //properties
     private ItemEquipTable itemEquipTable { get { return GameManager.Instance.PlayerEntity.ItemEquipTable; } }
     
@@ -114,6 +118,20 @@ public class VREquipmentManager : MonoBehaviour
 
         debugOrigin.GetComponentInChildren<MeshRenderer>().material.color = succeeded ? originalOriginColor : Color.red;
         debugDirection.GetComponentInChildren<MeshRenderer>().material.color = succeeded ? originalDirectionColor : Color.red;
+    }
+
+    public void PlayRandomWoodHitSound(Vector3 worldPosition, float volume = 1f)
+    {
+        if (woodHitSounds.Count == 0)
+            return;
+        AudioSource.PlayClipAtPoint(woodHitSounds[Random.Range(0, woodHitSounds.Count)], worldPosition, volume);
+    }
+
+    public void PlayRandomMetalHitSound(Vector3 worldPosition, float volume = 1f)
+    {
+        if (metalHitSounds.Count == 0)
+            return;
+        AudioSource.PlayClipAtPoint(metalHitSounds[Random.Range(0, metalHitSounds.Count)], worldPosition, volume * VREquipment.METAL_VOLUME_MODIFIER);
     }
 
     private void UnequipAllItems()

@@ -34,6 +34,13 @@ public class VRPauseMenu : MonoBehaviour
         openCharacterSheetButton.onClick.AddListener(OpenCharacterSheetMenu);
         openMapButton.onClick.AddListener(OpenMapMenu);
         openVRSettingsButton.onClick.AddListener(OpenVROptions);
+        CloseVROptions();
+        _init = true;
+    }
+    private void OnEnable()
+    {
+        if(_init)
+            CloseVROptions();
     }
 
     public void CloseVROptions()

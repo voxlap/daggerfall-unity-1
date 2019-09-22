@@ -1,4 +1,5 @@
 using System.Collections;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using DaggerfallWorkshop.Game.Items;
@@ -12,9 +13,16 @@ public class VREquipment : MonoBehaviour
     // daggerfall references
     protected DaggerfallUnityItem daggerfallItem;
     // unity references
-    [Tooltip("The mesh renderer whose color gets shifted depending on the daggerfall item's material")]
     [SerializeField]
+    [Tooltip("The mesh renderer whose color gets shifted depending on the daggerfall item's material")]
     protected MeshRenderer metalMeshRenderer;
+    [SerializeField]
+    [Tooltip("Colliders that make metallic sounds on hit")]
+    protected List<Collider> metalColliders = new List<Collider>();
+    [SerializeField]
+    [Tooltip("Colliders that make wood sounds on hit")]
+    protected List<Collider> woodColliders = new List<Collider>();
+
     // properties
     public bool IsEquipped { get; private set; }
     public ulong UID { get { return daggerfallItem == null ? ulong.MaxValue : daggerfallItem.UID; } }
@@ -27,7 +35,17 @@ public class VREquipment : MonoBehaviour
     public virtual InteractableHoverEvents InteractableHoverEvents { get; protected set; }
     public virtual SteamVR_Skeleton_Poser SkeletonPoser { get; protected set; }
     public virtual DaggerfallUnityItem DaggerfallItem { get { return daggerfallItem; } }
+    public virtual MeshRenderer MetalMeshRenderer { get { return metalMeshRenderer; } }
     private cakeslice.Outline[] outlines = new cakeslice.Outline[0];
+
+    //consts
+    public const float MIN_VELOCITY_FOR_HIT_SOUND = 1f; // m/s
+    public const float MAX_VELOCITY_FOR_HIT_SOUND = 200f; // m/s
+    public const float METAL_VOLUME_MODIFIER = 0.2f;
+
+    //events
+    public event Action Equipped;
+    public event Action Unequipped;
 
     protected virtual void Awake()
     {
@@ -51,6 +69,50 @@ public class VREquipment : MonoBehaviour
     {
         //setup local fields
         metalMeshRenderer = GetComponentInChildren<MeshRenderer>();
+    }
+    protected virtual void OnCollisionEnter(Collision collision)
+    {
+        PlayHitSoundAtCollision(collision);
+    }
+    private void PlayHitSoundAtCollision(Collision collision)
+    {
+        float volume = GetVolumeForHit(collision.impulse.magnitude / Time.fixedDeltaTime); //modulate volume of hit by the collision impulse magnitude
+        if (volume <= 0)
+            return;
+
+        //We need to find out if a wooden part or metal part hit, then play the appropriate sound
+
+        Vector3 contactPos = Rigidbody.ClosestPointOnBounds(collision.contacts[0].point);
+        float closestWoodDistance = 100000f, closestMetalDistance = 100000f;
+        
+        if (metalColliders.Count == 0) //wood must be closest if it's only made of wood
+            closestWoodDistance = 0;
+        else if (woodColliders.Count == 0) //metal must be closest if it's only made of metal
+            closestMetalDistance = 0;
+        else
+        {       // we need to find out if it's wood or metal based on which is closest to the contact position
+            for (int i = 0; i < woodColliders.Count; ++i)
+            {
+                float dist = Vector3.Distance(contactPos, woodColliders[i].ClosestPointOnBounds(contactPos));
+                if (dist < closestWoodDistance)
+                    closestWoodDistance = dist;
+            }
+            for (int i = 0; i < metalColliders.Count; ++i)
+            {
+                float dist = Vector3.Distance(contactPos, metalColliders[i].ClosestPointOnBounds(contactPos));
+                if (dist < closestMetalDistance)
+                    closestMetalDistance = dist;
+            }
+        }
+        //play random clip of the appropriate material
+        if (closestWoodDistance < closestMetalDistance)
+            VREquipmentManager.Instance.PlayRandomWoodHitSound(contactPos, volume);
+        else
+            VREquipmentManager.Instance.PlayRandomMetalHitSound(contactPos, volume);
+    }
+    public static float GetVolumeForHit(float velocityMagnitudeAtHit)
+    {
+        return Mathf.InverseLerp(MIN_VELOCITY_FOR_HIT_SOUND, MAX_VELOCITY_FOR_HIT_SOUND, velocityMagnitudeAtHit);
     }
 
 #if UNITY_EDITOR
@@ -88,6 +150,9 @@ public class VREquipment : MonoBehaviour
         ForceAttachToHand(handType);
         IsEquipped = true;
 
+        if (Equipped != null)
+            Equipped();
+
         Debug.Log("Equipped " + daggerfallItem.LongName + " to " + handType.ToString());
     }
     public virtual void Unequip()
@@ -96,6 +161,9 @@ public class VREquipment : MonoBehaviour
         ForceDetachFromHand();
         transform.parent = VREquipmentManager.Instance.equipmentParent;
         gameObject.SetActive(false);
+
+        if (Unequipped != null)
+            Unequipped();
 
         Debug.Log("Unequipped " + daggerfallItem.LongName);
     }

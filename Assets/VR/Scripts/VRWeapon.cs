@@ -26,8 +26,9 @@ public class VRWeapon : VREquipment
             weaponPieces[i].Init(this);
     }
 
-    protected virtual void OnCollisionEnter(Collision collision)
+    protected override void OnCollisionEnter(Collision collision)
     {
+        base.OnCollisionEnter(collision);
         TryToHitThing(collision, Rigidbody, lastVelocity, lastAngularVelocity);
     }
     protected virtual void FixedUpdate()

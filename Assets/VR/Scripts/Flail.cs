@@ -12,7 +12,8 @@ public class Flail : MonoBehaviour
 
     private SteamVR_TrackedObject trackedObj;
     private Rigidbody spikeRB;
-    private GameObject[] chainlinks = new GameObject[0];
+    private MeshRenderer spikeMeshRenderer;
+    private MeshRenderer[] chainlinks = new MeshRenderer[0];
     private VRWeapon daggerfallVRWeapon;
     private Interactable interactable;
 
@@ -21,13 +22,17 @@ public class Flail : MonoBehaviour
     private Vector3 spikeballAnchor;
     private int lastNumEnabledChainlinks = 0;
 
+    private bool _init;
+
     private void Awake()
     {
         startSpikeballPos = spikeBall.transform.localPosition;
         startChainPos = chain.transform.localPosition;
         spikeballAnchor = spikeBall.connectedAnchor;
         spikeRB = spikeBall.GetComponent<Rigidbody>();
+        spikeMeshRenderer = spikeBall.GetComponent<MeshRenderer>();
         interactable = GetComponent<Interactable>();
+        daggerfallVRWeapon = GetComponent<VRWeapon>();
         
         interactable.onAttachedToHand += Interactable_onAttachedToHand;
         interactable.onDetachedFromHand += Interactable_onDetachedFromHand;
@@ -37,15 +42,33 @@ public class Flail : MonoBehaviour
 
     private void Start()
     {
-        chainlinks = new GameObject[chain.childCount];
+        //Get chainlinks. Set their colors.
+        Color metalColor = daggerfallVRWeapon.MetalMeshRenderer.material.color;
+        chainlinks = new MeshRenderer[chain.childCount];
         for (int i = 0; i < chainlinks.Length; ++i)
-            chainlinks[i] = chain.GetChild(i).gameObject;
+        {
+            chainlinks[i] = chain.GetChild(i).GetComponent<MeshRenderer>();
+            chainlinks[i].material.color = metalColor;
+        }
+        spikeMeshRenderer.material.color = metalColor;
+
+        //subscribe to equipped event
+        daggerfallVRWeapon.Equipped += DaggerfallVRWeapon_Equipped;
+
+        //initialize finished
+        _init = true;
+    }
+    private void OnDestroy()
+    {
+        if (daggerfallVRWeapon)
+            daggerfallVRWeapon.Equipped -= DaggerfallVRWeapon_Equipped;
     }
 
     private void OnEnable()
     {
         spikeBall.gameObject.SetActive(true);
         ResetBallPosition();
+
     }
     private void OnDisable()
     {
@@ -76,7 +99,7 @@ public class Flail : MonoBehaviour
         if(numEnabledChainlinks != lastNumEnabledChainlinks)
         {
             for (int i = 0; i < chainlinks.Length; ++i)
-                chainlinks[i].SetActive(i < numEnabledChainlinks);
+                chainlinks[i].gameObject.SetActive(i < numEnabledChainlinks);
         }
         lastNumEnabledChainlinks = numEnabledChainlinks;
     }
@@ -98,6 +121,15 @@ public class Flail : MonoBehaviour
     {
         if (spikeRB)
             spikeRB.transform.SetParent(null);
+    }
+
+    private void DaggerfallVRWeapon_Equipped()
+    {
+        //Set chainlink colors
+        Color metalColor = daggerfallVRWeapon.MetalMeshRenderer.material.color;
+        for (int i = 0; i < chainlinks.Length; ++i)
+            chainlinks[i].material.color = metalColor;
+        spikeMeshRenderer.material.color = metalColor;
     }
 
 }

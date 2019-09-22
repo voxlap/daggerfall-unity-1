@@ -55,7 +55,23 @@ GameObject:
   - component: {fileID: 4813661627287808}
   - component: {fileID: 65903644134979860}
   m_Layer: 15
-  m_Name: Cube (2)
+  m_Name: Cross
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!1 &1347397455951950
+GameObject:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4873335176548116}
+  - component: {fileID: 65423885515658154}
+  m_Layer: 15
+  m_Name: Wood
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -124,7 +140,7 @@ GameObject:
   - component: {fileID: 4593473399968430}
   - component: {fileID: 65702613375178514}
   m_Layer: 15
-  m_Name: Capsule
+  m_Name: Pommel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -156,7 +172,7 @@ Transform:
   m_LocalScale: {x: 0.100966, y: 0.006859435, z: 0.28266248}
   m_Children: []
   m_Father: {fileID: 4397123854828126}
-  m_RootOrder: 3
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &4246580485304050
 Transform:
@@ -169,7 +185,7 @@ Transform:
   m_LocalScale: {x: 0.100966, y: 0.006859435, z: 0.2826625}
   m_Children: []
   m_Father: {fileID: 4397123854828126}
-  m_RootOrder: 2
+  m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &4397123854828126
 Transform:
@@ -181,6 +197,7 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
+  - {fileID: 4873335176548116}
   - {fileID: 4593473399968430}
   - {fileID: 4813661627287808}
   - {fileID: 4246580485304050}
@@ -207,12 +224,12 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1658953724879258}
-  m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0, z: 0.455}
-  m_LocalScale: {x: 0.024996096, y: 0.45287156, z: 0.0249961}
+  m_LocalRotation: {x: 0.70710677, y: 0.0000001490116, z: -0.000000029802319, w: 0.7071069}
+  m_LocalPosition: {x: -0, y: 0, z: 0.03973806}
+  m_LocalScale: {x: 0.025000034, y: 0.037607707, z: 0.025000038}
   m_Children: []
   m_Father: {fileID: 4397123854828126}
-  m_RootOrder: 0
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
 --- !u!4 &4683797040202232
 Transform:
@@ -241,8 +258,21 @@ Transform:
   m_LocalScale: {x: 0.10097, y: 0.006859435, z: 0.04981883}
   m_Children: []
   m_Father: {fileID: 4397123854828126}
-  m_RootOrder: 1
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!4 &4873335176548116
+Transform:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1347397455951950}
+  m_LocalRotation: {x: 0.70710677, y: 0.00000008940696, z: -0.000000029802319, w: 0.7071068}
+  m_LocalPosition: {x: -0, y: 0, z: 0.4926076}
+  m_LocalScale: {x: 0.024996115, y: 0.41526404, z: 0.024996122}
+  m_Children: []
+  m_Father: {fileID: 4397123854828126}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 90, y: 0, z: 0}
 --- !u!4 &4970941793864746
 Transform:
   m_ObjectHideFlags: 1
@@ -324,6 +354,18 @@ BoxCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!65 &65423885515658154
+BoxCollider:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1347397455951950}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 1, y: 2, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!65 &65539621580622618
 BoxCollider:
@@ -436,6 +478,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   metalMeshRenderer: {fileID: 23515934931188910}
+  metalColliders: []
+  woodColliders:
+  - {fileID: 65423885515658154}
+  - {fileID: 65702613375178514}
   minVelocityMagnitudeForDamage: 1
   weaponPieces: []
   noDamageSound: {fileID: 8300000, guid: b4454ac97ba52a8478fba2943c3a423e, type: 3}
