@@ -1,6 +1,6 @@
 # What is this VR mod of Daggerfall?
 
-> It's a SteamVR implementation of virtual reality in Daggerfall Unity. Enjoy the breathtaking graphics of 1996 in an immersive third dimension the generation of Lawnmower Man and Johnny Mnemonic could only dream of touching.
+> It's a SteamVR implementation of virtual reality in Daggerfall Unity. Enjoy the breathtaking graphics of 1996 in an immersive third dimension. It's an experience the generation of Lawnmower Man and Johnny Mnemonic could only dream of touching.
 
 ## How do I install it?
 
