@@ -104,8 +104,6 @@ public class VRInjector : MonoBehaviour {
         
         //spawn player
         vrPlayer = Instantiate(VRPlayerPrefab);
-        //fade out, so player doesn't see all the jankiness of the level loading. The player wil handle the fade in.
-        vrPlayer.FadeOut();
 
         controllerRight = vrPlayer.RightHand.gameObject;
         controllerLeft = vrPlayer.LeftHand.gameObject;
