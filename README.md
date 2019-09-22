@@ -4,7 +4,7 @@
 
 ## How do I install it?
 
-> It will be a mod soon, and then you should be able to install it like any other Daggerfall mod. In the meantime you can clone the project, import [this unitypackage](https://drive.google.com/file/d/18BpLhUMslV-pGsnIXekYGYYHvma8LZwG/view?usp=sharing), and then build it or run it in the editor.
+> It will be a mod soon, and then you should be able to install it like any other Daggerfall mod. In the meantime you can clone the project, import [this unitypackage](https://drive.google.com/open?id=1o6Sb6RhHkBU2eBw_ebf9Pw6QwSzXdndS), and then build it or run it in the editor.
 
 ----
 
