@@ -8,8 +8,6 @@ TagManager:
   - QuestFoe
   - QuestItem
   - StaticGeometry
-  - FxTemporaire
-  - projectile
   layers:
   - Default
   - TransparentFX
@@ -27,6 +25,7 @@ TagManager:
   - Player
   - SpellMissiles
   - VREquipment
+  - 
   - 
   - 
   - 

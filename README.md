@@ -1,13 +1,3 @@
-# What is this VR mod of Daggerfall?
-
-> It's a SteamVR implementation of virtual reality in Daggerfall Unity. Enjoy the breathtaking graphics of 1996 in an immersive third dimension. It's an experience the generation of Lawnmower Man and Johnny Mnemonic could only dream of touching.
-
-## How do I install it?
-
-> It will be a mod soon, and then you should be able to install it like any other Daggerfall mod. In the meantime you can clone the project, import [this unitypackage](https://drive.google.com/open?id=1o6Sb6RhHkBU2eBw_ebf9Pw6QwSzXdndS), and then build it or run it in the editor.
-
-----
-
 # What is Daggerfall Unity?
 
 > Daggerfall Unity is an open source recreation of Daggerfall in the Unity engine created by [Daggerfall Workshop](http://www.dfworkshop.net).
