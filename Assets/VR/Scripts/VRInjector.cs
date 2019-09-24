@@ -83,8 +83,10 @@ public class VRInjector : MonoBehaviour {
         
         try {
             oldCamera = GameManager.Instance.MainCamera;
-            oldCamera.enabled = false;
+            oldCamera.stereoTargetEye = StereoTargetEyeMask.None; // only render to the display
+            oldCamera.fieldOfView = 72; // close to the vertical fov in VR headsets
             oldCamera.tag = "Untagged";
+            oldCamera.clearFlags = CameraClearFlags.Color;
             oldCamera.GetComponent<AudioListener>().enabled = false;
             Destroy(oldCamera.GetComponent<UnityEngine.PostProcessing.PostProcessingBehaviour>());
         }
@@ -136,6 +138,9 @@ public class VRInjector : MonoBehaviour {
             oldCamera.transform.SetParent(headTF, false);
             oldCamera.transform.localPosition = Vector3.zero;
             oldCamera.transform.localRotation = Quaternion.identity;
+
+            // Set the old camera to copy the culling mask of head camera.
+            CopyCameraCullingMask.AddComponentToCamera(oldCamera, headCamera, true);
 
             // If VR isn't possible, then make sure the fallback camera is being rotated by the old camera's mouselook
             if (!IsVRDevicePresent)
