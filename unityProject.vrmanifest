@@ -5,7 +5,7 @@
       "app_key": "application.generated.unity.daggerfallunity.exe",
       "launch_type": "url",
       "url": "steam://launch/",
-      "action_manifest_path": "E:\\_git\\daggerfall-unity-1\\actions.json",
+      "action_manifest_path": "E:\\_git\\daggerfall-unity-1\\Assets\\VR\\SteamVR\\Bindings\\actions.json",
       "strings": {
         "en_us": {
           "name": "Daggerfall Unity [Testing]"
