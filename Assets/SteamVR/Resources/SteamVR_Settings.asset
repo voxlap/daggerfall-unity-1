@@ -14,7 +14,7 @@ MonoBehaviour:
   pauseGameWhenDashboardVisible: 1
   lockPhysicsUpdateRateToRenderFrequency: 1
   trackingSpaceOrigin: 1
-  actionsFilePath: actions.json
+  actionsFilePath: Assets/VR/SteamVR/Bindings/actions.json
   steamVRInputPath: SteamVR_Input
   inputUpdateMode: 2
   poseUpdateMode: 8
