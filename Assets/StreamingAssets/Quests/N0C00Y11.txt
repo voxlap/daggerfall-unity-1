@@ -29,7 +29,7 @@ QuestorOffer:  [1000]
 <ce>                       _ingredient_, which we are
 <ce>                   fresh out of. If you got some for
 <ce>                     me, I would be very grateful.
-<ce>                      You standing with the guild
+<ce>                      Your standing with the guild
 <ce>                         would surely improve.
 
 RefuseQuest:  [1001]
@@ -53,7 +53,7 @@ QuestComplete:  [1004]
 <ce>                     with favor in the guild halls.
 
 RumorsDuringQuest:  [1005]
-That crazy mage at the Guild insists that ___dungeon_ has the best _ingredient_
+That crazy mage at the Guild insists that ___dungeon_ has the best _ingredient_.
 
 RumorsPostfailure:  [1006]
 I got a boil the other day ... but it healed.
@@ -124,10 +124,10 @@ QuestorPostfailure:  [1009]
 <ce>                             breath on you?
 
 QuestLogEntry:  [1010]
-%qdt, I was
- asked to find a sample of
- _ingredient_ that is
- supposed to be hidden away
+%qdt:
+ I was asked to find a sample
+ of _ingredient_ that
+ is supposed to be hidden away
  in ___dungeon_.
  _qgiver_ of the Mages
  Guild of ___qgiver_
@@ -167,7 +167,7 @@ Message:  1080
 QBN:
 Item _ingredient_ organs
 
-Person _qgiver_ group Questor male
+Person _qgiver_ group Questor
 
 Place _dungeon_ remote dungeon
 Place _newdung_ remote dungeon

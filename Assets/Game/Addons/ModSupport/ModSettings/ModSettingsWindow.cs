@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -43,7 +43,6 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         const float textScale                       = 0.7f;
         const int startX                            = 10;
         const int startY                            = 15;
-        const int columnHeight                      = 165;
         const int columnWidth                       = 140;
         const int columnsOffset                     = columnWidth + startX * 2;
 
@@ -63,9 +62,13 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
 
         readonly Mod mod;
         readonly ModSettingsData settings;
+        readonly bool liveChange;
+        readonly int columnHeight;
 
         int x = startX;
         int y = startY;
+
+        bool hasChangesFromPresets = false;
 
         #endregion
 
@@ -94,10 +97,15 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// Constructor for the mod settings window.
         /// </summary>
         /// <param name="mod">Mod whose values are to be exposed on screen.</param>
-        public ModSettingsWindow(IUserInterfaceManager uiManager, Mod mod)
+        /// <param name="liveChange">True if the game is already running.</param>
+        public ModSettingsWindow(IUserInterfaceManager uiManager, Mod mod, bool liveChange = false)
             : base(uiManager)
         {
             this.mod = mod;
+            this.liveChange = liveChange;
+
+            // Make room for warning label about applying settings during runtime
+            columnHeight = liveChange ? 155 : 165;
 
             settings = ModSettingsData.Make(mod);
             settings.SaveDefaults();
@@ -127,6 +135,19 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             titleLabel.Position = new Vector2(0, 3);
             titleLabel.HorizontalAlignment = HorizontalAlignment.Center;
             mainPanel.Components.Add(titleLabel);
+
+            if (liveChange)
+            {
+                // Add warning label that some settings may not be applied while game is running
+                TextLabel warningLabel = new TextLabel(DaggerfallUI.DefaultFont);
+                warningLabel.Text = TextManager.Instance.GetLocalizedText("settingsNotApplied");
+                warningLabel.Position = new Vector2(0, columnHeight + 1);
+                warningLabel.TextScale = 0.85f;
+                warningLabel.HorizontalAlignment = HorizontalAlignment.Center;
+                warningLabel.ShadowPosition = Vector2.zero;
+                warningLabel.TextColor = new Color(0.8f, 0.8f, 0.8f, 1.0f);
+                mainPanel.Components.Add(warningLabel);
+            }
 
             // Reset button
             Button resetButton = GetButton(ModManager.GetText("reset"), HorizontalAlignment.Left, resetButtonColor);
@@ -209,17 +230,44 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         {
             foreach (var uiControl in uiControls)
                 uiControl.Key.OnRefreshWindow(uiControl.Value);
+
+            hasChangesFromPresets = true;
         }
 
         /// <summary>
         /// Save settings.
         /// </summary>
         /// <param name="writeToDisk">Write settings to file on disk.</param>
-        private void SaveSettings(bool writeToDisk = true)
+        /// <param name="changedSettings">An hashet where names of changed settings are stored.</param>
+        private void SaveSettings(bool writeToDisk, HashSet<string> changedSettings = null)
         {
-            foreach (Section section in settings.Sections)
-                foreach (Key key in section.Keys)
-                    key.OnSaveWindow(uiControls[key]);
+            if (changedSettings != null)
+            {
+                foreach (Section section in settings.Sections)
+                {
+                    bool sectionHasChanged = false;
+
+                    foreach (Key key in section.Keys)
+                    {
+                        bool hasChanged;
+                        key.OnSaveWindow(uiControls[key], out hasChanged);
+                        if (hasChanged)
+                        {
+                            changedSettings.Add(string.Format("{0}.{1}", section.Name, key.Name));
+                            sectionHasChanged = true;
+                        }
+                    }
+
+                    if (sectionHasChanged)
+                        changedSettings.Add(section.Name);
+                }
+            }
+            else
+            {
+                foreach (Section section in settings.Sections)
+                    foreach (Key key in section.Keys)
+                        key.OnSaveWindow(uiControls[key]);
+            }
 
             // Save to file
             if (writeToDisk)
@@ -393,7 +441,27 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
         /// </summary>
         private void SaveButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
-            SaveSettings();
+            if (liveChange)
+            {
+                if (hasChangesFromPresets)
+                {
+                    SaveSettings(true);
+                    mod.LoadSettingsCallback(new ModSettings(mod, settings), new ModSettingsChange());
+                }
+                else
+                {
+                    var changedSettings = new HashSet<string>();
+                    SaveSettings(true, changedSettings);
+
+                    if (changedSettings.Count > 0)
+                        mod.LoadSettingsCallback(new ModSettings(mod, settings), new ModSettingsChange(changedSettings));
+                }
+            }
+            else
+            {
+                SaveSettings(true);
+            }
+
             DaggerfallUI.UIManager.PopWindow();
         }
 

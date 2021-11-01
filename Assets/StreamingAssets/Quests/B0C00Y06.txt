@@ -41,7 +41,7 @@ QuestComplete:  [1004]
 <ce>                   membership in the knightly order.
 
 RumorsDuringQuest:  [1005]
-That _monster_ is a real nuisance in %cn.
+That _monster_ is a real nuisance in ___qgiver_.
 <--->
 Many wish the knights would do something about that _monster_.
 
@@ -91,10 +91,10 @@ Message:  1011
 
 QBN:
 
-Person _qgiver_ group Questor male
-Person _local_ face 207 group Resident2
+Person _qgiver_ group Questor
+Person _local_ face 207 group Resident2 female local
 
-Place _dungeon_ remote dungeon
+Place _dungeon_ remote dungeon13
 
 Clock _2dung_ 00:00 0 flag 17 range 0 2
 

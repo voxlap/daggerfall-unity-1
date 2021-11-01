@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -208,7 +208,7 @@ namespace DaggerfallWorkshop.Game.Utility
         /// <param name="blockData">RMB block data.</param>
         /// <param name="xBlock">X block to set.</param>
         /// <param name="yBlock">Y block to set.</param>
-        public void SetRMBData(ref DFBlock blockData, int xBlock, int yBlock)
+        public void SetRMBData(in DFBlock blockData, int xBlock, int yBlock)
         {
             // Validate
             if (xBlock < 0 || xBlock >= cityWidth ||

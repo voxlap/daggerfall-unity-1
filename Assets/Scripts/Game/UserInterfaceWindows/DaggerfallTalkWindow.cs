@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -29,44 +29,44 @@ namespace DaggerfallWorkshop.Game.UserInterface
 {
     public class DaggerfallTalkWindow : DaggerfallPopupWindow
     {
-        const string talkWindowImgName    = "TALK01I0.IMG";
-        const string talkCategoriesImgName = "TALK02I0.IMG";
-        const string highlightedOptionsImgName = "TALK03I0.IMG";
+        protected const string talkWindowImgName    = "TALK01I0.IMG";
+        protected const string talkCategoriesImgName = "TALK02I0.IMG";
+        protected const string highlightedOptionsImgName = "TALK03I0.IMG";
 
-        const string portraitImgName = "TFAC00I0.RCI";
-        const string facesImgName = "FACES.CIF";
+        protected const string portraitImgName = "TFAC00I0.RCI";
+        protected const string facesImgName = "FACES.CIF";
 
-        const string greenArrowsTextureName = "INVE06I0.IMG";       // Green up/down arrows when more items available
-        const string redArrowsTextureName = "INVE07I0.IMG";         // Red up/down arrows when no more items available
+        protected const string greenArrowsTextureName = "INVE06I0.IMG";       // Green up/down arrows when more items available
+        protected const string redArrowsTextureName = "INVE07I0.IMG";         // Red up/down arrows when no more items available
 
         //const int maxNumTopicsShown = 13; // max number of items displayed in scrolling area of topics list
         const int maxNumCharactersOfTopicShown = 20; // max number of characters of a topic displayed in scrolling area of topics list
 
         //const int maxNumAnswerLinesShown = 15; // max number of lines displayed in scrolling area of answers
 
-        Color textcolorPlayerSays = new Color(0.698f, 0.812f, 1.0f);
+        protected Color textcolorPlayerSays = new Color(0.698f, 0.812f, 1.0f);
 
         //Color textcolorQuestionHighlighted = new Color(0.8f, 0.9f, 1.0f);
-        Color textcolorHighlighted = Color.white;
+        protected Color textcolorHighlighted = Color.white;
 
-        Color textcolorQuestionBackgroundModernConversationStyle = new Color(0.3f, 0.35f, 0.43f); // new Color(0.23f, 0.27f, 0.33f);
-        Color textcolorAnswerBackgroundModernConversationStyle = new Color(0.32f, 0.31f, 0.06f); //  default text r: 243 (0.95f), g: 239 (0.93f), b: 44 (0.17)
+        protected Color textcolorQuestionBackgroundModernConversationStyle = new Color(0.3f, 0.35f, 0.43f); // new Color(0.23f, 0.27f, 0.33f);
+        protected Color textcolorAnswerBackgroundModernConversationStyle = new Color(0.32f, 0.31f, 0.06f); //  default text r: 243 (0.95f), g: 239 (0.93f), b: 44 (0.17)
 
-        Color textcolorCaptionGotoParentList = new Color(0.698f, 0.812f, 1.0f);
+        protected Color textcolorCaptionGotoParentList = new Color(0.698f, 0.812f, 1.0f);
         //Color textcolorCaptionGotoParentListHighlighted = Color.white;
 
-        const float textScaleModernConversationStyle = 0.8f;
-        const float textBlockSizeModernConversationStyle = 0.75f;
+        protected const float textScaleModernConversationStyle = 0.8f;
+        protected const float textBlockSizeModernConversationStyle = 0.75f;
 
-        enum TalkOption {
+        protected enum TalkOption {
             None,
             TellMeAbout,
             WhereIs
         };
-        TalkOption selectedTalkOption = TalkOption.WhereIs;
-        TalkOption talkOptionLastUsed = TalkOption.None;
+        protected TalkOption selectedTalkOption = TalkOption.WhereIs;
+        protected TalkOption talkOptionLastUsed = TalkOption.None;
 
-        enum TalkCategory
+        protected enum TalkCategory
         {
             None,
             Location,
@@ -74,8 +74,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
             Things,
             Work
         };
-        TalkCategory selectedTalkCategory = TalkCategory.Location;
-        TalkCategory talkCategoryLastUsed = TalkCategory.None;
+        protected TalkCategory selectedTalkCategory = TalkCategory.Location;
+        protected TalkCategory talkCategoryLastUsed = TalkCategory.None;
 
         public enum FacePortraitArchive
         {
@@ -89,7 +89,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             Normal,
             Blunt
         };
-        TalkTone selectedTalkTone = TalkTone.Normal;
+        protected TalkTone selectedTalkTone = TalkTone.Normal;
 
         static public int TalkToneToIndex(TalkTone talkTone)
         {
@@ -105,141 +105,143 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        bool isSetup = false;
+        protected bool isSetup = false;
 
-        List<TalkManager.ListItem> listCurrentTopics; // current topic list metadata of displayed topic list in topic frame
+        protected List<TalkManager.ListItem> listCurrentTopics; // current topic list metadata of displayed topic list in topic frame
 
-        Texture2D textureBackground;        
-        Texture2D textureHighlightedOptions;
-        Texture2D textureGrayedOutCategories;
-        Texture2D texturePortrait;
+        protected Texture2D textureBackground;        
+        protected Texture2D textureHighlightedOptions;
+        protected Texture2D textureGrayedOutCategories;
+        protected Texture2D texturePortrait;
 
-        Panel panelNameNPC;
-        TextLabel labelNameNPC = null;
+        protected Panel panelNameNPC;
+        protected TextLabel labelNameNPC = null;
 
-        Texture2D textureTellMeAboutGrayedOut; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
-        Texture2D textureWhereIsGrayedOut; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
-        Texture2D textureTellMeAboutHighlighted;
-        Texture2D textureWhereIsHighlighted;
+        protected Texture2D textureTellMeAboutGrayedOut; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureWhereIsGrayedOut; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureTellMeAboutHighlighted;
+        protected Texture2D textureWhereIsHighlighted;
 
-        Texture2D textureCategoryLocationGrayedOut;
-        Texture2D textureCategoryPersonGrayedOut;
-        Texture2D textureCategoryThingGrayedOut;
-        Texture2D textureCategoryWorkGrayedOut;
-        Texture2D textureCategoryLocationHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
-        Texture2D textureCategoryPersonHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
-        Texture2D textureCategoryThingHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
-        Texture2D textureCategoryWorkHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureCategoryLocationGrayedOut;
+        protected Texture2D textureCategoryPersonGrayedOut;
+        protected Texture2D textureCategoryThingGrayedOut;
+        protected Texture2D textureCategoryWorkGrayedOut;
+        protected Texture2D textureCategoryLocationHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureCategoryPersonHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureCategoryThingHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
+        protected Texture2D textureCategoryWorkHighlighted; // tried without this texture by just setting button background to null, but then pixel-perfect fit is no longer achieved
 
-        Color[] colorsTellMeAboutGrayedOut;
-        Color[] colorsWhereIsGrayedOut;
-        Color[] colorsTellMeAboutHighlighted;
-        Color[] colorsWhereIsHighlighted;
+        protected Color[] colorsTellMeAboutGrayedOut;
+        protected Color[] colorsWhereIsGrayedOut;
+        protected Color[] colorsTellMeAboutHighlighted;
+        protected Color[] colorsWhereIsHighlighted;
 
-        Color[] colorsCategoryLocationGrayedOut;
-        Color[] colorsCategoryPeopleGrayedOut;
-        Color[] colorsCategoryThingGrayedOut;
-        Color[] colorsCategoryWorkGrayedOut;
-        Color[] colorsCategoryLocationHighlighted;
-        Color[] colorsCategoryPeopleHighlighted;
-        Color[] colorsCategoryThingHighlighted;
-        Color[] colorsCategoryWorkHighlighted;
+        protected Color[] colorsCategoryLocationGrayedOut;
+        protected Color[] colorsCategoryPeopleGrayedOut;
+        protected Color[] colorsCategoryThingGrayedOut;
+        protected Color[] colorsCategoryWorkGrayedOut;
+        protected Color[] colorsCategoryLocationHighlighted;
+        protected Color[] colorsCategoryPeopleHighlighted;
+        protected Color[] colorsCategoryThingHighlighted;
+        protected Color[] colorsCategoryWorkHighlighted;
 
 
-        Panel mainPanel;
+        protected Panel mainPanel;
 
-        TextLabel textlabelPlayerSays;
-        string currentQuestion = "";
-        int selectionIndexLastUsed = -1;
+        protected TextLabel textlabelPlayerSays;
+        protected string currentQuestion = "";
+        protected int selectionIndexLastUsed = -1;
 
         // alignment stuff for portrait
-        Panel panelPortrait = null;
-        Vector2 panelPortraitPos = new Vector2(119, 65);
-        Vector2 panelPortraitSize = new Vector2(64f, 64f);
+        protected Panel panelPortrait = null;
+        protected Vector2 panelPortraitPos = new Vector2(119, 65);
+        protected Vector2 panelPortraitSize = new Vector2(64f, 64f);
 
         // alignment stuff for checkbox buttons
-        Panel panelTone; // used as selection marker
-        Vector2 panelTonePolitePos = new Vector2(258, 18);
-        Vector2 panelToneNormalPos = new Vector2(258, 28);
-        Vector2 panelToneBluntPos = new Vector2(258, 38);
-        Vector2 panelToneSize = new Vector2(6f, 6f);
-        Color32 toggleColor = new Color32(162, 36, 12, 255);
+        protected Panel panelTone; // used as selection marker
+        protected Vector2 panelTonePolitePos = new Vector2(258, 18);
+        protected Vector2 panelToneNormalPos = new Vector2(258, 28);
+        protected Vector2 panelToneBluntPos = new Vector2(258, 38);
+        protected Vector2 panelToneSize = new Vector2(6f, 6f);
+        protected Color32 toggleColor = new Color32(162, 36, 12, 255);
 
         // positioning rects for checkbox buttons
-        Rect rectButtonTonePolite = new Rect(258, 18, 6, 6);
-        Rect rectButtonToneNormal = new Rect(258, 28, 6, 6);
-        Rect rectButtonToneBlunt = new Rect(258, 38, 6, 6);
+        protected Rect rectButtonTonePolite = new Rect(258, 18, 6, 6);
+        protected Rect rectButtonToneNormal = new Rect(258, 28, 6, 6);
+        protected Rect rectButtonToneBlunt = new Rect(258, 38, 6, 6);
 
         // normal buttons
-        Button buttonTellMeAbout;
-        Button buttonWhereIs;
-        Button buttonCategoryLocation;
-        Button buttonCategoryPerson;
-        Button buttonCategoryThings;
-        Button buttonCategoryWork;
-        Button buttonTopicUp;
-        Button buttonTopicDown;
-        Button buttonTopicLeft;
-        Button buttonTopicRight;
-        Button buttonConversationUp;
-        Button buttonConversationDown;
-        Button buttonOkay;
-        Button buttonGoodbye;
-        Button buttonLogbook;
+        protected Button buttonTellMeAbout;
+        protected Button buttonWhereIs;
+        protected Button buttonCategoryLocation;
+        protected Button buttonCategoryPerson;
+        protected Button buttonCategoryThings;
+        protected Button buttonCategoryWork;
+        protected Button buttonTopicUp;
+        protected Button buttonTopicDown;
+        protected Button buttonTopicLeft;
+        protected Button buttonTopicRight;
+        protected Button buttonConversationUp;
+        protected Button buttonConversationDown;
+        protected Button buttonOkay;
+        protected Button buttonGoodbye;
+        protected Button buttonLogbook;
 
         // checkbox buttons
-        Button buttonCheckboxTonePolite;
-        Button buttonCheckboxToneNormal;
-        Button buttonCheckboxToneBlunt;
+        protected Button buttonCheckboxTonePolite;
+        protected Button buttonCheckboxToneNormal;
+        protected Button buttonCheckboxToneBlunt;
 
-        int toneLastUsed = -1;
+        protected int toneLastUsed = -1;
 
         // position rect of arrow images is src image
-        DFSize arrowsFullSize = new DFSize(9, 152);
-        Rect upArrowRectInSrcImg = new Rect(0, 0, 9, 16);
-        Rect downArrowRectInSrcImg = new Rect(0, 136, 9, 16);
+        protected DFSize arrowsFullSize = new DFSize(9, 152);
+        protected Rect upArrowRectInSrcImg = new Rect(0, 0, 9, 16);
+        protected Rect downArrowRectInSrcImg = new Rect(0, 136, 9, 16);
 
         // topic listbox and layout, scrollbar/slider and parameters
-        ListBox listboxTopic;
-        Rect rectButtonTopicUp = new Rect(102, 69, 9, 16);
-        Rect rectButtonTopicDown = new Rect(102, 161, 9, 16);
-        Rect rectButtonTopicLeft = new Rect(4, 177, 16, 9);
-        Rect rectButtonTopicRight = new Rect(86, 177, 16, 9);
-        VerticalScrollBar verticalScrollBarTopic = null;
-        HorizontalSlider horizontalSliderTopic = null;
+        protected ListBox listboxTopic;
+        protected Rect rectButtonTopicUp = new Rect(102, 69, 9, 16);
+        protected Rect rectButtonTopicDown = new Rect(102, 161, 9, 16);
+        protected Rect rectButtonTopicLeft = new Rect(4, 177, 16, 9);
+        protected Rect rectButtonTopicRight = new Rect(86, 177, 16, 9);
+        protected VerticalScrollBar verticalScrollBarTopic = null;
+        protected HorizontalSlider horizontalSliderTopic = null;
         //int lengthOfLongestItemInListBox;
-        int widthOfLongestItemInListBox;
+        protected int widthOfLongestItemInListBox;
 
         // textures of green/red arrow buttons for topic frame
-        Texture2D arrowTopicUpRed;
-        Texture2D arrowTopicUpGreen;
-        Texture2D arrowTopicDownRed;
-        Texture2D arrowTopicDownGreen;
-        Texture2D arrowTopicLeftRed;
-        Texture2D arrowTopicLeftGreen;
-        Texture2D arrowTopicRightRed;
-        Texture2D arrowTopicRightGreen;
+        protected Texture2D arrowTopicUpRed;
+        protected Texture2D arrowTopicUpGreen;
+        protected Texture2D arrowTopicDownRed;
+        protected Texture2D arrowTopicDownGreen;
+        protected Texture2D arrowTopicLeftRed;
+        protected Texture2D arrowTopicLeftGreen;
+        protected Texture2D arrowTopicRightRed;
+        protected Texture2D arrowTopicRightGreen;
 
         // conversation listbox and layout, scrollbar
-        ListBox listboxConversation = null;
-        Rect rectButtonConversationUp = new Rect(303, 64, 9, 16);
-        Rect rectButtonConversationDown = new Rect(303, 176, 9, 16);
-        VerticalScrollBar verticalScrollBarConversation = null;
+        protected ListBox listboxConversation = null;
+        protected Rect rectButtonConversationUp = new Rect(303, 64, 9, 16);
+        protected Rect rectButtonConversationDown = new Rect(303, 176, 9, 16);
+        protected VerticalScrollBar verticalScrollBarConversation = null;
 
         // green/red arrow buttons for conversation frame
-        Texture2D arrowConversationUpRed;
-        Texture2D arrowConversationUpGreen;
-        Texture2D arrowConversationDownRed;
-        Texture2D arrowConversationDownGreen;
+        protected Texture2D arrowConversationUpRed;
+        protected Texture2D arrowConversationUpGreen;
+        protected Texture2D arrowConversationDownRed;
+        protected Texture2D arrowConversationDownGreen;
 
         // used to guard execution of function SelectTopicFromTopicList - see this function for more detail why this guarding is necessary
-        bool inListboxTopicContentUpdate = false;
+        protected bool inListboxTopicContentUpdate = false;
 
-        bool suppressTalk = false;
-        string suppressTalkMessage = string.Empty;
+        protected bool suppressTalk = false;
+        protected string suppressTalkMessage = string.Empty;
 
         // Used to store indexes of copied talk fragments so they can be entered into Notebook in chronological order
-        List<int> copyIndexes;
+        protected List<int> copyIndexes;
+
+        protected bool isCloseWindowDeferred = false;
 
         public DaggerfallTalkWindow(IUserInterfaceManager uiManager, DaggerfallBaseWindow previous = null)
             : base(uiManager, previous)
@@ -330,7 +332,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        public void UpdateListboxTopic()
+        public virtual void UpdateListboxTopic()
         {               
             if (listboxTopic != null)
             {
@@ -354,7 +356,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }                
         }
 
-        public void SetNPCPortrait(FacePortraitArchive facePortraitArchive, int recordId)
+        public virtual void SetNPCPortrait(FacePortraitArchive facePortraitArchive, int recordId)
         {
             // Load npc portrait
             string imageName = facePortraitArchive == FacePortraitArchive.CommonFaces ? portraitImgName : facesImgName;
@@ -380,7 +382,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 panelPortrait.BackgroundTexture = texturePortrait;
         }
 
-        public void UpdateNameNPC()
+        public virtual void UpdateNameNPC()
         {
             if (labelNameNPC != null)
             {
@@ -409,6 +411,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             mainPanel.Size = new Vector2(320, 200); // reference size is always vanilla df resolution
             mainPanel.HorizontalAlignment = HorizontalAlignment.Center;
             mainPanel.VerticalAlignment = VerticalAlignment.Middle;
+            mainPanel.BackgroundColor = Color.black;
 
             panelPortrait = DaggerfallUI.AddPanel(new Rect(panelPortraitPos, panelPortraitSize), NativePanel);
             panelPortrait.BackgroundTexture = texturePortrait;
@@ -650,13 +653,14 @@ namespace DaggerfallWorkshop.Game.UserInterface
             TalkManager.Instance.StartNewConversation();
         }
 
-        void SetupButtons()
+        protected virtual void SetupButtons()
         {
             buttonTellMeAbout = new Button();
             buttonTellMeAbout.Position = new Vector2(4, 4);
             buttonTellMeAbout.Size = new Vector2(107, 10);
             buttonTellMeAbout.Name = "button_tellmeabout";
             buttonTellMeAbout.OnMouseClick += ButtonTellMeAbout_OnMouseClick;
+            buttonTellMeAbout.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkTellMeAbout);
             mainPanel.Components.Add(buttonTellMeAbout);
 
             buttonWhereIs = new Button();
@@ -664,6 +668,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonWhereIs.Size = new Vector2(107, 10);
             buttonWhereIs.Name = "button_whereis";
             buttonWhereIs.OnMouseClick += ButtonWhereIs_OnMouseClick;
+            buttonWhereIs.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkWhereIs);
             mainPanel.Components.Add(buttonWhereIs);
 
             buttonCategoryLocation = new Button();
@@ -671,6 +676,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonCategoryLocation.Size = new Vector2(107, 10);
             buttonCategoryLocation.Name = "button_categoryLocation";
             buttonCategoryLocation.OnMouseClick += ButtonCategoryLocation_OnMouseClick;
+            buttonCategoryLocation.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkCategoryLocation);
             mainPanel.Components.Add(buttonCategoryLocation);
 
             buttonCategoryPerson = new Button();
@@ -678,6 +684,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonCategoryPerson.Size = new Vector2(107, 10);
             buttonCategoryPerson.Name = "button_categoryPeople";
             buttonCategoryPerson.OnMouseClick += ButtonCategoryPeople_OnMouseClick;
+            buttonCategoryPerson.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkCategoryPeople);
             mainPanel.Components.Add(buttonCategoryPerson);
 
             buttonCategoryThings = new Button();
@@ -685,6 +692,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonCategoryThings.Size = new Vector2(107, 10);
             buttonCategoryThings.Name = "button_categoryThings";
             buttonCategoryThings.OnMouseClick += ButtonCategoryThings_OnMouseClick;
+            buttonCategoryThings.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkCategoryThings);
             mainPanel.Components.Add(buttonCategoryThings);
 
             buttonCategoryWork = new Button();
@@ -692,6 +700,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonCategoryWork.Size = new Vector2(107, 10);
             buttonCategoryWork.Name = "button_categoryWork";
             buttonCategoryWork.OnMouseClick += ButtonCategoryWork_OnMouseClick;
+            buttonCategoryWork.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkCategoryWork);
             mainPanel.Components.Add(buttonCategoryWork);
 
             buttonOkay = new Button();
@@ -699,6 +708,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonOkay.Size = new Vector2(107, 10);
             buttonOkay.Name = "button_okay";
             buttonOkay.OnMouseClick += ButtonOkay_OnMouseClick;
+            buttonOkay.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkAsk);
             mainPanel.Components.Add(buttonOkay);
 
             buttonGoodbye = new Button();
@@ -706,35 +716,43 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonGoodbye.Size = new Vector2(67, 10);
             buttonGoodbye.Name = "button_goodbye";
             buttonGoodbye.OnMouseClick += ButtonGoodbye_OnMouseClick;
+            buttonGoodbye.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkExit);
+            buttonGoodbye.OnKeyboardEvent += ButtonGoodbye_OnKeyboardEvent;
+
             mainPanel.Components.Add(buttonGoodbye);
 
             buttonLogbook = new Button {
                 Position = new Vector2(118, 158),
                 Size = new Vector2(67, 18),
                 ToolTip = defaultToolTip,
-                ToolTipText = TextManager.Instance.GetText(TalkManager.TextDatabase, "copyLogbookInfo"),
+                ToolTipText = TextManager.Instance.GetLocalizedText("copyLogbookInfo"),
             };
             if (defaultToolTip != null)
                 buttonLogbook.ToolTip.ToolTipDelay = 1;
             buttonLogbook.OnMouseClick += ButtonLogbook_OnMouseClick;
             buttonLogbook.OnRightMouseClick += ButtonLogbook_OnRightMouseClick;
+            // Can only assign one hotkey :(
+            buttonLogbook.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkCopy);
             mainPanel.Components.Add(buttonLogbook);
         }
 
-        void SetupCheckboxes()
+        protected virtual void SetupCheckboxes()
         {
             buttonCheckboxTonePolite = DaggerfallUI.AddButton(rectButtonTonePolite, NativePanel);
             buttonCheckboxTonePolite.OnMouseClick += ButtonTonePolite_OnClickHandler;
+            buttonCheckboxTonePolite.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkTonePolite);
             buttonCheckboxToneNormal = DaggerfallUI.AddButton(rectButtonToneNormal, NativePanel);
             buttonCheckboxToneNormal.OnMouseClick += ButtonToneNormal_OnClickHandler;
+            buttonCheckboxToneNormal.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkToneNormal);
             buttonCheckboxToneBlunt = DaggerfallUI.AddButton(rectButtonToneBlunt, NativePanel);
             buttonCheckboxToneBlunt.OnMouseClick += ButtonToneBlunt_OnClickHandler;
+            buttonCheckboxToneBlunt.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TalkToneBlunt);
 
             panelTone = DaggerfallUI.AddPanel(new Rect(panelTonePolitePos, panelToneSize), NativePanel);
             panelTone.BackgroundColor = toggleColor;
         }
 
-        void SetupScrollBars()
+        protected virtual void SetupScrollBars()
         {
             // topic list scroll bar (e.g. items in character inventory)
             verticalScrollBarTopic = new VerticalScrollBar();
@@ -757,7 +775,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             NativePanel.Components.Add(verticalScrollBarConversation);         
         }
 
-        void SetupScrollButtons()
+        protected virtual void SetupScrollButtons()
         {
             buttonTopicUp = DaggerfallUI.AddButton(rectButtonTopicUp, NativePanel);
             buttonTopicUp.BackgroundTexture = arrowTopicUpRed;
@@ -785,7 +803,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonConversationDown.OnMouseClick += ButtonConversationDown_OnMouseClick;
         }
 
-        void UpdateScrollBarsTopic()
+        protected virtual void UpdateScrollBarsTopic()
         {
             verticalScrollBarTopic.DisplayUnits = (int)listboxTopic.Size.y; //Math.Min(maxNumTopicsShown, listboxTopic.Count);
             verticalScrollBarTopic.TotalUnits = listboxTopic.HeightContent();  //listboxTopic.Count;
@@ -798,7 +816,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             horizontalSliderTopic.Update();
         }
 
-        void UpdateScrollBarConversation()
+        protected virtual void UpdateScrollBarConversation()
         {
             verticalScrollBarConversation.DisplayUnits = (int)listboxConversation.Size.y; //Math.Max(5, listboxConversation.HeightContent() / 10);
             verticalScrollBarConversation.TotalUnits = listboxConversation.HeightContent();
@@ -808,7 +826,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             verticalScrollBarConversation.Update();
         }
 
-        void UpdateScrollButtonsTopic()
+        protected virtual void UpdateScrollButtonsTopic()
         {
             int verticalScrollIndex = GetSafeScrollIndex(verticalScrollBarTopic);
             // Update scroller buttons
@@ -823,7 +841,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonTopicRight.Update();
         }
 
-        void UpdateScrollButtonsConversation()
+        protected virtual void UpdateScrollButtonsConversation()
         {
             int scrollIndex = GetSafeScrollIndex(verticalScrollBarConversation);
             // Update scroller buttons
@@ -832,7 +850,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             buttonConversationDown.Update();
         }
 
-        void SetListboxTopics(ref ListBox listboxTopic, List<TalkManager.ListItem> listTopic)
+        protected virtual void SetListboxTopics(ref ListBox listboxTopic, List<TalkManager.ListItem> listTopic)
         {
             listCurrentTopics = listTopic;
 
@@ -845,11 +863,11 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 {
                     item.caption = item.key; //  just try to take key as caption then (answers might still be broken)
                     if (item.caption == String.Empty)
-                        item.caption = TextManager.Instance.GetText(TalkManager.TextDatabase, "resolvingError");
+                        item.caption = TextManager.Instance.GetLocalizedText("resolvingError");
                 }
                 else if (item.caption == String.Empty)
                 {
-                    item.caption = TextManager.Instance.GetText(TalkManager.TextDatabase, "resolvingError");
+                    item.caption = TextManager.Instance.GetLocalizedText("resolvingError");
                 }
                 listboxTopic.AddItem(item.caption, out listboxItem);
                 if (item.type == TalkManager.ListItemType.NavigationBack)
@@ -886,7 +904,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        void ClearListboxTopics()
+        protected virtual void ClearListboxTopics()
         {
             listboxTopic.ClearItems();
             //lengthOfLongestItemInListBox = 0;
@@ -894,7 +912,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             listboxTopic.MaxHorizontalScrollIndex = 0;
         }
 
-        void UpdateCheckboxes()
+        protected virtual void UpdateCheckboxes()
         {
             //update tone selection
             switch (selectedTalkTone)
@@ -913,7 +931,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         }
 
-        void SetTalkModeTellMeAbout()
+        protected virtual void SetTalkModeTellMeAbout()
         {
             selectedTalkOption = TalkOption.TellMeAbout;
             if (selectedTalkOption == talkOptionLastUsed)
@@ -938,7 +956,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        void SetTalkModeWhereIs()
+        protected virtual void SetTalkModeWhereIs()
         {
             selectedTalkOption = TalkOption.WhereIs;
             if (selectedTalkOption == talkOptionLastUsed)
@@ -951,7 +969,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             SetTalkCategory(selectedTalkCategory);
         }
 
-        void SetTalkCategory(TalkCategory talkCategory)
+        protected virtual void SetTalkCategory(TalkCategory talkCategory)
         {
             switch (talkCategory)
             {
@@ -974,7 +992,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        void SetTalkCategoryNone()
+        protected virtual void SetTalkCategoryNone()
         {
             ClearCurrentQuestion();
 
@@ -993,7 +1011,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateScrollButtonsTopic();
         }
 
-        void SetTalkCategoryLocation()
+        protected virtual void SetTalkCategoryLocation()
         {
             selectedTalkCategory = TalkCategory.Location;
             if (selectedTalkCategory == talkCategoryLastUsed)
@@ -1014,7 +1032,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        void SetTalkCategoryPeople()
+        protected virtual void SetTalkCategoryPeople()
         {
             selectedTalkCategory = TalkCategory.People;
             if (selectedTalkCategory == talkCategoryLastUsed)
@@ -1035,7 +1053,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        void SetTalkCategoryThings()
+        protected virtual void SetTalkCategoryThings()
         {
             selectedTalkCategory = TalkCategory.Things;
             if (selectedTalkCategory == talkCategoryLastUsed)
@@ -1056,7 +1074,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        void SetTalkCategoryWork()
+        protected virtual void SetTalkCategoryWork()
         {
             selectedTalkCategory = TalkCategory.Work;
             if (selectedTalkCategory == talkCategoryLastUsed)
@@ -1085,7 +1103,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         /// Gets safe scroll index.
         /// Scroller will be adjust to always be inside display range where possible.
         /// </summary>
-        int GetSafeScrollIndex(VerticalScrollBar scroller)
+        protected virtual int GetSafeScrollIndex(VerticalScrollBar scroller)
         {
             // Get current scroller index
             int scrollIndex = scroller.ScrollIndex;
@@ -1107,7 +1125,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         /// Gets safe scroll index.
         /// Scroller will be adjust to always be inside display range where possible.
         /// </summary>
-        int GetSafeScrollIndex(HorizontalSlider slider)
+        protected virtual int GetSafeScrollIndex(HorizontalSlider slider)
         {
             // Get current scroller index
             int sliderIndex = slider.ScrollIndex;
@@ -1126,7 +1144,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         // Updates red/green state of scroller buttons
-        void UpdateListTopicScrollerButtons(VerticalScrollBar verticalScrollBar, int index, int count, Button upButton, Button downButton)
+        protected virtual void UpdateListTopicScrollerButtons(VerticalScrollBar verticalScrollBar, int index, int count, Button upButton, Button downButton)
         {
             // Update up button
             if (index > 0)
@@ -1149,7 +1167,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         // Updates red/green state of left/right scroller buttons
-        void UpdateListTopicScrollerButtonsLeftRight(HorizontalSlider horizontalSlider, int index, int count, Button leftButton, Button rightButton)
+        protected virtual void UpdateListTopicScrollerButtonsLeftRight(HorizontalSlider horizontalSlider, int index, int count, Button leftButton, Button rightButton)
         {
             // Update up button
             if (index > 0)
@@ -1172,7 +1190,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         }
 
         // Updates red/green state of scroller buttons
-        void UpdateListConversationScrollerButtons(VerticalScrollBar verticalScrollBar, int index, int count, Button upButton, Button downButton)
+        protected virtual void UpdateListConversationScrollerButtons(VerticalScrollBar verticalScrollBar, int index, int count, Button upButton, Button downButton)
         {
             // Update up button
             if (index > 0)
@@ -1194,13 +1212,13 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        void ClearCurrentQuestion()
+        protected void ClearCurrentQuestion()
         {
             currentQuestion = "";
             textlabelPlayerSays.Text = "";
         }
 
-        void UpdateQuestion(int index)
+        protected virtual void UpdateQuestion(int index)
         {
             TalkManager.ListItem listItem;
             if (selectedTalkCategory == TalkCategory.Work)
@@ -1229,8 +1247,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             textlabelPlayerSays.Text = currentQuestion;
         }
 
-        void SetQuestionAnswerPairInConversationListbox(string question, string answer)
+        protected virtual void SetQuestionAnswerPairInConversationListbox(string question, string answer)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             ListBox.ListItem textLabelQuestion;
             ListBox.ListItem textLabelAnswer;
             listboxConversation.AddItem(question, out textLabelQuestion);
@@ -1263,7 +1282,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateScrollButtonsConversation();
         }
 
-        void SelectTopicFromTopicList(int index, bool forceExecution = false)
+        protected virtual void SelectTopicFromTopicList(int index, bool forceExecution = false)
         {
             // guard execution - this is important because I encountered a issue with listbox and double-click:
             // when changing listbox content and updating the listbox in the double click event callback the
@@ -1291,7 +1310,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 if (listItem.listParentItems != null)
                 {
                     selectionIndexLastUsed = -1;
-                    SetListboxTopics(ref listboxTopic, listItem.listParentItems);                    
+                    SetListboxTopics(ref listboxTopic, listItem.listParentItems);
+                    DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 }
             }
             else if (listItem.type == TalkManager.ListItemType.ItemGroup)
@@ -1299,7 +1319,8 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 if (listItem.listChildItems != null)
                 {
                     selectionIndexLastUsed = -1;
-                    SetListboxTopics(ref listboxTopic, listItem.listChildItems);                    
+                    SetListboxTopics(ref listboxTopic, listItem.listChildItems);
+                    DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 }
             }
             else if (listItem.type == TalkManager.ListItemType.Item)
@@ -1315,7 +1336,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         #region event handlers
 
-        private void VerticalScrollBarTopic_OnScroll()
+        protected virtual void VerticalScrollBarTopic_OnScroll()
         {
             // Update scroller
             verticalScrollBarTopic.TotalUnits = listboxTopic.HeightContent(); //listboxTopic.Count;
@@ -1329,7 +1350,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             listboxTopic.Update();
         }
 
-        private void HorizontalSliderTopic_OnScroll()
+        protected virtual void HorizontalSliderTopic_OnScroll()
         {
             // Update scroller
             horizontalSliderTopic.TotalUnits = widthOfLongestItemInListBox; //lengthOfLongestItemInListBox;
@@ -1343,7 +1364,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             listboxTopic.Update();
         }
 
-        private void VerticalScrollBarConversation_OnScroll()
+        protected virtual void VerticalScrollBarConversation_OnScroll()
         {
             // Update scroller
             verticalScrollBarConversation.TotalUnits = listboxConversation.HeightContent();
@@ -1356,7 +1377,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             listboxConversation.Update();
         }
 
-        private void ListboxTopic_OnSelectItem()
+        protected virtual void ListboxTopic_OnSelectItem()
         {
             int index = listboxTopic.SelectedIndex;
             if (index != selectionIndexLastUsed)
@@ -1364,12 +1385,12 @@ namespace DaggerfallWorkshop.Game.UserInterface
             selectionIndexLastUsed = index;
         }
 
-        private void ListboxTopic_OnUseSelectedItem()
+        protected virtual void ListboxTopic_OnUseSelectedItem()
         {
             SelectTopicFromTopicList(listboxTopic.SelectedIndex);
         }
 
-        private void ListBoxTopic_OnScroll()
+        protected virtual void ListBoxTopic_OnScroll()
         {
             int scrollIndex = listboxTopic.ScrollIndex;
 
@@ -1381,7 +1402,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateListTopicScrollerButtons(verticalScrollBarTopic, scrollIndex, listboxTopic.HeightContent(), buttonTopicUp, buttonTopicDown);
         }
 
-        private void ListBoxConversation_OnScroll()
+        protected virtual void ListBoxConversation_OnScroll()
         {
             int scrollIndex = listboxConversation.ScrollIndex;
 
@@ -1393,80 +1414,92 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateListConversationScrollerButtons(verticalScrollBarConversation, scrollIndex, listboxConversation.HeightContent(), buttonConversationUp, buttonConversationDown);
         }
 
-        private void ButtonTopicUp_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTopicUp_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             verticalScrollBarTopic.ScrollIndex -=5;
         }
 
-        private void ButtonTopicDown_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTopicDown_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             verticalScrollBarTopic.ScrollIndex +=5;
         }
 
-        private void ButtonTopicLeft_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTopicLeft_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             horizontalSliderTopic.ScrollIndex--;
         }
 
-        private void ButtonTopicRight_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTopicRight_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             horizontalSliderTopic.ScrollIndex++;
         }
 
-        private void ButtonConversationUp_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonConversationUp_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             verticalScrollBarConversation.ScrollIndex -= 5;
         }
 
-        private void ButtonConversationDown_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonConversationDown_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             verticalScrollBarConversation.ScrollIndex += 5;
         }
 
-        private void ButtonTellMeAbout_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTellMeAbout_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             SetTalkModeTellMeAbout();
         }
 
-        private void ButtonWhereIs_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonWhereIs_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             SetTalkModeWhereIs();
         }
 
-        private void ButtonCategoryLocation_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonCategoryLocation_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (selectedTalkOption == TalkOption.WhereIs)
             {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 SetTalkCategoryLocation();
             }
         }
 
-        private void ButtonCategoryPeople_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonCategoryPeople_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (selectedTalkOption == TalkOption.WhereIs)
             {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 SetTalkCategoryPeople();
             }
         }
 
-        private void ButtonCategoryThings_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonCategoryThings_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (selectedTalkOption == TalkOption.WhereIs)
             {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 SetTalkCategoryThings();
             }
         }
 
-        private void ButtonCategoryWork_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonCategoryWork_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (selectedTalkOption == TalkOption.WhereIs)
             {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 SetTalkCategoryWork();
             }
         }
 
-        private void ButtonTonePolite_OnClickHandler(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonTonePolite_OnClickHandler(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             selectedTalkTone = TalkTone.Polite;
             if (TalkToneToIndex(selectedTalkTone) == toneLastUsed)
                 return;
@@ -1475,8 +1508,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        private void ButtonToneNormal_OnClickHandler(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonToneNormal_OnClickHandler(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             selectedTalkTone = TalkTone.Normal;
             if (TalkToneToIndex(selectedTalkTone) == toneLastUsed)
                 return;
@@ -1485,8 +1519,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        private void ButtonToneBlunt_OnClickHandler(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonToneBlunt_OnClickHandler(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             selectedTalkTone = TalkTone.Blunt;
             if (TalkToneToIndex(selectedTalkTone) == toneLastUsed)
                 return;
@@ -1495,7 +1530,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             UpdateQuestion(listboxTopic.SelectedIndex);
         }
 
-        private void ButtonOkay_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonOkay_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             if (selectedTalkOption == TalkOption.WhereIs && selectedTalkCategory == TalkCategory.Work)
             {
@@ -1512,8 +1547,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        private void ButtonLogbook_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonLogbook_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             if (listboxConversation.SelectedIndex < 0)
                 return;
 
@@ -1529,8 +1565,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        private void ButtonLogbook_OnRightMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonLogbook_OnRightMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             copyIndexes.Clear();
             for (int idx = 0; idx < listboxConversation.Count; idx++)
             {
@@ -1539,8 +1576,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        private void MarkCopiedListItem(ListBox.ListItem item, bool unmark = false)
+        protected virtual void MarkCopiedListItem(ListBox.ListItem item, bool unmark = false)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             if (unmark)
             {
                 item.shadowColor = DaggerfallUI.DaggerfallDefaultShadowColor;
@@ -1553,9 +1591,24 @@ namespace DaggerfallWorkshop.Game.UserInterface
             }
         }
 
-        private void ButtonGoodbye_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ButtonGoodbye_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             CloseWindow();
+        }
+
+        protected virtual void ButtonGoodbye_OnKeyboardEvent(BaseScreenComponent sender, Event keyboardEvent)
+        {
+            if (keyboardEvent.type == EventType.KeyDown)
+            {
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
+                isCloseWindowDeferred = true;
+            }
+            else if (keyboardEvent.type == EventType.KeyUp && isCloseWindowDeferred)
+            {
+                isCloseWindowDeferred = false;
+                CloseWindow();
+            }
         }
 
         #endregion

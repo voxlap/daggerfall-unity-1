@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -14,7 +14,6 @@ using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Utility;
-using DaggerfallWorkshop.Utility.AssetInjection;
 using Unity.Jobs;
 using Unity.Collections;
 
@@ -49,6 +48,10 @@ namespace DaggerfallWorkshop
         {
             return string.Format("DaggerfallTerrain [{0},{1}]", mapPixelX, mapPixelY);
         }
+
+        // Allow mods to set extra blend space around locations for placing content, specifed in # of tiles
+        public delegate int AdditionalLocationBlendSpace(DFRegion.LocationTypes locationType);
+        public static AdditionalLocationBlendSpace ExtraBlendSpace = (locationType) => { return 0; };
 
         /// <summary>
         /// Gets map pixel data for any location in world.
@@ -88,6 +91,7 @@ namespace DaggerfallWorkshop
                 mapLocationIndex = mapIndex,
                 locationID = id,
                 locationName = locationName,
+                LocationType = mapSummary.LocationType
             };
 
             return mapPixel;
@@ -109,18 +113,12 @@ namespace DaggerfallWorkshop
             result.X = (RMBLayout.RMBTilesPerTerrain - width * RMBLayout.RMBTilesPerBlock) / 2;
             result.Y = (RMBLayout.RMBTilesPerTerrain - height * RMBLayout.RMBTilesPerBlock) / 2;
 
-            // But some 1x1 locations (e.g. Privateer's Hold exterior) are positioned differently
-            // Seems to be 1x1 blocks using CUST prefix, but possibly more research needed
-            const int custPrefixIndex = 40;
-            if (width == 1 && height == 1)
+            // Handle custom 1x1 location position
+            if (location.HasCustomLocationPosition())
             {
-                if (location.Exterior.ExteriorData.BlockIndex[0] == custPrefixIndex)
-                {
-                    result.X = 72;
-                    result.Y = 55;
-                }
+                result.X = 72;
+                result.Y = 55;
             }
-
             return result;
         }
 
@@ -147,7 +145,7 @@ namespace DaggerfallWorkshop
                 {
                     // Get block data
                     DFBlock block;
-                    string blockName = dfUnity.ContentReader.MapFileReader.GetRmbBlockName(ref location, blockX, blockY);
+                    string blockName = dfUnity.ContentReader.MapFileReader.GetRmbBlockName(location, blockX, blockY);
                     if (!dfUnity.ContentReader.GetBlock(blockName, out block))
                         continue;
 
@@ -177,7 +175,7 @@ namespace DaggerfallWorkshop
             }
 
             // Update location rect with extra clearance
-            const int extraClearance = 2;
+            int extraClearance = location.MapTableData.LocationType == DFRegion.LocationTypes.TownCity ? 3 : 2;
             Rect locationRect = new Rect();
             locationRect.xMin = xmin - extraClearance;
             locationRect.xMax = xmax + extraClearance;
@@ -207,17 +205,27 @@ namespace DaggerfallWorkshop
                 hDim = DaggerfallUnity.Instance.TerrainSampler.HeightmapDimension,
                 locationRect = mapPixel.locationRect,
             };
+            int extraBlendSpace = ExtraBlendSpace(mapPixel.LocationType);
+            if (extraBlendSpace > 0)
+            {
+                blendLocationTerrainJob.locationRect.xMin -= extraBlendSpace;
+                blendLocationTerrainJob.locationRect.xMax += extraBlendSpace;
+                blendLocationTerrainJob.locationRect.yMin -= extraBlendSpace;
+                blendLocationTerrainJob.locationRect.yMax += extraBlendSpace;
+            }
             return blendLocationTerrainJob.Schedule(dependencies);
         }
 
         public static JobHandle ScheduleUpdateTileMapDataJob(ref MapPixelData mapPixel, JobHandle dependencies)
         {
             int tilemapDim = MapsFile.WorldMapTileDim;
+            bool convertWater = DaggerfallUnity.Instance.TerrainTexturing.ConvertWaterTiles();
             UpdateTileMapDataJob updateTileMapDataJob = new UpdateTileMapDataJob()
             {
                 tilemapData = mapPixel.tilemapData,
                 tileMap = mapPixel.tileMap,
                 tDim = tilemapDim,
+                convertWater = convertWater,
             };
             return updateTileMapDataJob.Schedule(tilemapDim * tilemapDim, 64, dependencies);
         }
@@ -329,6 +337,7 @@ namespace DaggerfallWorkshop
             public NativeArray<Color32> tileMap;
 
             public int tDim;
+            public bool convertWater;
 
             public void Execute(int index)
             {
@@ -343,7 +352,7 @@ namespace DaggerfallWorkshop
 
                 // Convert from [flip,rotate,6bit-record] => [6bit-record,flip,rotate]
                 int record;
-                if (tile == byte.MaxValue)
+                if (convertWater && tile == byte.MaxValue)
                 {   // Zeros are converted to FF so assign tiles doesn't overwrite location tiles, convert back.
                     record = 0;
                 }
@@ -459,130 +468,6 @@ namespace DaggerfallWorkshop
 
             //long totalTime = stopwatch.ElapsedMilliseconds - startTime;
             //DaggerfallUnity.LogMessage(string.Format("Time to smooth location neighbourhoods: {0}ms", totalTime), true);
-        }
-
-        // Drops nature flats based on random chance scaled by simple rules
-        public static void LayoutNatureBillboards(DaggerfallTerrain dfTerrain, DaggerfallBillboardBatch dfBillboardBatch, float terrainScale)
-        {
-            const float maxSteepness = 50f;         // 50
-            const float baseChanceOnDirt = 0.2f;        // 0.2
-            const float baseChanceOnGrass = 0.9f;       // 0.4
-            const float baseChanceOnStone = 0.05f;      // 0.05
-
-            // Location Rect is expanded slightly to give extra clearance around locations
-            const int natureClearance = 4;
-            Rect rect = dfTerrain.MapData.locationRect;
-            if (rect.x > 0 && rect.y > 0)
-            {
-                rect.xMin -= natureClearance;
-                rect.xMax += natureClearance;
-                rect.yMin -= natureClearance;
-                rect.yMax += natureClearance;
-            }
-            // Chance scaled based on map pixel height
-            // This tends to produce sparser lowlands and denser highlands
-            // Adjust or remove clamp range to influence nature generation
-            float elevationScale = (dfTerrain.MapData.worldHeight / 128f);
-            elevationScale = Mathf.Clamp(elevationScale, 0.4f, 1.0f);
-
-            // Chance scaled by base climate type
-            float climateScale = 1.0f;
-            DFLocation.ClimateSettings climate = MapsFile.GetWorldClimateSettings(dfTerrain.MapData.worldClimate);
-            switch (climate.ClimateType)
-            {
-                case DFLocation.ClimateBaseType.Desert:         // Just lower desert for now
-                    climateScale = 0.25f;
-                    break;
-            }
-            float chanceOnDirt = baseChanceOnDirt * elevationScale * climateScale;
-            float chanceOnGrass = baseChanceOnGrass * elevationScale * climateScale;
-            float chanceOnStone = baseChanceOnStone * elevationScale * climateScale;
-
-            // Get terrain
-            Terrain terrain = dfTerrain.gameObject.GetComponent<Terrain>();
-            if (!terrain)
-                return;
-
-            // Get terrain data
-            TerrainData terrainData = terrain.terrainData;
-            if (!terrainData)
-                return;
-
-            // Remove exiting billboards
-            dfBillboardBatch.Clear();
-            MeshReplacement.ClearNatureGameObjects(terrain);
-
-            // Seed random with terrain key
-            Random.InitState(MakeTerrainKey(dfTerrain.MapPixelX, dfTerrain.MapPixelY));
-
-            // Just layout some random flats spread evenly across entire map pixel area
-            // Flats are aligned with tiles, max 16129 billboards per batch
-            Vector2 tilePos = Vector2.zero;
-            int tDim = MapsFile.WorldMapTileDim;
-            int hDim = DaggerfallUnity.Instance.TerrainSampler.HeightmapDimension;
-            float scale = terrainData.heightmapScale.x * (float)hDim / (float)tDim;
-            float maxTerrainHeight = DaggerfallUnity.Instance.TerrainSampler.MaxTerrainHeight;
-            float beachLine = DaggerfallUnity.Instance.TerrainSampler.BeachElevation;
-
-            for (int y = 0; y < tDim; y++)
-            {
-                for (int x = 0; x < tDim; x++)
-                {
-                    // Reject based on steepness
-                    float steepness = terrainData.GetSteepness((float)x / tDim, (float)y / tDim);
-                    if (steepness > maxSteepness)
-                        continue;
-
-                    // Reject if inside location rect (expanded slightly to give extra clearance around locations)
-                    tilePos.x = x;
-                    tilePos.y = y;
-                    if (rect.x > 0 && rect.y > 0 && rect.Contains(tilePos))
-                        continue;
-
-                    // Chance also determined by tile type
-                    int tile = dfTerrain.MapData.tilemapSamples[x, y] & 0x3F;
-                    if (tile == 1)
-                    {   // Dirt
-                        if (UnityEngine.Random.Range(0f, 1f) > chanceOnDirt)
-                            continue;
-                    }
-                    else if (tile == 2)
-                    {   // Grass
-                        if (UnityEngine.Random.Range(0f, 1f) > chanceOnGrass)
-                            continue;
-                    }
-                    else if (tile == 3)
-                    {   // Stone
-                        if (UnityEngine.Random.Range(0f, 1f) > chanceOnStone)
-                            continue;
-                    }
-                    else
-                    {   // Anything else
-                        continue;
-                    }
-
-                    int hx = (int)Mathf.Clamp(hDim * ((float)x / (float)tDim), 0, hDim - 1);
-                    int hy = (int)Mathf.Clamp(hDim * ((float)y / (float)tDim), 0, hDim - 1);
-                    float height = dfTerrain.MapData.heightmapSamples[hy, hx] * maxTerrainHeight;  // x & y swapped in heightmap for TerrainData.SetHeights()
-
-                    // Reject if too close to water
-                    if (height < beachLine)
-                        continue;
-
-                    // Sample height and position billboard
-                    Vector3 pos = new Vector3(x * scale, 0, y * scale);
-                    float height2 = terrain.SampleHeight(pos + terrain.transform.position);
-                    pos.y = height2;
-
-                    // Add to batch
-                    int record = UnityEngine.Random.Range(1, 32);
-                    if (!MeshReplacement.ImportNatureGameObject(dfBillboardBatch.TextureArchive, record, terrain, x, y))
-                        dfBillboardBatch.AddItem(record, pos);
-                }
-            }
-
-            // Apply new batch
-            dfBillboardBatch.Apply();
         }
 
         // Gets terrain key based on map pixel coordinates

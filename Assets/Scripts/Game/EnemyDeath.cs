@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -28,7 +28,7 @@ namespace DaggerfallWorkshop.Game
 
         public static System.EventHandler OnEnemyDeath;
 
-        DaggerfallMobileUnit mobile;
+        MobileUnit mobile;
         DaggerfallEntityBehaviour entityBehaviour;
         EnemyEntity enemyEntity;
 
@@ -40,9 +40,13 @@ namespace DaggerfallWorkshop.Game
 
         void Awake()
         {
-            mobile = GetComponentInChildren<DaggerfallMobileUnit>();
             entityBehaviour = GetComponent<DaggerfallEntityBehaviour>();
             entityBehaviour.OnSetEntity += EntityBehaviour_OnSetEntity;
+        }
+
+        private void Start()
+        {
+            mobile = GetComponent<DaggerfallEnemy>().MobileUnit;
         }
 
         private void Update()
@@ -68,20 +72,13 @@ namespace DaggerfallWorkshop.Game
                     return;
             }
 
-            // Play body collapse sound
-            if (DaggerfallUI.Instance.DaggerfallAudioSource)
-            {
-                AudioClip collapseSound = DaggerfallUI.Instance.DaggerfallAudioSource.GetAudioClip((int)SoundClips.BodyFall);
-                AudioSource.PlayClipAtPoint(collapseSound, entityBehaviour.transform.position, 1.05f);
-            }
-
             // Disable enemy gameobject
             // Do not destroy as we must still save enemy state when dead
             gameObject.SetActive(false);
 
             // Show death message
-            string deathMessage = HardStrings.thingJustDied;
-            deathMessage = deathMessage.Replace("%s", mobile.Summary.Enemy.Name);
+            string deathMessage = TextManager.Instance.GetLocalizedText("thingJustDied");
+            deathMessage = deathMessage.Replace("%s", TextManager.Instance.GetLocalizedEnemyName(mobile.Enemy.ID));
             DaggerfallUI.Instance.PopupMessage(deathMessage);
 
             // Generate lootable corpse marker
@@ -89,7 +86,7 @@ namespace DaggerfallWorkshop.Game
                 GameManager.Instance.PlayerObject,
                 entityBehaviour.gameObject,
                 enemyEntity,
-                mobile.Summary.Enemy.CorpseTexture,
+                mobile.Enemy.CorpseTexture,
                 DaggerfallUnity.NextUID);
 
             // This is still required so enemy equipment is not marked as equipped
@@ -109,6 +106,19 @@ namespace DaggerfallWorkshop.Game
             // Many quests will stash a reward in enemy inventory for player to find
             // This will be in addition to normal random loot table generation
             loot.Items.TransferAll(entityBehaviour.Entity.Items);
+
+            // Play body collapse sound
+            if (DaggerfallUI.Instance.DaggerfallAudioSource)
+            {
+                DaggerfallUI.Instance.DaggerfallAudioSource.PlayClipAtPoint(SoundClips.BodyFall, loot.transform.position, 1f);
+            }
+
+            // Lower enemy alert state on player now that enemy is dead
+            // If this is final enemy targeting player then alert state will remain clear
+            // Other enemies still targeting player will continue to raise alert state every update
+            EnemySenses senses = entityBehaviour.GetComponent<EnemySenses>();
+            if (senses && senses.Target == GameManager.Instance.PlayerEntityBehaviour)
+                GameManager.Instance.PlayerEntity.SetEnemyAlert(false);
 
             // Raise static event
             if (OnEnemyDeath != null)

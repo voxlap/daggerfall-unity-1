@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Michael Rauter (a.k.a. Nystul)
-// Contributors:    Lypyl, Interkarma
+// Contributors:    Lypyl, Interkarma, Numidium
 // 
 // Notes:
 //
@@ -142,8 +142,6 @@ namespace DaggerfallWorkshop.Game
 
         #region Fields
 
-        const string textDatabase = "DaggerfallUI";
-
         const string ResourceNameRotateArrow = "RotateArrow";
 
         const string NameGamobjectBeacons = "Beacons";
@@ -271,14 +269,11 @@ namespace DaggerfallWorkshop.Game
 
         bool iTweenCameraAnimationIsRunning = false; // indicates if iTween camera animation is running (i.e. teleporter portal jump animation plays)
 
+        static bool isCreatingDungeonAutomapBaseGameObjects = false; // Indicates that the Automap is creating the models for a Castle's or Dungeon's Automap
+
         #endregion
 
         #region Properties
-
-        public static string TextDatabase
-        {
-            get { return textDatabase; }
-        }
 
         /// <summary>
         /// DaggerfallAutomapWindow script will use this to get automap layer
@@ -366,6 +361,11 @@ namespace DaggerfallWorkshop.Game
         public bool ITweenCameraAnimationIsRunning
         {
             get { return iTweenCameraAnimationIsRunning; }
+        }
+
+        public static bool IsCreatingDungeonAutomapBaseGameObjects
+        {
+            get { return isCreatingDungeonAutomapBaseGameObjects; }
         }
 
         #endregion
@@ -569,27 +569,27 @@ namespace DaggerfallWorkshop.Game
                 // if hit geometry is player position beacon
                 else if (nearestHit.Value.transform.name == NameGameobjectBeaconPlayerPosition)
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapPlayerPositionBeacon");
+                    return TextManager.Instance.GetLocalizedText("automapPlayerPositionBeacon");
                 }
                 // if hit geometry is player rotation pivot axis or rotation indicator arrows
                 else if (nearestHit.Value.transform.name == NameGameobjectBeaconRotationPivotAxis || nearestHit.Value.transform.name == NameGameobjectRotateArrow)
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapRotationPivotAxis");
+                    return TextManager.Instance.GetLocalizedText("automapRotationPivotAxis");
                 }
                 // if hit geometry is dungeon entrance/exit position beacon
                 else if (nearestHit.Value.transform.name == NameGameobjectBeaconEntrancePositionMarker)
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapEntranceExitPositionBeacon");
+                    return TextManager.Instance.GetLocalizedText("automapEntranceExitPositionBeacon");
                 }
                 // if hit geometry is dungeon entrance/exit position marker
                 else if (nearestHit.Value.transform.name == NameGameobjectCubeEntrancePositionMarker)
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapEntranceExit");
+                    return TextManager.Instance.GetLocalizedText("automapEntranceExit");
                 }
                 // if hit geometry is player position marker arrow
                 else if (nearestHit.Value.transform.name == NameGameobjectPlayerMarkerArrow)
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapPlayerMarker");
+                    return TextManager.Instance.GetLocalizedText("automapPlayerMarker");
                 }
                 // if hit geometry is teleporter portal marker and its parent gameobject is an teleporter entrance
                 else if (
@@ -598,7 +598,7 @@ namespace DaggerfallWorkshop.Game
                         nearestHit.Value.transform.parent.transform.name.EndsWith(NameGameobjectTeleporterEntranceSubStringEnd)
                         )
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapTeleporterEntrance");
+                    return TextManager.Instance.GetLocalizedText("automapTeleporterEntrance");
                 }
                 // if hit geometry is teleporter portal marker and its parent gameobject is an teleporter exit
                 else if (
@@ -607,7 +607,7 @@ namespace DaggerfallWorkshop.Game
                         nearestHit.Value.transform.parent.transform.name.EndsWith(NameGameobjectTeleporterExitSubStringEnd)
                         )
                 {
-                    return TextManager.Instance.GetText(textDatabase, "automapTeleporterExit");
+                    return TextManager.Instance.GetLocalizedText("automapTeleporterExit");
                 }
             }
             return ""; // otherwise return empty string (= no mouse hover over text will be displayed)
@@ -1303,109 +1303,6 @@ namespace DaggerfallWorkshop.Game
             Shader.SetGlobalFloat("_SclicingPositionY", slicingPositionY);
         }
 
-        private void UpdateMaterialsOfMeshRenderer(MeshRenderer meshRenderer, bool visitedInThisEntering = false)
-        {
-            Vector3 playerAdvancedPos = gameObjectPlayerAdvanced.transform.position;
-            Material[] newMaterials = new Material[meshRenderer.materials.Length];
-            for (int i = 0; i < meshRenderer.materials.Length; i++)
-            {
-                Material material = meshRenderer.materials[i];
-                Material newMaterial = newMaterials[i];
-
-                newMaterial = new Material(Shader.Find("Daggerfall/Automap"));
-                //newMaterial.CopyPropertiesFromMaterial(material);
-                newMaterial.name = "AutomapBelowSclicePlane injected for: " + material.name;
-                if (material.HasProperty(Uniforms.MainTex))
-                    newMaterial.SetTexture(Uniforms.MainTex, material.GetTexture(Uniforms.MainTex));
-                if (material.HasProperty(Uniforms.BumpMap))
-                    newMaterial.SetTexture(Uniforms.BumpMap, material.GetTexture(Uniforms.BumpMap));
-                if (material.HasProperty(Uniforms.EmissionMap))
-                    newMaterial.SetTexture(Uniforms.EmissionMap, material.GetTexture(Uniforms.EmissionMap));
-                if (material.HasProperty(Uniforms.EmissionColor))
-                    newMaterial.SetColor(Uniforms.EmissionColor, material.GetColor(Uniforms.EmissionColor));
-                Vector4 playerPosition = new Vector4(playerAdvancedPos.x, playerAdvancedPos.y + Camera.main.transform.localPosition.y, playerAdvancedPos.z, 0.0f);
-                newMaterial.SetVector("_PlayerPosition", playerPosition);
-                if (visitedInThisEntering == true)
-                    newMaterial.DisableKeyword("RENDER_IN_GRAYSCALE");
-                else
-                    newMaterial.EnableKeyword("RENDER_IN_GRAYSCALE");
-                newMaterials[i] = newMaterial;
-            }
-            meshRenderer.materials = newMaterials;
-        }     
-
-        /// <summary>
-        /// will inject materials and properties to MeshRenderer in the proper hierarchy level of automap level geometry GameObject
-        /// note: the proper hierarchy level differs between an "Interior" and a "Dungeon" geometry GameObject
-        /// </summary>
-        /// <param name="resetDiscoveryState"> if true resets the discovery state for geometry that needs to be discovered (when inside dungeons or castles) </param>
-        private void InjectMeshAndMaterialProperties(bool resetDiscoveryState = true)
-        {
-            if (GameManager.Instance.IsPlayerInsideBuilding)
-            {
-                // find all MeshRenderers in 3rd hierarchy level
-                foreach (Transform elem in gameobjectGeometry.transform)
-                {
-                    foreach (Transform innerElem in elem.gameObject.transform)
-                    {
-                        foreach (Transform inner2Elem in innerElem.gameObject.transform)
-                        {
-                            // get rid of animated materials (will not break automap rendering but is not necessary)
-                            AnimatedMaterial[] animatedMaterials = inner2Elem.gameObject.GetComponents<AnimatedMaterial>();                            
-                            foreach (AnimatedMaterial animatedMaterial in animatedMaterials)
-                            {
-                                UnityEngine.Object.Destroy(animatedMaterial);
-                            }
-
-                            MeshRenderer meshRenderer = inner2Elem.gameObject.GetComponent<MeshRenderer>();
-                            if (meshRenderer == null)
-                                break;
-
-                            // update materials and set meshes as visited in this run (so "Interior" geometry always is colored
-                            // (since we don't disable the mesh, it is also discovered - which is a precondition for being rendered))
-                            UpdateMaterialsOfMeshRenderer(meshRenderer, true);                            
-                        }
-                    }
-                }
-            }
-            else if ((GameManager.Instance.IsPlayerInsideDungeon)||(GameManager.Instance.IsPlayerInsideCastle))
-            {
-                // find all MeshRenderers in 4th hierarchy level
-                foreach (Transform elem in gameobjectGeometry.transform)
-                {
-                    foreach (Transform innerElem in elem.gameObject.transform)
-                    {
-                        foreach (Transform inner2Elem in innerElem.gameObject.transform)
-                        {
-                            foreach (Transform inner3Elem in inner2Elem.gameObject.transform)
-                            {
-                                // get rid of animated materials (will not break automap rendering but is not necessary)
-                                AnimatedMaterial[] animatedMaterials = inner3Elem.gameObject.GetComponents<AnimatedMaterial>();
-                                foreach (AnimatedMaterial animatedMaterial in animatedMaterials)
-                                {
-                                    UnityEngine.Object.Destroy(animatedMaterial);
-                                }
-
-                                MeshRenderer meshRenderer = inner3Elem.gameObject.GetComponent<MeshRenderer>();
-                                if (meshRenderer == null)
-                                    break;
-
-                                // update materials (omit 2nd parameter so default behavior is initiated which is:
-                                // meshes are marked as not visited in this run (so "Dungeon" geometry that has been discovered in a previous dungeon run is rendered in grayscale)
-                                UpdateMaterialsOfMeshRenderer(meshRenderer);
-
-                                if (resetDiscoveryState) // if forced reset of discovery state
-                                {
-                                    // mark meshRenderer as undiscovered
-                                    meshRenderer.enabled = false;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         //private void SetMaterialTransparency(Material material)
         //{
         //    material.SetOverrideTag("RenderType", "Transparent");
@@ -1850,9 +1747,30 @@ namespace DaggerfallWorkshop.Game
                 return;
             }
 
+            DFLocation location = currentLocation.Value;
+            int originX, originY, sizeX, sizeY;
+            {
+                const int sizeMin = 7;
+
+                int blockXMin = 1000;
+                int blockXMax = -1000;
+                int blockZMin = 1000;
+                int blockZMax = -1000;
+                foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
+                {
+                    if (block.X < blockXMin) blockXMin = block.X;
+                    if (block.X > blockXMax) blockXMax = block.X;
+                    if (block.Z < blockZMin) blockZMin = block.Z;
+                    if (block.Z > blockZMax) blockZMax = block.Z;
+                }
+                originX = -blockXMin + 1;
+                originY = -blockZMin + 1;
+                sizeX = sizeY = Math.Max(sizeMin, Math.Max(blockXMax + 1 + originX, blockZMax + 1 + originY));
+            }
+
             int microMapBlockSizeInPixels = 2;
-            int width = 7 * microMapBlockSizeInPixels;
-            int height = 7 * microMapBlockSizeInPixels;
+            int width = sizeX * microMapBlockSizeInPixels;
+            int height = sizeY * microMapBlockSizeInPixels;
             textureMicroMap = new Texture2D(width, height, TextureFormat.ARGB32, false);
             textureMicroMap.filterMode = FilterMode.Point;
 
@@ -1861,11 +1779,10 @@ namespace DaggerfallWorkshop.Game
                 colors[i] = new Color(0.0f, 0.0f, 0.0f, 0.0f);
             textureMicroMap.SetPixels(0, 0, width, height, colors);
 
-            DFLocation location = currentLocation.Value;
             foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
             {
-                int xBlockPos = 3 + block.X;
-                int yBlockPos = 3 + block.Z;
+                int xBlockPos = originX + block.X;
+                int yBlockPos = originY + block.Z;
                 for (int y = 0; y < microMapBlockSizeInPixels; y++)
                 {
                     for (int x = 0; x < microMapBlockSizeInPixels; x++)
@@ -1879,8 +1796,8 @@ namespace DaggerfallWorkshop.Game
             DaggerfallDungeon dungeon = GameManager.Instance.DungeonParent.GetComponentInChildren<DaggerfallDungeon>();
             float entrancePosX = dungeon.StartMarker.transform.position.x / RDBLayout.RDBSide;
             float entrancePosY = dungeon.StartMarker.transform.position.z / RDBLayout.RDBSide;
-            int xPosOfBlock = 3 * microMapBlockSizeInPixels + (int)(Mathf.Floor(entrancePosX*2)) * (microMapBlockSizeInPixels / 2);
-            int yPosOfBlock = 3 * microMapBlockSizeInPixels + (int)(Mathf.Floor(entrancePosY*2)) * (microMapBlockSizeInPixels / 2);
+            int xPosOfBlock = originX * microMapBlockSizeInPixels + (int)(Mathf.Floor(entrancePosX*2)) * (microMapBlockSizeInPixels / 2);
+            int yPosOfBlock = originY * microMapBlockSizeInPixels + (int)(Mathf.Floor(entrancePosY*2)) * (microMapBlockSizeInPixels / 2);
             for (int y = 0; y < microMapBlockSizeInPixels / 2; y++)
             {
                 for (int x = 0; x < microMapBlockSizeInPixels / 2; x++)
@@ -1892,8 +1809,8 @@ namespace DaggerfallWorkshop.Game
             // mark player position on micro map            
             float playerPosX = gameObjectPlayerAdvanced.transform.position.x / RDBLayout.RDBSide;
             float playerPosY = gameObjectPlayerAdvanced.transform.position.z / RDBLayout.RDBSide;
-            xPosOfBlock = 3 * microMapBlockSizeInPixels + (int)(Mathf.Floor(playerPosX * 2)) * (microMapBlockSizeInPixels / 2);
-            yPosOfBlock = 3 * microMapBlockSizeInPixels + (int)(Mathf.Floor(playerPosY * 2)) * (microMapBlockSizeInPixels / 2);
+            xPosOfBlock = originX * microMapBlockSizeInPixels + (int)(Mathf.Floor(playerPosX * 2)) * (microMapBlockSizeInPixels / 2);
+            yPosOfBlock = originY * microMapBlockSizeInPixels + (int)(Mathf.Floor(playerPosY * 2)) * (microMapBlockSizeInPixels / 2);
             for (int y = 0; y < microMapBlockSizeInPixels / 2; y++)
             {
                 for (int x = 0; x < microMapBlockSizeInPixels / 2; x++)
@@ -1977,7 +1894,7 @@ namespace DaggerfallWorkshop.Game
             gameobjectGeometry.transform.SetParent(gameobjectAutomap.transform);
 
             // inject all materials of automap geometry with automap shader and reset MeshRenderer enabled state (this is used for the discovery mechanism)
-            InjectMeshAndMaterialProperties();
+            RaiseOnInjectMeshAndMaterialPropertiesEvent();
 
             //oldGeometryName = newGeometryName;
         }
@@ -2001,29 +1918,28 @@ namespace DaggerfallWorkshop.Game
             gameobjectGeometry = new GameObject("GeometryAutomap (Dungeon)");
 
             // disable this option to get all small dungeon parts as individual models
+            bool combineRdbOptionState = DaggerfallUnity.Instance.Option_CombineRDB;
             DaggerfallUnity.Instance.Option_CombineRDB = false;
 
             foreach (Transform elem in GameManager.Instance.DungeonParent.transform)
             {
                 if (elem.name.Contains("DaggerfallDungeon"))
                 {
+                    DFLocation.DungeonBlock[] blocks = GameManager.Instance.PlayerEnterExit.Dungeon.Summary.LocationData.Dungeon.Blocks;
                     GameObject gameobjectDungeon = new GameObject(newGeometryName);
 
                     // Create dungeon layout
-                    foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
+                    foreach (DFLocation.DungeonBlock block in blocks)
                     {
-                        if (location.Name == "Orsinium")
-                        {
-                            if (block.X == -1 && block.Z == -1 && block.BlockName == "N0000065.RDB")
-                                continue;
-                        }
-
                         DFBlock blockData;
-                        int[] textureTable = null;
-                        GameObject gameobjectBlock = RDBLayout.CreateBaseGameObject(block.BlockName, null, out blockData, textureTable, true, null, false);
+                        int[] textureTable = GameManager.Instance.PlayerEnterExit?.Dungeon?.DungeonTextureTable;
+                        Automap.isCreatingDungeonAutomapBaseGameObjects = true;
+                        GameObject gameobjectBlock = RDBLayout.CreateBaseGameObject(block.BlockName, null, out blockData, textureTable, true, null, false, true);
+                        Automap.isCreatingDungeonAutomapBaseGameObjects = false;
                         gameobjectBlock.transform.position = new Vector3(block.X * RDBLayout.RDBSide, 0, block.Z * RDBLayout.RDBSide);
 
                         gameobjectBlock.transform.SetParent(gameobjectDungeon.transform);
+                        AddWater(gameobjectBlock, block.WaterLevel);
                     }
 
                     gameobjectDungeon.transform.SetParent(gameobjectGeometry.transform);
@@ -2039,17 +1955,39 @@ namespace DaggerfallWorkshop.Game
                 }
             }
 
-            // enable this option (to reset to normal behavior)
-            DaggerfallUnity.Instance.Option_CombineRDB = true;
+            // set this option back to previous state (to reset to previous behavior)
+            if (combineRdbOptionState)
+                DaggerfallUnity.Instance.Option_CombineRDB = true;
 
             // put all objects inside gameobjectGeometry in layer "Automap"
             SetLayerRecursively(gameobjectGeometry, layerAutomap);
-            gameobjectGeometry.transform.SetParent(gameobjectAutomap.transform);            
+            gameobjectGeometry.transform.SetParent(gameobjectAutomap.transform);
 
             // inject all materials of automap geometry with automap shader and reset MeshRenderer enabled state (this is used for the discovery mechanism)
-            InjectMeshAndMaterialProperties();
+            RaiseOnInjectMeshAndMaterialPropertiesEvent();
 
             //oldGeometryName = newGeometryName;
+        }
+
+        private void AddWater(GameObject parent, short nativeBlockWaterLevel)
+        {
+            // Exit if no water present
+            if (nativeBlockWaterLevel == 10000)
+                return;
+
+            float waterLevel = nativeBlockWaterLevel * -1 * MeshReader.GlobalScale;
+            MeshRenderer[] renderers = parent.GetComponentsInChildren<MeshRenderer>();
+
+            if (renderers != null)
+            {
+                MaterialPropertyBlock propertyBlock = new MaterialPropertyBlock();
+                foreach (MeshRenderer renderer in renderers)
+                {
+                    renderer.GetPropertyBlock(propertyBlock);
+                    propertyBlock.SetFloat("_WaterLevel", waterLevel);
+                    renderer.SetPropertyBlock(propertyBlock);
+                }
+            }
         }
 
         /// <summary>
@@ -2222,16 +2160,20 @@ namespace DaggerfallWorkshop.Game
                     foreach (Transform currentTransformMesh in currentTransformModel.transform)
                     {
                         AutomapGeometryModelState model = new AutomapGeometryModelState();
-                        MeshRenderer meshRenderer = currentTransformMesh.GetComponent<MeshRenderer>();
-                        if ((meshRenderer) && (meshRenderer.enabled))
+                        MeshRenderer[] meshRenderers = currentTransformMesh.GetComponentsInChildren<MeshRenderer>();
+                        for (int i = 0; i < meshRenderers.Length; i++)
                         {
-                            model.discovered = true;
-                            model.visitedInThisRun = !meshRenderer.materials[0].IsKeywordEnabled("RENDER_IN_GRAYSCALE"); // all materials of model have the same setting - so just material[0] is tested
-                        }
-                        else
-                        {
-                            model.discovered = false;
-                            model.visitedInThisRun = false;
+                            if ((meshRenderers[i]) && (meshRenderers[i].enabled))
+                            {
+                                model.discovered = true;
+                                model.visitedInThisRun = !meshRenderers[i].materials[0].IsKeywordEnabled("RENDER_IN_GRAYSCALE"); // all materials of model have the same setting - so just material[0] is tested
+                                break;
+                            }
+                            else
+                            {
+                                model.discovered = false;
+                                model.visitedInThisRun = false;
+                            }
                         }
                         models.Add(model);
                     }
@@ -2355,9 +2297,11 @@ namespace DaggerfallWorkshop.Game
             DestroyTeleporterMarkers();
         }
 
-        void UpdateMeshRendererDungeonState(ref MeshRenderer meshRenderer, AutomapDungeonState automapDungeonState, int indexBlock, int indexElement, int indexModel, bool forceNotVisitedInThisRun)
+        void UpdateMeshRendererDungeonState(MeshRenderer meshRenderer, AutomapDungeonState automapDungeonState, int indexBlock, int indexElement, int indexModel, bool forceNotVisitedInThisRun)
         {
-            if (automapDungeonState.blocks[indexBlock].blockElements[indexElement].models[indexModel].discovered == true)
+            if ((indexBlock < automapDungeonState.blocks.Count) && (indexElement < automapDungeonState.blocks[indexBlock].blockElements.Count) &&
+                (indexModel < automapDungeonState.blocks[indexBlock].blockElements[indexElement].models.Count) &&
+                (automapDungeonState.blocks[indexBlock].blockElements[indexElement].models[indexModel].discovered == true))
             {
                 meshRenderer.enabled = true;
 
@@ -2439,10 +2383,13 @@ namespace DaggerfallWorkshop.Game
                     {
                         Transform currentTransformModel = currentTransformElement.GetChild(indexModel);
 
-                        MeshRenderer meshRenderer = currentTransformModel.GetComponent<MeshRenderer>();
-                        if (meshRenderer)
+                        MeshRenderer[] meshRenderers = currentTransformModel.GetComponentsInChildren<MeshRenderer>();
+                        for (int i = 0; i < meshRenderers.Length; i++)
                         {
-                            UpdateMeshRendererDungeonState(ref meshRenderer, automapDungeonState, indexBlock, indexElement, indexModel, forceNotVisitedInThisRun);
+                            if (meshRenderers[i])
+                            {
+                                UpdateMeshRendererDungeonState(meshRenderers[i], automapDungeonState, indexBlock, indexElement, indexModel, forceNotVisitedInThisRun);
+                            }
                         }
                     }
                 }
@@ -2614,6 +2561,27 @@ namespace DaggerfallWorkshop.Game
                 dictTeleporterConnections.Add(connection.ToString(), connection);
         }
 
+        /// <summary>
+        /// Send an event instructing all Automap models to apply Automap materials and properties to their MeshRenderers.
+        /// </summary>
+        /// <param name="resetDiscoveryState"> if true resets the discovery state for geometry that needs to be discovered (when inside dungeons or castles) </param>
+        public delegate void OnInjectMeshAndMaterialPropertiesEventHandler(bool playerIsInsideBuilding, Vector3 playerAdvancedPos, Material automapMaterial, bool resetDiscoveryState);
+        public static event OnInjectMeshAndMaterialPropertiesEventHandler OnInjectMeshAndMaterialProperties;
+        private void RaiseOnInjectMeshAndMaterialPropertiesEvent(bool resetDiscoveryState = true)
+        {
+            if (OnInjectMeshAndMaterialProperties != null)
+            {
+                bool playerIsInsideBuilding = false;
+                if (GameManager.Instance.IsPlayerInsideBuilding)
+                    playerIsInsideBuilding = true;
+
+                Vector3 playerAdvancedPos = gameObjectPlayerAdvanced.transform.position;
+                Material automapMaterial = new Material(Shader.Find("Daggerfall/Automap"));
+                automapMaterial.SetColor("_WaterColor", GameManager.Instance.PlayerEnterExit.UnderwaterFog.waterMapColor);
+
+                OnInjectMeshAndMaterialProperties(playerIsInsideBuilding, playerAdvancedPos, automapMaterial, resetDiscoveryState);
+            }
+        }
         #endregion
 
         #region console_commands

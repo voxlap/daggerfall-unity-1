@@ -168,8 +168,8 @@ Item _crn_ item class 1 subclass 8
 Item _I.01_ wand
 
 Person _questgiver_ face 86 group Questor
-Person _merchant_ face 87 group Pawnbroker
-Person _mage_ face 1 group Spellcaster
+Person _merchant_ face 87 group Pawnbroker female local
+Person _mage_ face 1 group Spellcaster remote
 
 Place _shop_ local pawnshop
 
@@ -193,6 +193,9 @@ _qtime_ task:
 
 _clickqgiver_ task:
 	clicked npc _questgiver_ 
+
+_S.10_ task:
+	toting _crn_ and _merchant_ clicked 
 
 _S.02_ task:
 	clicked npc _merchant_ 
@@ -227,9 +230,6 @@ _S.09_ task:
 	create foe _skeleton_ every 1 minutes 1 times with 100% success 
 	make _I.01_ permanent 
 
-_S.10_ task:
-	toting _crn_ and _merchant_ clicked 
-
 _S.11_ task:
 	when _S.08_ and _S.10_ 
 	say 1050 
@@ -249,4 +249,5 @@ _S.13_ task:
 	when _S.10_ and not _S.08_ 
 	get item _crn_ 
 	say 1051 
-	unset _S.10_ _S.13_ 
+	clear _S.10_
+	clear _S.13_ 

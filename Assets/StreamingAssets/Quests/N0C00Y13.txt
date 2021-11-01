@@ -140,7 +140,8 @@ QuestorPostfailure:  [1009]
 <ce>                    I should keeping talking to you.
 
 QuestLogEntry:  [1010]
-%qdt: I met _questgiver_
+%qdt:
+ I met _questgiver_
  of the Mages Guild of ___questgiver_
  who sent me on a quest to find an
  ancient text hidden in ___dungeon_.
@@ -182,7 +183,7 @@ QuestTimeLapse:  [1045]
 QBN:
 Item _ingredient_ letter used 1020
 
-Person _questgiver_ group Questor male
+Person _questgiver_ group Questor
 
 Place _dungeon_ remote dungeon
 

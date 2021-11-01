@@ -69,7 +69,7 @@ QuestorPostfailure:  [1009]
 <ce>               take care of a bunch of Harpies. Pathetic.
 
 Message:  1020
-<ce>                   Thats five. That should be enough
+<ce>                   That's five. That should be enough
 <ce>                         to hold _questgiver_.
 
 Message:  1030
@@ -106,9 +106,9 @@ Message:  1080
 QBN:
 Item _reward_ gold
 
-Person _questgiver_ group Questor male
+Person _questgiver_ group Questor
 
-Place _mondung_ remote dungeon
+Place _mondung_ remote dungeon10
 Place _newdung_ remote dungeon
 
 Clock _1stparton_ 00:00 0 flag 17 range 0 2

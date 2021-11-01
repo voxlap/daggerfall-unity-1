@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -16,6 +16,7 @@ using System.IO;
 using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Entity;
 using UnityEngine;
+using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Player;
 using DaggerfallWorkshop.Utility;
@@ -26,12 +27,22 @@ namespace DaggerfallConnect.Arena2
     {
         const int questionCount = 12;
         const int socialGroupCount = 5;
+        const int defaultBackstoriesStart = 4116;
+
+        // Folder names constants
+        const string biogSourceFolderName = "BIOGs";
 
         string questionsStr = string.Empty;
         Question[] questions = new Question[questionCount];
         short[] changedReputations = new short[socialGroupCount];
         List<string> answerEffects = new List<string>();
         CharacterDocument characterDocument;
+        int backstoryId;
+
+        public static string BIOGSourceFolder
+        {
+            get { return Path.Combine(Application.streamingAssetsPath, biogSourceFolderName); }
+        }
 
         public BiogFile(CharacterDocument characterDocument)
         {
@@ -39,8 +50,8 @@ namespace DaggerfallConnect.Arena2
             this.characterDocument = characterDocument;
 
             // Load text file
-            string fileName = "BIOG" + characterDocument.classIndex.ToString("D" + 2) + "T0.TXT";
-            FileProxy txtFile = new FileProxy(Path.Combine(DaggerfallUnity.Instance.Arena2Path, fileName), FileUsage.UseDisk, true);
+            string fileName = $"BIOG{characterDocument.classIndex:D2}T{characterDocument.biographyIndex}.TXT";
+            FileProxy txtFile = new FileProxy(Path.Combine(BiogFile.BIOGSourceFolder, fileName), FileUsage.UseDisk, true);
             questionsStr = System.Text.Encoding.UTF8.GetString(txtFile.GetBytes());
 
             // Parse text into questions
@@ -53,6 +64,30 @@ namespace DaggerfallConnect.Arena2
                 // Skip through any blank lines
                 while (curLine.Length <= 1)
                     curLine = reader.ReadLine();
+
+                // If we haven't parsed the first question yet, allow users to specify a custom backstory string id
+                if(i == 0)
+                {
+                    if (curLine[0] == '#')
+                    {
+                        string value = curLine.Substring(1);
+                        if (!int.TryParse(value, out backstoryId))
+                        {
+                            Debug.LogError($"{fileName}: Invalid string id '{value}'");
+                            backstoryId = defaultBackstoriesStart + characterDocument.classIndex;
+                        }
+
+                        // Find the next non-empty line, which should be question 1
+                        do
+                        {
+                            curLine = reader.ReadLine();
+                        } while (curLine.Length <= 1);
+                    }
+                    else
+                    {
+                        backstoryId = defaultBackstoriesStart + characterDocument.classIndex;
+                    }
+                }
 
                 // Parse question text
                 for (int j = 0; j < Question.lines; j++)
@@ -131,10 +166,8 @@ namespace DaggerfallConnect.Arena2
             }
         }
 
-        public List<string> GenerateBackstory(int classIndex)
+        public List<string> GenerateBackstory()
         {
-            const int tokensStart = 4116;
-
             #region Parse answer tokens
             List<int>[] tokenLists = new List<int>[questionCount * 2];
             tokenLists[0] = Q1Tokens;
@@ -176,8 +209,10 @@ namespace DaggerfallConnect.Arena2
             }
             #endregion
 
+            TextFile.Token lastToken = new TextFile.Token();
+            GameManager.Instance.PlayerEntity.BirthRaceTemplate = characterDocument.raceTemplate; // Need correct race set when parsing %ra macro
             List<string> backStory = new List<string>();
-            TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(tokensStart + classIndex);
+            TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(backstoryId);
             MacroHelper.ExpandMacros(ref tokens, (IMacroContextProvider)this);
             foreach (TextFile.Token token in tokens)
             {
@@ -185,6 +220,12 @@ namespace DaggerfallConnect.Arena2
                 {
                     backStory.Add(token.text);
                 }
+                else if (token.formatting == TextFile.Formatting.JustifyLeft)
+                {
+                    if (lastToken.formatting == TextFile.Formatting.JustifyLeft)
+                        backStory.Add("\n");
+                }
+                lastToken = token;
             }
 
             return backStory;
@@ -206,7 +247,7 @@ namespace DaggerfallConnect.Arena2
 
         private static void ApplyPlayerEffect(PlayerEntity playerEntity, string effect)
         {
-            string[] tokens = effect.Split(' ');
+            string[] tokens = effect.Split(null);
             int parseResult;
 
             // Skill modifier effect
@@ -403,12 +444,47 @@ namespace DaggerfallConnect.Arena2
             }
         }
 
-        public static void ApplyEffects(List<string> effects, PlayerEntity playerEntity)
+        public static void ApplyEffects(IEnumerable<string> effects, PlayerEntity playerEntity)
         {
+            if (effects == null)
+                return;
+
             foreach (string effect in effects)
             {
                 ApplyPlayerEffect(playerEntity, effect);
             }
+        }
+
+        public static int[] GetSkillEffects(IEnumerable<string> effects)
+        {
+            if (effects == null)
+                return null;
+
+            int skillCount = (int)DFCareer.Skills.Count;
+            int[] skills = new int[skillCount];
+
+            // Apply only skill effects
+            foreach(string effect in effects)
+            {
+                string[] tokens = effect.Split(null);
+                int parseResult;
+
+                // Skill modifier effect
+                if (int.TryParse(tokens[0], out parseResult) && parseResult >= 0 && parseResult < skillCount)
+                {
+                    short modValue;
+                    if (short.TryParse(tokens[1], out modValue))
+                    {
+                        skills[parseResult] += modValue;
+                    }
+                    else
+                    {
+                        Debug.LogError("CreateCharBiography: Invalid skill adjustment value.");
+                    }
+                }
+            }
+
+            return skills;
         }
 
         private static ArmorMaterialTypes WeaponToArmorMaterialType(WeaponMaterialTypes materialType)

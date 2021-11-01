@@ -6,6 +6,7 @@
 -- QuestId: 0
 Messages: 31
 Quest: Y0C00Y00
+DisplayName: Mehrunes Dagon's Quest
 -- Message panels
 QRC:
 
@@ -87,8 +88,9 @@ Message:  1013
 <ce>                 I have no idea what _artifact_ does.
 
 Message:  1020
-%qdt: The Daedric Prince
- Mehrunes Dagon wants me to slay a frost daedra in
+%qdt: 
+ The Daedric Prince Mehrunes Dagon
+ wants me to slay a frost daedra in
  ___mondung_.  After the extermination
  is complete, I have =1stparton_ days
  to meet with _contact_ and receive
@@ -120,13 +122,13 @@ Dagon's prey returns to Oblivion.
 QBN:
 Item _artifact_ artifact Mehrunes_Razor anyInfo 1013
 
-Person _contact_ face 239 faction The_Cabal anyInfo 1012
+Person _questgiver_ face 112 named Mehrunes_Dagon anyInfo 1011
+Person _contact_ face 239 faction The_Cabal female remote anyInfo 1012
 
 Place _mondung_ remote dungeon
 Place _tavern_ remote tavern
 
 Clock _1stparton_ 00:00 0 flag 1 range 0 5
-Clock _delay_ 01:00 0 flag 1 range 0 1
 
 Foe _monster_ is Frost_daedra
 
@@ -140,7 +142,8 @@ Foe _monster_ is Frost_daedra
 _pcgetsgold_ task:
 	when _qgclicked_ and _mondead_ 
 	give pc _artifact_ 
-	start timer _delay_ 
+	end quest 
+--removed unnecessary delay
 
 variable _queston_
 _mondead_ task:
@@ -158,6 +161,3 @@ _clearclick_ task:
 	when _qgclicked_ and not _mondead_ 
 	say 1003
 	clear _qgclicked_ _clearclick_ 
-
-_delay_ task:
-	end quest 

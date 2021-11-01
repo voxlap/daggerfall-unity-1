@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -21,6 +21,7 @@ using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Utility.AssetInjection;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -34,6 +35,7 @@ namespace DaggerfallWorkshop.Game
         UnderwaterFog underwaterFog;
         DaggerfallUnity dfUnity;
         CharacterController controller;
+        bool isCreatingDungeonObjects = false;
         bool isPlayerInside = false;
         bool isPlayerInsideDungeon = false;
         bool isPlayerInsideDungeonCastle = false;
@@ -62,9 +64,14 @@ namespace DaggerfallWorkshop.Game
 
         int lastPlayerDungeonBlockIndex = -1;
         DFLocation.DungeonBlock playerDungeonBlockData = new DFLocation.DungeonBlock();
+
+        /// <summary>
+        /// If different than <c>10000</c> this is the height level of water in current dungeon.
+        /// Otherwise player is not inside a dungeon with water.
+        /// </summary>
         public short blockWaterLevel = 10000;
 
-        DFLocation.BuildingTypes buildingType;
+        DFLocation.BuildingTypes buildingType = DFLocation.BuildingTypes.None;
         ushort factionID = 0;
         PlayerGPS.DiscoveredBuilding buildingDiscoveryData;
 
@@ -87,6 +94,15 @@ namespace DaggerfallWorkshop.Game
         public bool LastInteriorStartFlag
         {
             get { return lastInteriorStartFlag; }
+        }
+
+        /// <summary>
+        /// True when GameObjectHelper is creating the RDB Base Game Objects
+        /// </summary>
+        public bool IsCreatingDungeonObjects
+        {
+            get { return isCreatingDungeonObjects; }
+            set { isCreatingDungeonObjects = value; }
         }
 
         /// <summary>
@@ -140,6 +156,18 @@ namespace DaggerfallWorkshop.Game
             get { return isPlayerInsideOpenShop; }
             set { isPlayerInsideOpenShop = value; }
         }
+
+        /// <summary>
+        /// True when player is inside a tavern.
+        /// Set upon entry.
+        /// </summary>
+        public bool IsPlayerInsideTavern { get; set; }
+
+        /// <summary>
+        /// True when player is inside a residence.
+        /// Set upon entry.
+        /// </summary>
+        public bool IsPlayerInsideResidence { get; set; }
 
         /// <summary>
         /// True when player is swimming in water.
@@ -196,6 +224,12 @@ namespace DaggerfallWorkshop.Game
         }
 
         /// <summary>
+        /// True when player just teleported into a dungeon via Teleport spell, otherwise false.
+        /// Flag is only raised by Teleport spell and is lowered any time player exits a dungeon or interior, or teleports to a non-dungeon anchor.
+        /// </summary>
+        public bool PlayerTeleportedIntoDungeon { get; set; }
+
+        /// <summary>
         /// Gets current player dungeon.
         /// Only valid when player is inside a dungeon.
         /// </summary>
@@ -250,7 +284,7 @@ namespace DaggerfallWorkshop.Game
         public PlayerGPS.DiscoveredBuilding BuildingDiscoveryData
         {
             get { return buildingDiscoveryData; }
-            internal set { buildingDiscoveryData = value; }
+            set { buildingDiscoveryData = value; }
         }
 
         /// <summary>
@@ -261,6 +295,14 @@ namespace DaggerfallWorkshop.Game
         {
             get { return exteriorDoors.ToArray(); }
             set { SetExteriorDoors(value); }
+        }
+
+        /// <summary>
+        /// Gets instance of UnderwaterFog controlling fog when below the surface of dungeon water.
+        /// </summary>
+        public UnderwaterFog UnderwaterFog
+        {
+            get { return underwaterFog; }
         }
 
         void Awake()
@@ -281,7 +323,7 @@ namespace DaggerfallWorkshop.Game
         }
 
         void Update()
-        {
+        {            
             // Track which dungeon block player is inside of
             if (dungeon && isPlayerInsideDungeon)
             {
@@ -319,11 +361,19 @@ namespace DaggerfallWorkshop.Game
             // Count down holiday text display
             if (holidayTextTimer > 0)
                 holidayTextTimer -= Time.deltaTime;
-            if (holidayTextTimer <= 0 && holidayTextPrimed)
+            if (holidayTextTimer <= 0 && holidayTextPrimed && GameManager.Instance.IsPlayerOnHUD)
             {
                 holidayTextPrimed = false;
                 ShowHolidayText();
             }
+
+            // Player in sunlight or darkness
+            isPlayerInSunlight = DaggerfallUnity.Instance.WorldTime.Now.IsDay && !IsPlayerInside && !GameManager.Instance.PlayerEntity.InPrison;
+
+            // Do not process underwater logic if not playing game
+            // This prevents player catching breath during load
+            if (!GameManager.Instance.IsPlayingGame())
+                return;
 
             // Underwater swimming logic should only be processed in dungeons at this time
             if (isPlayerInsideDungeon)
@@ -345,7 +395,7 @@ namespace DaggerfallWorkshop.Game
                 bool overEncumbered = (GameManager.Instance.PlayerEntity.CarriedWeight * 4 > 250);
                 if ((overEncumbered && levitateMotor.IsSwimming) && !displayAfloatMessage && !GameManager.Instance.PlayerEntity.IsWaterWalking)
                 {
-                    DaggerfallUI.AddHUDText(HardStrings.cannotFloat, 1.75f);
+                    DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("cannotFloat"), 1.75f);
                     displayAfloatMessage = true;
                 }
                 else if ((!overEncumbered || !levitateMotor.IsSwimming) && displayAfloatMessage)
@@ -370,9 +420,6 @@ namespace DaggerfallWorkshop.Game
                 isPlayerSubmerged = false;
                 levitateMotor.IsSwimming = false;
             }
-
-            // Player in sunlight or darkness
-            isPlayerInSunlight = DaggerfallUnity.Instance.WorldTime.Now.IsDay && !IsPlayerInside && !GameManager.Instance.PlayerEntity.InPrison;
         }
 
         #region Public Methods
@@ -496,7 +543,7 @@ namespace DaggerfallWorkshop.Game
                 world.TeleportToCoordinates(pos.X, pos.Y, StreamingWorld.RepositionMethods.None);
                 dfUnity.ContentReader.GetLocation(summary.RegionIndex, summary.MapIndex, out location);
                 StartBuildingInterior(location, exteriorDoors[0], start);
-                world.suppressWorld = true;
+                world.suppressWorld = false;
             }
             else
             {
@@ -512,6 +559,9 @@ namespace DaggerfallWorkshop.Game
             RaiseOnRespawnerCompleteEvent();
         }
 
+        /// <summary>
+        /// Shows UI message with text for current holiday, if any.
+        /// </summary>
         public void ShowHolidayText()
         {
             const int holidaysStartID = 8349;
@@ -642,6 +692,9 @@ namespace DaggerfallWorkshop.Game
                 world.ClearStatefulLooseObjects();
             }
 
+            // Ensure building variant checks use this location.
+            WorldDataVariants.SetLastLocationKeyTo(playerGPS.CurrentRegionIndex, playerGPS.CurrentLocationIndex);
+
             // Raise event
             RaiseOnPreTransitionEvent(TransitionType.ToBuildingInterior, door);
 
@@ -669,9 +722,10 @@ namespace DaggerfallWorkshop.Game
             }
             catch (Exception e)
             {
-                DaggerfallUI.AddHUDText(HardStrings.thisHouseHasNothingOfValue);
+                DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("thisHouseHasNothingOfValue"));
                 Debug.LogException(e);
                 Destroy(newInterior);
+                RaiseOnFailedTransition(TransitionType.ToBuildingInterior);
                 return;
             }
 
@@ -705,6 +759,7 @@ namespace DaggerfallWorkshop.Game
                 {
                     // Could not find an door or enter marker, probably not a valid interior
                     Destroy(newInterior);
+                    RaiseOnFailedTransition(TransitionType.ToBuildingInterior);
                     return;
                 }
             }
@@ -815,6 +870,9 @@ namespace DaggerfallWorkshop.Game
 
             // Player is now outside building
             isPlayerInside = false;
+            PlayerTeleportedIntoDungeon = false;
+            buildingType = DFLocation.BuildingTypes.None;
+            factionID = 0;
 
             // Update serializable state from scene cache for interior->exterior transition
             SaveLoadManager.RestoreCachedScene(world.SceneName);
@@ -854,15 +912,17 @@ namespace DaggerfallWorkshop.Game
             RaiseOnPreTransitionEvent(TransitionType.ToDungeonInterior, door);
 
             // Layout dungeon
-            GameObject newDungeon = GameObjectHelper.CreateDaggerfallDungeonGameObject(location, DungeonParent.transform);
+            GameObject newDungeon;
+            dungeon = GameObjectHelper.CreateDaggerfallDungeonGameObject(location, DungeonParent.transform, out newDungeon);
+            dungeon.SetDungeon(location);
             newDungeon.hideFlags = defaultHideFlags;
-            dungeon = newDungeon.GetComponent<DaggerfallDungeon>();
 
             // Find start marker to position player
             if (!dungeon.StartMarker)
             {
                 // Could not find a start marker
                 Destroy(newDungeon);
+                RaiseOnFailedTransition(TransitionType.ToDungeonInterior);
                 return;
             }
 
@@ -913,9 +973,10 @@ namespace DaggerfallWorkshop.Game
             RaiseOnPreTransitionEvent(TransitionType.ToDungeonInterior);
 
             // Layout dungeon
-            GameObject newDungeon = GameObjectHelper.CreateDaggerfallDungeonGameObject(location, DungeonParent.transform, importEnemies);
+            GameObject newDungeon;
+            dungeon = GameObjectHelper.CreateDaggerfallDungeonGameObject(location, DungeonParent.transform, out newDungeon);
+            dungeon.SetDungeon(location, importEnemies);
             newDungeon.hideFlags = defaultHideFlags;
-            dungeon = newDungeon.GetComponent<DaggerfallDungeon>();
 
             GameObject marker = null;
             if (preferEnterMarker && dungeon.EnterMarker != null)
@@ -929,13 +990,17 @@ namespace DaggerfallWorkshop.Game
                 // Could not find marker
                 DaggerfallUnity.LogMessage("No start or enter marker found for this dungeon. Aborting load.");
                 Destroy(newDungeon);
+                RaiseOnFailedTransition(TransitionType.ToDungeonInterior);
                 return;
             }
 
             EnableDungeonParent();
 
-            // Add quest resources - except foes, these are loaded from enemy save data
-            GameObjectHelper.AddQuestResourceObjects(SiteTypes.Dungeon, dungeon.transform, 0, true, false, true);
+            // Add quest resources and selectively enable quest foes
+            //  -Entering a dungeon normally will add quest foes always
+            //  -Loading a game will not add quest foes as these are restored by save state
+            //  -Teleporting into a dungeon will add quest foes like going through entrance normally
+            GameObjectHelper.AddQuestResourceObjects(SiteTypes.Dungeon, dungeon.transform, 0, true, importEnemies, true);
 
             // Set to start position
             MovePlayerToMarker(marker);
@@ -1029,8 +1094,14 @@ namespace DaggerfallWorkshop.Game
         {
             if (cleanup)
             {
-                if (interior) Destroy(interior.gameObject);
+                if (interior)
+                {
+                    Destroy(interior.gameObject);
+                    buildingType = DFLocation.BuildingTypes.None;
+                    factionID = 0;
+                }
             }
+
             DisableAllParents(false);
             if (DungeonParent != null) DungeonParent.SetActive(true);
 
@@ -1040,6 +1111,10 @@ namespace DaggerfallWorkshop.Game
             GameManager.UpdateShadowDistance();
         }
 
+        /// <summary>
+        /// Moves player to a start marker inside current dungeon.
+        /// </summary>
+        /// <param name="marker">Marker gameobject. See <see cref="DaggerfallRDBBlock.StartMarkers"/>.</param>
         public void MovePlayerToMarker(GameObject marker)
         {
             if (!isPlayerInsideDungeon || !marker)
@@ -1055,6 +1130,9 @@ namespace DaggerfallWorkshop.Game
             RaiseOnMovePlayerToDungeonStartEvent();
         }
 
+        /// <summary>
+        /// Moves player to main start marker inside current dungeon.
+        /// </summary>
         public void MovePlayerToDungeonStart()
         {
             MovePlayerToMarker(dungeon.StartMarker);
@@ -1063,6 +1141,7 @@ namespace DaggerfallWorkshop.Game
         /// <summary>
         /// Player is leaving dungeon, transition them back outside.
         /// </summary>
+        /// <param name="doFade">Fade HUD after transition if true.</param>
         public void TransitionDungeonExterior(bool doFade = false)
         {
             if (!ReferenceComponents() || !dungeon || !isPlayerInsideDungeon)
@@ -1111,12 +1190,24 @@ namespace DaggerfallWorkshop.Game
             isPlayerInsideDungeonCastle = false;
             lastPlayerDungeonBlockIndex = -1;
             playerDungeonBlockData = new DFLocation.DungeonBlock();
+            PlayerTeleportedIntoDungeon = false;
 
             // Position player to door
             world.SetAutoReposition(StreamingWorld.RepositionMethods.DungeonEntrance, Vector3.zero);
 
             // Raise event
             RaiseOnTransitionDungeonExteriorEvent();
+        }
+
+        /// <summary>
+        /// Prepares for leaving dungeon, but do not perform transition logic. Reposition process is up to the caller.
+        /// </summary>
+        public void TransitionDungeonExteriorImmediate()
+        {
+            if (!ReferenceComponents() || !dungeon || !isPlayerInsideDungeon)
+                return;
+
+            RaiseOnPreTransitionEvent(PlayerEnterExit.TransitionType.ToDungeonExterior);
         }
 
         #endregion
@@ -1147,7 +1238,7 @@ namespace DaggerfallWorkshop.Game
             // Snap player to ground
             RaycastHit hit;
             Ray ray = new Ray(transform.position, Vector3.down);
-            if (Physics.Raycast(ray, out hit, controller.height * 2f))
+            if (Physics.Raycast(ray, out hit, PlayerHeightChanger.controllerStandingHeight * 2f))
             {
                 // Clear falling damage so player doesn't take damage if they transitioned into a dungeon while jumping
                 GameManager.Instance.AcrobatMotor.ClearFallingDamage();
@@ -1288,7 +1379,7 @@ namespace DaggerfallWorkshop.Game
                     location.MapTableData.LocationType != DFRegion.LocationTypes.HomeYourShips)
                 {
                     // Show "You are entering %s"
-                    string youAreEntering = HardStrings.youAreEntering;
+                    string youAreEntering = TextManager.Instance.GetLocalizedText("youAreEntering");
                     youAreEntering = youAreEntering.Replace("%s", location.Name);
                     DaggerfallUI.AddHUDText(youAreEntering, 2);
 
@@ -1302,7 +1393,7 @@ namespace DaggerfallWorkshop.Game
                         foreach (RoomRental_v1 room in rooms)
                         {
                             string remainingHours = PlayerEntity.GetRemainingHours(room).ToString();
-                            DaggerfallUI.AddHUDText(HardStrings.youHaveRentedRoom.Replace("%s", room.name).Replace("%d", remainingHours), 6);
+                            DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("youHaveRentedRoom").Replace("%s", room.name).Replace("%d", remainingHours), 6);
                         }
                     }
 
@@ -1341,6 +1432,10 @@ namespace DaggerfallWorkshop.Game
 
         // OnPreTransition - Called PRIOR to any transition, other events called AFTER transition.
         public delegate void OnPreTransitionEventHandler(TransitionEventArgs args);
+        /// <summary>
+        /// Unlike other events in this class, this one is raised before the transition has been performed.
+        /// It's always followed by <see cref="OnFailedTransition"/> or one of the other events for success.
+        /// </summary>
         public static event OnPreTransitionEventHandler OnPreTransition;
         protected virtual void RaiseOnPreTransitionEvent(TransitionType transitionType)
         {
@@ -1393,6 +1488,18 @@ namespace DaggerfallWorkshop.Game
             TransitionEventArgs args = new TransitionEventArgs(TransitionType.ToDungeonExterior);
             if (OnTransitionDungeonExterior != null)
                 OnTransitionDungeonExterior(args);
+        }
+
+        /// <summary>
+        /// This event is raised when a transition has started being performed and <see cref="OnPreTransition"/>
+        /// was fired but it couldn't be finished correctly due to an unexpected issue (i.e when 
+        /// <c>"thisHouseHasNothingOfValue"</c> is also shown).
+        /// </summary>
+        public static event Action<TransitionEventArgs> OnFailedTransition;
+        protected virtual void RaiseOnFailedTransition(TransitionType transitionType)
+        {
+            if (OnFailedTransition != null)
+                OnFailedTransition(new TransitionEventArgs(transitionType));
         }
 
         // OnMovePlayerToDungeonStart

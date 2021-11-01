@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -127,7 +127,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             base.Update();
 
-            if (Input.GetMouseButton(0))
+            if (InputManager.Instance.GetMouseButton(0))
             {
                 Vector2 mousePosition = ScreenToLocal(MousePosition);
                 if (!draggingThumb && thumbRect.Contains(mousePosition))
@@ -318,9 +318,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
             // Get rects
             float leftTextureWidth = hScrollThumbLeft.width * LocalScale.x;
             float rightTextureWidth = hScrollThumbRight.width * LocalScale.x;
-            Rect leftRect = new Rect(totalRect.x + thumbX, totalRect.y, leftTextureWidth, totalRect.height);
-            Rect bodyRect = new Rect(leftRect.xMax, totalRect.y, thumbWidth - leftTextureWidth - rightTextureWidth, totalRect.height);
-            Rect rightRect = new Rect(bodyRect.xMax, totalRect.y, rightTextureWidth, totalRect.height);
+            Rect leftRect = new Rect((int)(totalRect.x + thumbX), (int)totalRect.y, (int)leftTextureWidth, (int)totalRect.height);
+            Rect bodyRect = new Rect((int)leftRect.xMax, (int)totalRect.y, (int)(thumbWidth - leftTextureWidth - rightTextureWidth), (int)totalRect.height);
+            Rect rightRect = new Rect((int)bodyRect.xMax, (int)totalRect.y, (int)rightTextureWidth, (int)totalRect.height);
 
             // Draw thumb texture slices in screen space
             Color color = GUI.color;

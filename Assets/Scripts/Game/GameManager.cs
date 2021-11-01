@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -25,6 +25,7 @@ using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.Questing;
 using DaggerfallWorkshop.Game.Guilds;
 using DaggerfallWorkshop.Game.MagicAndEffects;
+using UnityEngine.Rendering.PostProcessing;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -34,7 +35,11 @@ namespace DaggerfallWorkshop.Game
     public class GameManager : MonoBehaviour
     {
         #region Fields
-        public const float classicUpdateInterval = 0.0625f;        // Update every 1/16 of a second. An approximation of classic's update loop, which varies with framerate.
+
+        /// <summary>
+        /// Update every 1/16 of a second. An approximation of classic's update loop, which varies with framerate.
+        /// </summary>
+        public const float classicUpdateInterval = 0.0625f;
 
         public bool Verbose = false;
         bool isGamePaused = false;
@@ -43,6 +48,8 @@ namespace DaggerfallWorkshop.Game
         bool classicUpdate = false;                         // True when reached a classic update
         float initialQualitySettingsShadowDistance;
         //Texture2D pauseScreenshot;
+
+        Dictionary<Func<bool>, string> preventRestConditions = new Dictionary<Func<bool>, string>();
 
         GameObject playerObject = null;
         Camera mainCamera = null;
@@ -88,6 +95,7 @@ namespace DaggerfallWorkshop.Game
         TalkManager talkManager = null;
         GuildManager guildManager = null;
         QuestListsManager questListsManager = null;
+        PostProcessVolume postProcessVolume = null;
 
         #endregion
 
@@ -376,6 +384,12 @@ namespace DaggerfallWorkshop.Game
             set { questListsManager = value; }
         }
 
+        public PostProcessVolume PostProcessVolume
+        {
+            get { return (postProcessVolume) ? postProcessVolume : postProcessVolume = GetMonoBehaviour<PostProcessVolume>(); }
+            set { postProcessVolume = value; }
+        }
+
         public bool IsPlayerOnHUD
         {
             get { return IsHUDTopWindow(); }
@@ -406,6 +420,10 @@ namespace DaggerfallWorkshop.Game
         #region Singleton
 
         static GameManager instance = null;
+
+        /// <summary>
+        /// Gets or instantiate singleton.
+        /// </summary>
         public static GameManager Instance
         {
             get
@@ -423,6 +441,9 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        /// <summary>
+        /// Checks if singleton instance is available without causing side effects.
+        /// </summary>
         public static bool HasInstance
         {
             get
@@ -485,7 +506,7 @@ namespace DaggerfallWorkshop.Game
                 return;
 
             // Post message to open options dialog on escape during gameplay
-            if (Input.GetKeyDown(KeyCode.Escape))
+            if (InputManager.Instance.ActionComplete(InputManager.Actions.Escape))
             {
                 DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenPauseOptionsDialog);
             }
@@ -541,13 +562,19 @@ namespace DaggerfallWorkshop.Game
             // Handle quick save and load
             if (InputManager.Instance.ActionStarted(InputManager.Actions.QuickSave))
             {
-                SaveLoadManager.Instance.QuickSave();
+                if (SaveLoadManager.IsSavingPrevented)
+                    DaggerfallUI.MessageBox(TextManager.Instance.GetLocalizedText("cannotSaveNow"));
+                else
+                    SaveLoadManager.Instance.QuickSave();
             }
             else if (InputManager.Instance.ActionStarted(InputManager.Actions.QuickLoad))
             {
                 if (SaveLoadManager.Instance.HasQuickSave(GameManager.Instance.PlayerEntity.Name))
                 {
-                    SaveLoadManager.Instance.QuickLoad();
+                    GameManager.Instance.SaveLoadManager.PromptQuickLoadGame(GameManager.Instance.PlayerEntity.Name, () =>
+                    {
+                        SaveLoadManager.Instance.QuickLoad();
+                    });
                 }
             }
         }
@@ -557,6 +584,12 @@ namespace DaggerfallWorkshop.Game
         #region Public Methods
 
         bool hudDisabledByPause = false;
+
+        /// <summary>
+        /// Pauses or unpauses running game. Time scale is set to zero and, optionally, HUD is disabled when game is paused.
+        /// </summary>
+        /// <param name="pause">True to pause or false to unpause.</param>
+        /// <param name="hideHUD">HUD is disabled on screen if true. Ignored when unpausing.</param>
         public void PauseGame(bool pause, bool hideHUD = false)
         {
             DaggerfallUI.Instance.ShowVersionText = false;
@@ -589,13 +622,57 @@ namespace DaggerfallWorkshop.Game
         }
 
         /// <summary>
+        /// Iterates through conditions if rest is should be prevented
+        /// </summary>
+        /// <returns>Non-null message string if prevented, null otherwise</returns>
+        public string GetPreventedRestMessage()
+        {
+            if (preventRestConditions != null && preventRestConditions.Count > 0)
+            {
+                foreach (var kv in preventRestConditions)
+                {
+                    if (kv.Key())
+                        return kv.Value;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Registers a boolean method that prevents the player from starting or continuing to rest
+        /// </summary>
+        /// <param name="handler">The delegate returning a boolean whether the player can rest.</param>
+        /// <param name="message">The message to be displayed.</param>
+        public void RegisterPreventRestCondition(Func<bool> handler, string message)
+        {
+            // If the message is null, it is assumed by the game that there was no prevention, so we must set it to be the empty string instead
+            if (message == null)
+                message = "";
+            preventRestConditions[handler] = message;
+        }
+
+        /// <summary>
+        /// Unregisters a boolean method from being used to prevent the player from resting
+        /// </summary>
+        /// <param name="handler">The delegate returning a boolean whether the player can rest.</param>
+        public void UnregisterPreventRestCondition(Func<bool> handler)
+        {
+            preventRestConditions.Remove(handler);
+        }
+
+        /// <summary>
         /// Determines if enemies are nearby. Uses include whether player is able to rest or not.
         /// Based on distance to nearest monster, and if monster can actually sense player.
         /// </summary>
-        /// <param name="minMonsterSpawnerDistance">Monster spawners must be at least this close.</param>
+        /// <param name="resting">Is player initiating or continuing rest?</param>
+        /// <param name="includingPacified">Include pacified enemies in this test?</param>
         /// <returns>True if enemies are nearby.</returns>
-        public bool AreEnemiesNearby(float minMonsterSpawnerDistance = 12f, bool includingPacified = false)
+        public bool AreEnemiesNearby(bool resting = false, bool includingPacified = false)
         {
+            const float spawnDistance = 1024 * MeshReader.GlobalScale;
+            const float restingDistance = 12f;
+
             bool areEnemiesNearby = false;
             DaggerfallEntityBehaviour[] entityBehaviours = FindObjectsOfType<DaggerfallEntityBehaviour>();
             for (int i = 0; i < entityBehaviours.Length; i++)
@@ -606,8 +683,15 @@ namespace DaggerfallWorkshop.Game
                     EnemySenses enemySenses = entityBehaviour.GetComponent<EnemySenses>();
                     if (enemySenses)
                     {
+                        // Check if enemy can actively target player
+                        bool enemyCanSeePlayer = enemySenses.Target == Instance.PlayerEntityBehaviour && enemySenses.TargetInSight;
+
+                        // Allow for a shorter test distance if enemy is unaware of player while resting
+                        if (resting && !enemyCanSeePlayer && Vector3.Distance(entityBehaviour.transform.position, PlayerController.transform.position) > restingDistance)
+                            continue;
+
                         // Can enemy see player or is close enough they would be spawned in classic?
-                        if ((enemySenses.Target == Instance.PlayerEntityBehaviour && enemySenses.TargetInSight) || enemySenses.WouldBeSpawnedInClassic)
+                        if (enemyCanSeePlayer || enemySenses.WouldBeSpawnedInClassic)
                         {
                             // Is it hostile or pacified?
                             EnemyMotor enemyMotor = entityBehaviour.GetComponent<EnemyMotor>();
@@ -627,7 +711,7 @@ namespace DaggerfallWorkshop.Game
             for (int i = 0; i < spawners.Length; i++)
             {
                 // Is a spawner inside min distance?
-                if (Vector3.Distance(spawners[i].transform.position, PlayerController.transform.position) < minMonsterSpawnerDistance)
+                if (Vector3.Distance(spawners[i].transform.position, PlayerController.transform.position) < spawnDistance)
                 {
                     areEnemiesNearby = true;
                     break;
@@ -722,10 +806,38 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        public void TryUpateAmbientOcclusionIntensity()
+        {
+            PostProcessVolume volume = GameManager.Instance.PostProcessVolume;
+            if (!volume)
+                return;
+
+            AmbientOcclusion ambientOcclusion = null;
+            if (volume.profile.TryGetSettings(out ambientOcclusion))
+            {
+                if (DaggerfallUnity.Settings.AmbientOcclusionIntensity == 0)
+                {
+                    // Disable AO when intensity is set to 0
+                    ambientOcclusion.enabled.value = false;
+                }
+                else
+                {
+                    // Enable AO when intensity is greater than 0 and assign intensity from settings
+                    ambientOcclusion.enabled.value = true;
+                    ambientOcclusion.intensity.value = DaggerfallUnity.Settings.AmbientOcclusionIntensity;
+                }
+            }
+        }
+
         #endregion
 
         #region Public Static Methods
 
+        /// <summary>
+        /// Finds singleton in scene. <see cref="Instance"/> should be used instead to retrieve cached instance.
+        /// </summary>
+        /// <param name="singletonOut">Retrieved instance.</param>
+        /// <returns>True if instance found.</returns>
         public static bool FindSingleton(out GameManager singletonOut)
         {
             singletonOut = GameObject.FindObjectOfType<GameManager>();
@@ -738,6 +850,9 @@ namespace DaggerfallWorkshop.Game
             return true;
         }
 
+        /// <summary>
+        /// Applies shadow distance setting for local area.
+        /// </summary>
         public static void UpdateShadowDistance()
         {
             if (Instance.playerEnterExit.IsPlayerInsideDungeon)
@@ -750,6 +865,9 @@ namespace DaggerfallWorkshop.Game
                 QualitySettings.shadowDistance = Instance.initialQualitySettingsShadowDistance;
         }
 
+        /// <summary>
+        /// Applies shadow resolution setting.
+        /// </summary>
         public static void UpdateShadowResolution()
         {
             switch (DaggerfallUnity.Settings.ShadowResolutionMode)
@@ -813,8 +931,8 @@ namespace DaggerfallWorkshop.Game
             if (isGamePaused)
                 return false;
 
-            // Game not active when SaveLoadManager not present
-            if (SaveLoadManager.Instance == null)
+            // Game not active when SaveLoadManager not present or when loading
+            if (SaveLoadManager.Instance == null || SaveLoadManager.Instance.LoadInProgress)
                 return false;
 
             // Game not active when top window is neither null or HUD
@@ -990,11 +1108,29 @@ namespace DaggerfallWorkshop.Game
 
         // OnEncounter
         public delegate void OnEncounterEventHandler();
+        /// <summary>
+        /// Raised when foes are being spawned near the player in the world.
+        /// Use <see cref="OnEnemySpawn"/> if you need access to any individual enemy in the scene.
+        /// </summary>
         public static event OnEncounterEventHandler OnEncounter;
         public virtual void RaiseOnEncounterEvent()
         {
             if (OnEncounter != null)
                 OnEncounter();
+        }
+
+        //OnEnemySpawn
+        public delegate void OnEnemySpawnHandler(GameObject enemy);
+        /// <summary>
+        /// Raised when a foe gameobject is instantiated. The gameobject is passed to event handlers.
+        /// Use <see cref="OnEncounter"/> to detect when enemies are spawned near player. 
+        /// </summary>
+        public static event OnEnemySpawnHandler OnEnemySpawn;
+
+        public virtual void RaiseOnEnemySpawnEvent(GameObject enemy)
+        {
+            if (OnEnemySpawn != null)
+                OnEnemySpawn(enemy);
         }
 
         #endregion

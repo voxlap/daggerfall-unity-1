@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -595,32 +595,65 @@ namespace DaggerfallWorkshop.Game.Player
         }
 
         /// <summary>
-        /// Get faction2 relation to faction1. Returns 1 if faction2 is the parent of faction1, 2 if faction1 and faction2 share the same parent
-        /// 3 if faction2 is a child of faction1, and 0 if none of the above.
+        /// Get faction2 relation to faction1. Returns:
+        ///    -1 if factions are unrelated
+        ///     0 if factions are the same
+        ///     1 if faction2 is the parent of faction1
+        ///     2 if faction1 and faction2 share the same parent
+        ///     3 if faction2 is a child of faction1
         /// </summary>
-        public int GetFaction2ARelationToFaction1(int factionID1, int factionID2)
+        public int GetFaction2RelationToFaction1(int factionID1, int factionID2)
         {
             if (factionDict.ContainsKey(factionID1) && factionDict.ContainsKey(factionID2))
             {
+                // Faction1 and faction2 are the same
+                if (factionID1 == factionID2)
+                    return 0;
+
                 FactionFile.FactionData factionData1 = factionDict[factionID1];
-
-                if (factionData1.parent == factionID2)
-                    return 1;
-
-                if (factionDict.ContainsKey(factionData1.parent))
+                while (factionData1.parent != 0)
                 {
-                    FactionFile.FactionData parentData = factionDict[factionData1.parent];
-                    if (parentData.children != null && parentData.children.Contains(factionID2))
-                        return 2;
+                    // One of faction1 ancestor is faction2
+                    if (factionData1.parent == factionID2)
+                        return 1;
+
+                    factionData1 = factionDict[factionData1.parent];
                 }
 
-                if (factionData1.children != null && factionData1.children.Contains(factionID2))
-                    return 3;
+                FactionFile.FactionData factionData2 = factionDict[factionID2];
+                while (factionData2.parent != 0)
+                {
+                    // One of faction2 ancestor is faction1
+                    if (factionData2.parent == factionID1)
+                        return 3;
+
+                    factionData2 = factionDict[factionData2.parent];
+                }
+
+                // Faction1 and faction2 share the same ancestor
+                if (factionData1.id != factionID1 && factionData2.id != factionID2 && factionData1.id == factionData2.id)
+                    return 2;
             }
 
-            return 0;
+            return -1;
         }
 
+        /// <summary>
+        /// Recursively checks if faction2 is related to faction1 or to its parents.
+        /// </summary>
+        public bool IsFaction2RelatedToFaction1(int factionID1, int factionID2)
+        {
+            if (GetFaction2RelationToFaction1(factionID1, factionID2) > -1 ||
+               IsFaction2AnAllyOfFaction1(factionID1, factionID2) ||
+               IsFaction2AnEnemyOfFaction1(factionID1, factionID2))
+                return true;
+
+            FactionFile.FactionData factionData1 = factionDict[factionID1];
+            if (factionData1.parent != 0)
+                return IsFaction2RelatedToFaction1(factionData1.parent, factionID2);
+
+            return false;
+        }
 
         /// <summary>
         /// Start ally state between two factions.
@@ -798,6 +831,27 @@ namespace DaggerfallWorkshop.Game.Player
             }
 
             return false;
+        }
+
+        #endregion
+
+        #region Parent Group
+
+        /// <summary>
+        /// Find the top-level parent group of a given faction. This parent can be a Group, a Province or a Temple.
+        /// </summary>
+        /// <param name="faction">The faction to get the parent of.</param>
+        /// <param name="parentFaction">The parent group faction.</param>
+        public void GetParentGroupFaction(FactionFile.FactionData faction, out FactionFile.FactionData parentFaction)
+        {
+            parentFaction = faction;
+            while (parentFaction.parent != 0 &&
+                   parentFaction.type != (int)FactionFile.FactionTypes.Group &&
+                   parentFaction.type != (int)FactionFile.FactionTypes.Province &&
+                   parentFaction.type != (int)FactionFile.FactionTypes.Temple)
+            {
+                GameManager.Instance.PlayerEntity.FactionData.GetFactionData(parentFaction.parent, out parentFaction);
+            }
         }
 
         #endregion

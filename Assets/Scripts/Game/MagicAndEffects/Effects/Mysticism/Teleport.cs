@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,6 +11,7 @@
 
 using UnityEngine;
 using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
@@ -48,15 +49,16 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         {
             properties.Key = EffectKey;
             properties.ClassicKey = MakeClassicKey(43, 255);
-            properties.GroupName = TextManager.Instance.GetText("ClassicEffects", "teleport");
-            properties.SpellMakerDescription = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1602);
-            properties.SpellBookDescription = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1302);
             properties.AllowedTargets = EntityEffectBroker.TargetFlags_Self;
             properties.AllowedElements = EntityEffectBroker.ElementFlags_MagicOnly;
             properties.AllowedCraftingStations = MagicCraftingStations.SpellMaker;
             properties.ShowSpellIcon = false;
             properties.MagicSkill = DFCareer.MagicSkills.Mysticism;
         }
+
+        public override string GroupName => TextManager.Instance.GetLocalizedText("teleport");
+        public override TextFile.Token[] SpellMakerDescription => DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1602);
+        public override TextFile.Token[] SpellBookDescription => DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1302);
 
         protected override int RemoveRound()
         {
@@ -95,6 +97,12 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         {
             // Prompt from incumbent as it has the position data for teleport
             (incumbent as Teleport).PromptPlayer();
+        }
+
+        public override void End()
+        {
+            anchorPosition = null;
+            base.End();
         }
 
         #endregion
@@ -148,15 +156,24 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             {
                 // Just need to move player
                 serializablePlayer.RestorePosition(anchorPosition);
-                return;
             }
             else
             {
+                // When teleporting to interior anchor, restore world compensation height early before initworld
+                // Ensures exterior world level is aligned with building height at time of anchor
+                // Only works with floating origin v3 saves and above with both serialized world compensation and context
+                if (anchorPosition.worldContext == WorldContext.Interior)
+                    GameManager.Instance.StreamingWorld.RestoreWorldCompensationHeight(anchorPosition.worldCompensation.y);
+                else
+                    GameManager.Instance.StreamingWorld.RestoreWorldCompensationHeight(0);
+
                 // Cache scene before departing
                 if (!playerEnterExit.IsPlayerInside)
                     SaveLoadManager.CacheScene(GameManager.Instance.StreamingWorld.SceneName);      // Player is outside
                 else if (playerEnterExit.IsPlayerInsideBuilding)
                     SaveLoadManager.CacheScene(playerEnterExit.Interior.name);                      // Player inside a building
+                else // Player inside a dungeon
+                    playerEnterExit.TransitionDungeonExteriorImmediate();
 
                 // Need to load some other part of the world again - player could be anywhere
                 PlayerEnterExit.OnRespawnerComplete += PlayerEnterExit_OnRespawnerComplete;
@@ -227,7 +244,10 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 DaggerfallConnect.Utility.DFPosition anchorMapPixel = DaggerfallConnect.Arena2.MapsFile.WorldCoordToMapPixel(anchorPosition.worldPosX, anchorPosition.worldPosZ);
                 DaggerfallConnect.Utility.DFPosition playerMapPixel = GameManager.Instance.PlayerGPS.CurrentMapPixel;
                 if (anchorMapPixel.X == playerMapPixel.X && anchorMapPixel.Y == playerMapPixel.Y)
+                {
+                    GameManager.Instance.PlayerEnterExit.PlayerTeleportedIntoDungeon = true;
                     return true;
+                }
             }
 
             return false;
@@ -251,6 +271,9 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             serializablePlayer.RestorePosition(anchorPosition);
             PlayerEnterExit.OnRespawnerComplete -= PlayerEnterExit_OnRespawnerComplete;
 
+            // Set "teleported into dungeon" flag when anchor is inside a dungeon
+            GameManager.Instance.PlayerEnterExit.PlayerTeleportedIntoDungeon = anchorPosition.insideDungeon;
+
             // Restore scene cache on arrival
             if (!playerEnterExit.IsPlayerInside)
                 SaveLoadManager.RestoreCachedScene(GameManager.Instance.StreamingWorld.SceneName);      // Player is outside
@@ -268,7 +291,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             }
             else if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Teleport)
             {
-                if (!anchorSet)
+                if (!anchorSet || anchorPosition == null)
                 {
                     DaggerfallMessageBox mb = new DaggerfallMessageBox(DaggerfallUI.Instance.UserInterfaceManager, DaggerfallUI.Instance.UserInterfaceManager.TopWindow);
                     mb.SetTextTokens(achorMustBeSet);

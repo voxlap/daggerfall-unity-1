@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -23,15 +23,14 @@ namespace DaggerfallWorkshop.Game
     {
         public GameObject PlayerTorch;
 
-        const string textDatabase = "DaggerfallUI";
-
         DaggerfallUnity dfUnity;
         PlayerEnterExit playerEnterExit;
         PlayerEntity playerEntity;
         Light torchLight;
         float torchIntensity;
-        float intensityMod = 1f;
-        float lastTickTime;
+        float defaultTorchIntensity = 1.0f;
+        float itemBasedTorchIntensity = 1.25f;
+        float tickTimeBuffer = 0f;
         float tickTimeInterval = 20f;
         float guttering = 0;
 
@@ -48,7 +47,10 @@ namespace DaggerfallWorkshop.Game
                 {
                     torchIntensity = torchLight.intensity;
                     if (DaggerfallUnity.Settings.PlayerTorchFromItems)
-                        torchLight.shadows = LightShadows.Soft;
+                    {
+                        torchLight.shadows = DaggerfallUnity.Settings.EnableSpellShadows ? LightShadows.Soft : LightShadows.None;
+                        torchLight.transform.position = new Vector3(-0.3f, 1.2f, 0.2f);
+                    }
                 }
             }
         }
@@ -59,23 +61,25 @@ namespace DaggerfallWorkshop.Game
                 return;
 
             bool enableTorch = false;
+            float intensityMod = defaultTorchIntensity;
             if (DaggerfallUnity.Settings.PlayerTorchFromItems)
             {
                 DaggerfallUnityItem lightSource = playerEntity.LightSource;
                 if (lightSource != null)
                 {
+                    tickTimeBuffer += Time.deltaTime;
                     enableTorch = true;
                     torchLight.range = lightSource.ItemTemplate.capacityOrTarget;
                     // Consume durability / fuel
-                    if (Time.realtimeSinceStartup > lastTickTime + tickTimeInterval)
+                    if (tickTimeBuffer > tickTimeInterval)
                     {
-                        lastTickTime = Time.realtimeSinceStartup;
+                        tickTimeBuffer = 0f;
                         if (lightSource.currentCondition > 0)
                             lightSource.currentCondition--;
 
                         if (lightSource.currentCondition == 0 && DaggerfallUnityItem.CompareItems(playerEntity.LightSource, lightSource))
                         {
-                            DaggerfallUI.MessageBox(TextManager.Instance.GetText(textDatabase, "lightDies"), false, lightSource);
+                            DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("lightDies").Replace("%it", lightSource.ItemName));
                             enableTorch = false;
                             playerEntity.LightSource = null;
                             if (!lightSource.IsOfTemplate(ItemGroups.UselessItems2, (int)UselessItems2.Lantern))
@@ -86,12 +90,12 @@ namespace DaggerfallWorkshop.Game
                     if (lightSource.currentCondition < 3)
                     {
                         // Give warning signs if running low of fuel
-                        intensityMod = 0.6f + (Mathf.Cos(guttering) * 0.2f);
+                        intensityMod = 0.85f + (Mathf.Cos(guttering) * 0.2f);
                         guttering += Random.Range(-0.02f, 0.06f);
                     }
                     else
                     {
-                        intensityMod = 1;
+                        intensityMod = itemBasedTorchIntensity;
                         guttering = 0;
                     }
                 }

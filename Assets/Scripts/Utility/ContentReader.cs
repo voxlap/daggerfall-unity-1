@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,13 +10,11 @@
 //
 
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using DaggerfallConnect;
-using DaggerfallConnect.Utility;
 using DaggerfallConnect.Arena2;
-using DaggerfallWorkshop.Game.UserInterface;
+using System;
 
 namespace DaggerfallWorkshop.Utility
 {
@@ -191,6 +189,8 @@ namespace DaggerfallWorkshop.Utility
             if (!isReady)
                 return false;
 
+            MapDictCheck();
+
             // Get mapId from locationId
             int mapId = LocationIdToMapId(locationId);
             if (mapDict.ContainsKey(mapId))
@@ -215,6 +215,7 @@ namespace DaggerfallWorkshop.Utility
                 summaryOut = new MapSummary();
                 return false;
             }
+            MapDictCheck();
 
             int id = MapsFile.GetMapPixelID(mapPixelX, mapPixelY);
             if (mapDict.ContainsKey(id))
@@ -239,6 +240,7 @@ namespace DaggerfallWorkshop.Utility
             {
                 return false;
             }
+            MapDictCheck();
 
             int id = MapsFile.GetMapPixelID(mapPixelX, mapPixelY);
             if (mapDict.ContainsKey(id))
@@ -298,12 +300,15 @@ namespace DaggerfallWorkshop.Utility
             if (paintFileReader == null)
                 paintFileReader = new PaintFile(Path.Combine(arena2Path, PaintFile.Filename), FileUsage.UseMemory, true);
 
+            // Raise ready flag
+            isReady = true;
+        }
+
+        private void MapDictCheck()
+        {
             // Build map lookup dictionary
             if (mapDict == null && mapFileReader != null)
                 EnumerateMaps();
-
-            // Raise ready flag
-            isReady = true;
         }
 
         /// <summary>
@@ -321,23 +326,30 @@ namespace DaggerfallWorkshop.Utility
                 DFRegion dfRegion = mapFileReader.GetRegion(region);
                 for (int location = 0; location < dfRegion.LocationCount; location++)
                 {
-                    // Get map summary
                     MapSummary summary = new MapSummary();
-                    DFRegion.RegionMapTable mapTable = dfRegion.MapTable[location];
-                    summary.ID = mapTable.MapId & 0x000fffff;
-                    summary.RegionIndex = region;
-                    summary.MapIndex = location;
-                    summary.LocationType = mapTable.LocationType;
-                    summary.DungeonType = mapTable.DungeonType;
+                    try
+                    {
+                        // Get map summary
+                        DFRegion.RegionMapTable mapTable = dfRegion.MapTable[location];
+                        summary.ID = mapTable.MapId & 0x000fffff;
+                        summary.RegionIndex = region;
+                        summary.MapIndex = location;
+                        summary.LocationType = mapTable.LocationType;
+                        summary.DungeonType = mapTable.DungeonType;
 
-                    // TODO: This by itself doesn't account for DFRegion.LocationTypes.GraveyardForgotten locations that start the game discovered in classic
-                    summary.Discovered = mapTable.Discovered;
+                        // TODO: This by itself doesn't account for DFRegion.LocationTypes.GraveyardForgotten locations that start the game discovered in classic
+                        summary.Discovered = mapTable.Discovered;
 
-                    mapDict.Add(summary.ID, summary);
+                        mapDict.Add(summary.ID, summary);
 
-                    // Link locationId with mapId - adds ~25ms overhead
-                    int locationId = mapFileReader.ReadLocationIdFast(region, location);
-                    locationIdToMapIdDict.Add(locationId, summary.ID);
+                        // Link locationId with mapId - adds ~25ms overhead
+                        int locationId = mapFileReader.ReadLocationIdFast(region, location);
+                        locationIdToMapIdDict.Add(locationId, summary.ID);
+                    }
+                    catch (ArgumentException)
+                    {
+                        Debug.LogErrorFormat("Colliding location for MapId:{0} found when enumerating maps! Unable to initialise content reader. ", summary.ID);
+                    }
                 }
             }
 

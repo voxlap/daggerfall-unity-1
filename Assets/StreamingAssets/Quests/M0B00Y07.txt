@@ -18,7 +18,7 @@ QuestorOffer:  [1000]
 <ce>                He seems rather confused as to whether
 <ce>                it is a bear or a tiger, but in either
 <ce>                  case, it wanted to eat him. We need
-<ce>                  you to go and slay the animal. You
+<ce>                  you to go and slay the animal. Your
 <ce>                     standard fee is _gold_ gold.
 <ce>                         Want to take it %pcn?
 
@@ -96,7 +96,7 @@ Message:  1080
 QBN:
 Item _gold_ gold
 
-Person _qgiver_ group Questor male
+Person _qgiver_ group Questor
 
 Place _house_ remote random
 Place _newdung_ remote dungeon

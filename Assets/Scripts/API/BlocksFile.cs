@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -211,7 +211,7 @@ namespace DaggerfallConnect.Arena2
         /// <returns>Name of the block.</returns>
         public string GetBlockName(int block)
         {
-            return bsaFile.GetRecordName(block);
+            return WorldDataReplacement.GetNewDFBlockName(block) ?? bsaFile.GetRecordName(block);
         }
 
         /// <summary>
@@ -268,6 +268,11 @@ namespace DaggerfallConnect.Arena2
             // Return known value if already indexed
             if (blockNameLookup.ContainsKey(name))
                 return blockNameLookup[name];
+
+            // Check for any new blocks added next
+            int blockIndex = WorldDataReplacement.GetNewDFBlockIndex(name);
+            if (blockIndex != -1)
+                return blockIndex;
 
             // Otherwise find and store index by searching for name
             for (int i = 0; i < Count; i++)
@@ -375,6 +380,15 @@ namespace DaggerfallConnect.Arena2
         /// <returns>DFBlock object.</returns>
         public DFBlock GetBlock(int block)
         {
+            // Check for replacement block data and use it if found
+            DFBlock dfBlock;
+            if (WorldDataReplacement.GetDFBlockReplacementData(block, GetBlockName(block), out dfBlock))
+            {
+                if (blocks.Length > block)
+                    blocks[block].DFBlock = dfBlock;
+                return dfBlock;
+            }
+            else
             // Load the record
             if (!LoadBlock(block))
                 return new DFBlock();
@@ -405,19 +419,14 @@ namespace DaggerfallConnect.Arena2
         /// <summary>
         /// Gets block AutoMap by name.
         /// </summary>
-        /// <param name="name">Name of block.</param>
+        /// <param name="block">Reference to block.</param>
         /// <param name="removeGroundFlats">Filters ground flat "speckles" from the AutoMap.</param>
         /// <returns>DFBitmap object.</returns>
-        public DFBitmap GetBlockAutoMap(string name, bool removeGroundFlats)
+        static public DFBitmap GetBlockAutoMap(in DFBlock block, bool removeGroundFlats)
         {
-            // Test block is valid
-            DFBlock dfBlock = GetBlock(name);
-            if (string.IsNullOrEmpty(dfBlock.Name))
-                return new DFBitmap();
-
             // Create DFBitmap and copy data
             DFBitmap dfBitmap = new DFBitmap();
-            dfBitmap.Data = dfBlock.RmbBlock.FldHeader.AutoMapData;
+            dfBitmap.Data = block.RmbBlock.FldHeader.AutoMapData;
             dfBitmap.Width = 64;
             dfBitmap.Height = 64;
 
@@ -480,6 +489,142 @@ namespace DaggerfallConnect.Arena2
             return found;
         }
 
+        /// <summary>
+        /// Fix invalid RDB data that prevents access to other dungeon blocks in some cases:
+        /// N0000071.RDB: connect the lower western dead-end to the rest of the block
+        /// W0000009.RDB: move the exit to another corner (classic applies another but less clean trick)
+        /// W0000018.RDB: connect the upper rooms together and fix a wrong door model
+        /// N0000071.RDB: connect the lower western dead-end to the rest of the block
+        /// </summary>
+        /// <param name="block">The index of the block being read.</param>
+        private void FixRdbData(int block)
+        {
+            if (block == 994) // N0000071.RDB
+            {
+                // Connect the western dead-en to the rest of the block using a long corridor model
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[18].Resources.ModelResource.ModelIndex = 10;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[18].XPos = 640;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[8].Resources.ModelResource.ModelIndex = 11;
+            }
+            else if (block == 945 || block == 946)  // N0000022.RDB or N0000023.RDB
+            {
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[2].RdbObjects = null; // Remove bad door
+            }
+            else if (block == 958)  // N0000035.RDB
+            {
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[0].RdbObjects[36].YPos = -300; // Correct door height
+            }
+            else if (block == 975)  // N0000052.RDB
+            {
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[0].RdbObjects[24].XPos = 543; // Correct lever placement
+            }
+            else if (block == 1025) // W0000009.RDB
+            {
+                // Add a brick wall door model
+                ushort wallModelIndex = 0;
+                var modelList = blocks[block].DFBlock.RdbBlock.ModelReferenceList;
+                for (ushort i = 0; i < modelList.Length; ++i)
+                {
+                    // Replace the first non used model reference by the wall
+                    if (modelList[i].ModelIdNum == 0)
+                    {
+                        var model = new DFBlock.RdbModelReference
+                        {
+                            ModelId = "72100",
+                            ModelIdNum = 72100,
+                            Description = "DOR"
+                        };
+                        modelList[i] = model;
+                        wallModelIndex = i;
+                        break;
+                    }
+                }
+
+                // Replace a corner near the original exit with a model having a door
+                ref var rdbObject = ref blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[39];
+                rdbObject.XPos += 64;
+                rdbObject.ZPos -= 64;
+                int x = rdbObject.XPos;
+                int y = rdbObject.YPos;
+                int z = rdbObject.ZPos;
+                rdbObject.Resources.ModelResource.ModelIndex = 35;
+                rdbObject.Resources.ModelResource.YRotation = -512;
+                // Move the exit to the corner door position
+                rdbObject = ref blocks[block].DFBlock.RdbBlock.ObjectRootList[8].RdbObjects[0];
+                rdbObject.XPos = x;
+                rdbObject.ZPos = z + 126;
+                // Move the start marker near the exit
+                rdbObject = ref blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[5];
+                rdbObject.XPos = x;
+                rdbObject.ZPos = z;
+
+                // Add an wall to seal the door in case the block is not the starting one
+                var rdbObjects = new List<DFBlock.RdbObject>(blocks[block].DFBlock.RdbBlock.ObjectRootList[8].RdbObjects);
+                var wall = new DFBlock.RdbObject
+                {
+                    Index = rdbObjects.Count,
+                    XPos = x,
+                    YPos = y,
+                    ZPos = z + 128,
+                    Type = DFBlock.RdbResourceTypes.Model
+                };
+                wall.Resources.ModelResource.ModelIndex = wallModelIndex;
+                wall.Resources.ModelResource.YRotation = -512;
+                rdbObjects.Add(wall);
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[8].RdbObjects = rdbObjects.ToArray();
+            }
+            else if (block == 1034) // W0000018.RDB
+            {
+                // Change two upper corners into T junctions
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[38].Resources.ModelResource.ModelIndex = 10;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[38].Resources.ModelResource.YRotation = -512;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[40].Resources.ModelResource.ModelIndex = 10;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[40].Resources.ModelResource.YRotation = -2560;
+
+                // Add a corridor to join the above junctions
+                List<DFBlock.RdbObject> rdbObjects = new List<DFBlock.RdbObject>(blocks[block].DFBlock.RdbBlock.ObjectRootList[6].RdbObjects);
+                DFBlock.RdbObject corridor = new DFBlock.RdbObject
+                {
+                    Index = rdbObjects.Count,
+                    XPos = 1152,
+                    YPos = -1792,
+                    ZPos = 1920,
+                    Type = DFBlock.RdbResourceTypes.Model
+                };
+                corridor.Resources.ModelResource.ModelIndex = 11;
+                corridor.Resources.ModelResource.YRotation = -512;
+                rdbObjects.Add(corridor);
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[6].RdbObjects = rdbObjects.ToArray();
+
+                // Fix a door
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[2].RdbObjects[0].Resources.ModelResource.ModelIndex = 23;
+            }
+            else if (block == 1036) // W0000020.RDB
+            {
+                // Replace the lower western dead-end by an open corridor
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[4].RdbObjects[15].Resources.ModelResource.ModelIndex = 5;
+
+                // Replace a nearby turn by a T junction
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[34].Resources.ModelResource.ModelIndex = 7;
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects[34].Resources.ModelResource.YRotation = -512;
+
+                // Add a stair to join the above models
+                List<DFBlock.RdbObject> rdbObjects = new List<DFBlock.RdbObject>(blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects);
+                DFBlock.RdbObject corridor = new DFBlock.RdbObject
+                {
+                    Index = rdbObjects.Count,
+                    XPos = 1152,
+                    YPos = -384,
+                    ZPos = 1408,
+                    Type = DFBlock.RdbResourceTypes.Model
+                };
+                corridor.Resources.ModelResource.ModelIndex = 4;
+                corridor.Resources.ModelResource.YRotation = 512;
+                rdbObjects.Add(corridor);
+                blocks[block].DFBlock.RdbBlock.ObjectRootList[5].RdbObjects = rdbObjects.ToArray();
+            }
+        }
+
         #endregion
 
         #region Readers
@@ -533,6 +678,7 @@ namespace DaggerfallConnect.Arena2
                 ReadRdbUnknownLinkedList(reader, block);
                 ReadRdbObjectSectionRootList(reader, block);
                 ReadRdbObjectLists(reader, block);
+                FixRdbData(block);
             }
             else if (blocks[block].DFBlock.Type == DFBlock.BlockTypes.Rdi)
             {
@@ -706,6 +852,10 @@ namespace DaggerfallConnect.Arena2
                     blocks[block].DFBlock.RmbBlock.SubRecords[i] = buildingReplacementData.RmbSubRecord;
                     blocks[block].DFBlock.RmbBlock.FldHeader.BuildingDataList[i].FactionId = buildingReplacementData.FactionId;
                     blocks[block].DFBlock.RmbBlock.FldHeader.BuildingDataList[i].BuildingType = (DFLocation.BuildingTypes)buildingReplacementData.BuildingType;
+                    if (buildingReplacementData.Quality > 0)
+                        blocks[block].DFBlock.RmbBlock.FldHeader.BuildingDataList[i].Quality = buildingReplacementData.Quality;
+                    if (buildingReplacementData.NameSeed > 0)
+                        blocks[block].DFBlock.RmbBlock.FldHeader.BuildingDataList[i].NameSeed = buildingReplacementData.NameSeed;
                     if (buildingReplacementData.AutoMapData != null && buildingReplacementData.AutoMapData.Length == 64 * 64)
                         blocks[block].DFBlock.RmbBlock.FldHeader.AutoMapData = buildingReplacementData.AutoMapData;
                 }
@@ -854,7 +1004,9 @@ namespace DaggerfallConnect.Arena2
                 recordsOut[i].YPos = reader.ReadInt32();
                 recordsOut[i].ZPos = reader.ReadInt32();
                 recordsOut[i].NullValue2 = reader.ReadUInt32();
+                recordsOut[i].XRotation = 0;
                 recordsOut[i].YRotation = reader.ReadInt16();
+                recordsOut[i].ZRotation = 0;
                 recordsOut[i].Unknown4 = reader.ReadUInt16();
                 recordsOut[i].NullValue3 = reader.ReadUInt32();
                 recordsOut[i].Unknown5 = reader.ReadUInt32();

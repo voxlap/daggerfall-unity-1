@@ -64,8 +64,9 @@ QuestorPostfailure:  [1009]
 <ce>                     rats. You are hopeless %pcn.
 
 QuestLogEntry:  [1010]
-%qdt: The Fighters
- Guild of ___qgiver_ has
+%qdt:
+ The Fighters Guild of
+ ___qgiver_ has
  offered to let me rid _house_
  of a giant rat infestation.
  I have one day to get it done.
@@ -90,7 +91,7 @@ Message:  1020
 
 QBN:
 
-Person _qgiver_ group Questor male
+Person _qgiver_ group Questor
 
 Place _house_ local random
 
@@ -126,4 +127,5 @@ _clearclick_ task:
 
 _S.04_ task:
 	say 1011
-	create foe _monster_ every 1 minutes 7 times with 100% success 
+	create foe _monster_ every 2 minutes 7 times with 100% success 
+--slowed enemy spawn due to feedback

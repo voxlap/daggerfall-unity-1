@@ -76,7 +76,7 @@ Perhaps you'd like to speak to those who died because you did not get the _item_
 
 QuestLogEntry:  [1010]
 <ce>                     Here's the _item_, %pcf. Now
-<ce>                    hurry back to the Temple. There
+<ce>                    hurry back to the Temple. There are
 <ce>                    many there waiting to be healed.
 
 Message:  1030
@@ -107,7 +107,7 @@ Item _reward_ common_symbol
 Item _item_ large_plant
 
 Person _questgiver_ face 112 group Questor
-Person _chemist_ group Chemist female
+Person _chemist_ group Chemist remote
 
 
 Clock _1stparton_ 00:00 0 flag 17 range 1 4

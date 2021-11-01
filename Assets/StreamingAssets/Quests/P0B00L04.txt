@@ -6,6 +6,7 @@
 -- QuestId: 4
 Messages: 17
 Quest: P0B00L04
+DisplayName: An Old Enemy
 -- Message panels
 QRC:
 
@@ -155,7 +156,7 @@ Message:  1013
 <ce>                   with the deed completed. Farewell.
 
 Message:  1014
-%dat:
+%qdt:
  _vamp_ has sent me to
  ___mondung_ where
  I am to slay =vampire_, a
@@ -208,7 +209,7 @@ Message:  1016
 QBN:
 Item _letter_ letter used 1010
 
-Person _vamp_ factiontype Vampire_Clan male
+Person _vamp_ factiontype Vampire_Clan local
 
 Place _mondung_ remote dungeon
 

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -37,37 +37,36 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         #region UI Controls
 
-        const string savePromptText = "Save Game";
-        const string loadPromptText = "Load Game";
-        const string saveButtonText = "Save";
-        const string loadButtonText = "Load";
+        protected Panel mainPanel = new Panel();
+        protected Panel screenshotPanel = new Panel();
+        protected TextBox saveNameTextBox = new TextBox();
+        protected TextLabel promptLabel = new TextLabel();
+        protected TextLabel saveTimeLabel = new TextLabel();
+        protected TextLabel gameTimeLabel = new TextLabel();
+        protected TextLabel saveVersionLabel = new TextLabel();
+        protected TextLabel saveFolderLabel = new TextLabel();
+        protected TextLabel loadingLabel = new TextLabel();
+        protected ListBox savesList = new ListBox();
+        protected Button renameSaveButton = new Button();
+        protected Button deleteSaveButton = new Button();
+        protected Button goButton = new Button();
+        protected Button switchCharButton = new Button();
+        protected Button switchClassicButton = new Button();
 
-        Panel mainPanel = new Panel();
-        Panel screenshotPanel = new Panel();
-        TextBox saveNameTextBox = new TextBox();
-        TextLabel promptLabel = new TextLabel();
-        TextLabel saveTimeLabel = new TextLabel();
-        TextLabel gameTimeLabel = new TextLabel();
-        TextLabel saveVersionLabel = new TextLabel();
-        TextLabel saveFolderLabel = new TextLabel();
-        ListBox savesList = new ListBox();
-        Button deleteSaveButton = new Button();
-        Button goButton = new Button();
-        Button switchCharButton = new Button();
-        Button switchClassicButton = new Button();
+        protected Color mainPanelBackgroundColor = new Color(0.0f, 0.0f, 0.0f, 1.0f);
+        protected Color namePanelBackgroundColor = new Color(0.2f, 0.2f, 0.2f, 1.0f);
+        protected Color saveButtonBackgroundColor = new Color(0.0f, 0.5f, 0.0f, 0.4f);
+        protected Color cancelButtonBackgroundColor = new Color(0.7f, 0.0f, 0.0f, 0.4f);
+        protected Color savesListBackgroundColor = new Color(0.1f, 0.1f, 0.1f, 0.4f);
+        protected Color savesListTextColor = new Color(0.8f, 0.8f, 0.8f, 1.0f);
+        protected Color saveFolderColor = new Color(0.7f, 0.7f, 0.7f, 0.5f);
+        protected VerticalScrollBar savesScroller = new VerticalScrollBar();
 
-        Color mainPanelBackgroundColor = new Color(0.0f, 0f, 0.0f, 1.0f);
-        Color namePanelBackgroundColor = new Color(0.2f, 0.2f, 0.2f, 1.0f);
-        Color saveButtonBackgroundColor = new Color(0.0f, 0.5f, 0.0f, 0.4f);
-        Color cancelButtonBackgroundColor = new Color(0.7f, 0.0f, 0.0f, 0.4f);
-        Color savesListBackgroundColor = new Color(0.1f, 0.1f, 0.1f, 0.4f);
-        Color savesListTextColor = new Color(0.8f, 0.8f, 0.8f, 1.0f);
-        Color saveFolderColor = new Color(0.7f, 0.7f, 0.7f, 0.5f);
-        VerticalScrollBar savesScroller = new VerticalScrollBar();
-
-        Modes mode = Modes.SaveGame;
-        string currentPlayerName;
-        bool displayMostRecentChar;
+        protected Modes mode = Modes.SaveGame;
+        protected string currentPlayerName;
+        protected bool displayMostRecentChar;
+        protected bool loading = false;
+        protected int loadingCountdown = 2;
 
         #endregion
 
@@ -171,7 +170,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Switch to classic save window button
             switchClassicButton.Position = new Vector2(172, 150);
             switchClassicButton.Size = new Vector2(40, 16);
-            switchClassicButton.Label.Text = "Classic";
+            switchClassicButton.Label.Text = TextManager.Instance.GetLocalizedText("classicSave");
             //switchClassicButton.Label.TextColor = new Color(0.6f, 0.3f, 0.6f);
             switchClassicButton.Label.ShadowColor = Color.black;
             SetBackground(switchClassicButton, new Color(0.2f, 0.2f, 0), "switchClassicButtonBackgroundColor");
@@ -183,7 +182,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             Button cancelButton = new Button();
             cancelButton.Position = new Vector2(236, 150);
             cancelButton.Size = new Vector2(40, 16);
-            cancelButton.Label.Text = "Cancel";
+            cancelButton.Label.Text = TextManager.Instance.GetLocalizedText("cancel");
             cancelButton.Label.ShadowColor = Color.black;
             SetBackground(cancelButton, cancelButtonBackgroundColor, "cancelButtonBackgroundColor");
             cancelButton.Outline.Enabled = true;
@@ -235,11 +234,28 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             gameTimeLabel.Position = new Vector2(0, 9);
             infoPanel.Components.Add(gameTimeLabel);
 
+            // Rename save button
+            renameSaveButton.Position = new Vector2(2, 132);
+            renameSaveButton.Size = new Vector2(48, 8);
+            renameSaveButton.Label.Text = TextManager.Instance.GetLocalizedText("renameSave");
+            renameSaveButton.Label.ShadowColor = Color.black;
+            SetBackground(renameSaveButton, namePanelBackgroundColor, "renameSaveButtonBackgroundColor");
+            renameSaveButton.Outline.Enabled = false;
+            renameSaveButton.OnMouseClick += RenameSaveButton_OnMouseClick;
+            savesPanel.Components.Add(renameSaveButton);
+
+            // Loading label
+            loadingLabel.BackgroundColor = Color.gray;
+            loadingLabel.TextColor = Color.white;
+            loadingLabel.HorizontalAlignment = HorizontalAlignment.Center;
+            loadingLabel.VerticalAlignment = VerticalAlignment.Middle;
+            loadingLabel.Position = new Vector2(mainPanel.Size.x / 2f, mainPanel.Size.y / 2f);
+            mainPanel.Components.Add(loadingLabel);
+
             // Delete save button
-            deleteSaveButton.Position = new Vector2(0, 132);
-            deleteSaveButton.Size = new Vector2(98, 8);
-            deleteSaveButton.HorizontalAlignment = HorizontalAlignment.Center;
-            deleteSaveButton.Label.Text = "Delete Save";
+            deleteSaveButton.Position = new Vector2(51, 132);
+            deleteSaveButton.Size = new Vector2(48, 8);
+            deleteSaveButton.Label.Text = TextManager.Instance.GetLocalizedText("deleteSave");
             deleteSaveButton.Label.ShadowColor = Color.black;
             SetBackground(deleteSaveButton, namePanelBackgroundColor, "deleteSaveButtonBackgroundColor");
             deleteSaveButton.Outline.Enabled = false;
@@ -249,7 +265,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Switch character button
             switchCharButton.Position = new Vector2(216, 2);
             switchCharButton.Size = new Vector2(60, 8);
-            switchCharButton.Label.Text = "Switch Char";
+            switchCharButton.Label.Text = TextManager.Instance.GetLocalizedText("switchChar");
             switchCharButton.Label.ShadowColor = Color.black;
             SetBackground(switchCharButton, saveButtonBackgroundColor, "switchCharButtonBackgroundColor");
             switchCharButton.OnMouseClick += SwitchCharButton_OnMouseClick;
@@ -280,13 +296,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             if (Input.GetKeyDown(KeyCode.Return))
                 SaveLoadEventHandler(null, Vector2.zero);
+            if (loading && --loadingCountdown == 0) // Allow loading text to draw before loading
+                LoadGame();
         }
 
         #endregion
 
-        #region Private Methods
+        #region Protected Methods
 
-        void UpdateSavesList()
+        protected virtual void UpdateSavesList()
         {
             // Clear saves list
             savesList.ClearItems();
@@ -296,7 +314,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (mode == Modes.LoadGame && mostRecentSave == -1)
             {
                 // No saves found, prompt to load a classic save
-                promptLabel.Text = HardStrings.noSavesFound;
+                promptLabel.Text = TextManager.Instance.GetLocalizedText("noSavesFound");
                 return;
             }
             else
@@ -331,13 +349,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Update prompt
             string promptText = string.Empty;
             if (mode == Modes.SaveGame)
-                promptText = savePromptText;
+                promptText = TextManager.Instance.GetLocalizedText("savePrompt");
             else if (mode == Modes.LoadGame)
-                promptText = loadPromptText;
+                promptText = TextManager.Instance.GetLocalizedText("loadPrompt");
             promptLabel.Text = string.Format("{0} for '{1}'", promptText, currentPlayerName);
         }
 
-        void UpdateSelectedSaveInfo()
+        protected virtual void UpdateSelectedSaveInfo()
         {
             // Clear info if no save selected
             if (saveNameTextBox.Text.Length == 0 || savesList.SelectedIndex < 0)
@@ -347,6 +365,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 saveFolderLabel.Text = string.Empty;
                 saveTimeLabel.Text = string.Empty;
                 gameTimeLabel.Text = string.Empty;
+                renameSaveButton.BackgroundColor = namePanelBackgroundColor;
                 deleteSaveButton.BackgroundColor = namePanelBackgroundColor;
                 return;
             }
@@ -379,36 +398,37 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             saveFolderLabel.Text = Path.GetFileName(path);
             saveTimeLabel.Text = DateTime.FromBinary(saveInfo.dateAndTime.realTime).ToLongDateString();
             gameTimeLabel.Text = dfDateTime.MidDateTimeString();
+            renameSaveButton.BackgroundColor = saveButtonBackgroundColor;
             deleteSaveButton.BackgroundColor = cancelButtonBackgroundColor;
         }
 
-        void SaveGame()
+        protected virtual void SaveGame()
         {
             GameManager.Instance.SaveLoadManager.Save(currentPlayerName, saveNameTextBox.Text);
             DaggerfallUI.Instance.PopToHUD();
         }
 
-        void LoadGame()
+        protected virtual void LoadGame()
         {
             GameManager.Instance.SaveLoadManager.Load(currentPlayerName, saveNameTextBox.Text);
             DaggerfallUI.Instance.PopToHUD();
         }
 
-        void SetMode(Modes mode)
+        protected virtual void SetMode(Modes mode)
         {
             if (mode == Modes.SaveGame)
             {
-                saveNameTextBox.DefaultText = HardStrings.enterSaveName;
+                saveNameTextBox.DefaultText = TextManager.Instance.GetLocalizedText("enterSaveName");
                 switchCharButton.Enabled = false;
                 switchClassicButton.Enabled = false;
                 saveNameTextBox.ReadOnly = false;
-                goButton.Label.Text = saveButtonText;
+                goButton.Label.Text = TextManager.Instance.GetLocalizedText("saveButton");
             }
             else if (mode == Modes.LoadGame)
             {
-                saveNameTextBox.DefaultText = HardStrings.selectSaveName;
+                saveNameTextBox.DefaultText = TextManager.Instance.GetLocalizedText("selectSaveName");
                 saveNameTextBox.ReadOnly = true;
-                goButton.Label.Text = loadButtonText;
+                goButton.Label.Text = TextManager.Instance.GetLocalizedText("loadButton");
                 switchClassicButton.Enabled = true;
 
                 // Enable switch if at least one character
@@ -419,33 +439,38 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
-        void SetBackground(BaseScreenComponent panel, Color color, string textureName)
+        protected virtual void SetBackground(BaseScreenComponent panel, Color color, string textureName)
         {
             Texture2D tex;
             if (TextureReplacement.TryImportTexture(textureName, true, out tex))
+            {
                 panel.BackgroundTexture = tex;
+                TextureReplacement.LogLegacyUICustomizationMessage(textureName);
+            }
             else
                 panel.BackgroundColor = color;
         }
 
-        void SetBackground(Button button, Color color, string textureName)
+        protected virtual void SetBackground(Button button, Color color, string textureName)
         {
+#pragma warning disable 0618
             if (!TextureReplacement.TryCustomizeButton(ref button, textureName))
                 button.BackgroundColor = color;
+#pragma warning restore 0618
         }
 
         #endregion
 
         #region Event Handlers
 
-        private void SaveLoadEventHandler(BaseScreenComponent sender, Vector2 position)
+        protected virtual void SaveLoadEventHandler(BaseScreenComponent sender, Vector2 position)
         {
             if (mode == Modes.SaveGame)
             {
                 // Must have a save name
                 if (saveNameTextBox.Text.Length == 0)
                 {
-                    DaggerfallUI.MessageBox(HardStrings.youMustEnterASaveName);
+                    DaggerfallUI.MessageBox(TextManager.Instance.GetLocalizedText("youMustEnterASaveName"));
                     return;
                 }
 
@@ -454,7 +479,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 if (key != -1)
                 {
                     DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
-                    messageBox.SetText(new string[] { HardStrings.confirmOverwriteSave, "" });
+                    messageBox.SetText(new string[] { TextManager.Instance.GetLocalizedText("confirmOverwriteSave"), "" });
                     messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.Yes);
                     messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.No);
                     messageBox.OnButtonClick += ConfirmOverwrite_OnButtonClick;
@@ -470,30 +495,34 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 // Must have a save name
                 if (saveNameTextBox.Text.Length == 0)
                 {
-                    DaggerfallUI.MessageBox(HardStrings.youMustSelectASaveName);
+                    DaggerfallUI.MessageBox(TextManager.Instance.GetLocalizedText("youMustSelectASaveName"));
                     return;
                 }
 
-                LoadGame();
+                GameManager.Instance.SaveLoadManager.PromptLoadGame(currentPlayerName, saveNameTextBox.Text, () =>
+                {
+                    loadingLabel.Text = TextManager.Instance.GetLocalizedText("loading");
+                    loading = true;
+                });
             }
         }
 
-        private void CancelButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void CancelButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             CloseWindow();
         }
 
-        private void SavesScroller_OnScroll()
+        protected virtual void SavesScroller_OnScroll()
         {
             savesList.ScrollIndex = savesScroller.ScrollIndex;
         }
 
-        private void SavesList_OnScroll()
+        protected virtual void SavesList_OnScroll()
         {
             savesScroller.ScrollIndex = savesList.ScrollIndex;
         }
 
-        private void SaveNameTextBox_OnType()
+        protected virtual void SaveNameTextBox_OnType()
         {
             int index = savesList.FindIndex(saveNameTextBox.Text);
             if (index != -1)
@@ -507,13 +536,43 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
-        private void SavesList_OnSelectItem()
+        protected virtual void SavesList_OnSelectItem()
         {
             saveNameTextBox.Text = savesList.SelectedItem;
             UpdateSelectedSaveInfo();
         }
 
-        private void DeleteSaveButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void RenameSaveButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        {
+            // Must have a save selected
+            if (savesList.SelectedIndex < 0)
+                return;
+
+            // Input save name
+            DaggerfallInputMessageBox messageBox = new DaggerfallInputMessageBox(uiManager, this);
+            messageBox.SetTextBoxLabel(TextManager.Instance.GetLocalizedText("enterSaveName") + ": ");
+            messageBox.TextBox.Text = saveNameTextBox.Text;
+            messageBox.OnGotUserInput += RenameSaveButton_OnGotUserInput;
+            uiManager.PushWindow(messageBox);
+        }
+
+        protected virtual void RenameSaveButton_OnGotUserInput(DaggerfallInputMessageBox sender, string saveName)
+        {
+            if (string.IsNullOrEmpty(saveName))
+                return;
+
+            // Get save key
+            int key = GameManager.Instance.SaveLoadManager.FindSaveFolderByNames(currentPlayerName, saveNameTextBox.Text);
+            if (key == -1)
+                return;
+
+            // Rename save
+            GameManager.Instance.SaveLoadManager.Rename(key, saveName);
+            savesList.UpdateItem(savesList.SelectedIndex, saveName);
+            SavesList_OnSelectItem();
+        }
+
+        protected virtual void DeleteSaveButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             // Must have a save selected
             if (savesList.SelectedIndex < 0)
@@ -521,14 +580,14 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Confirmation
             DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
-            messageBox.SetText(new string[] { HardStrings.confirmDeleteSave, "" });
+            messageBox.SetText(new string[] { TextManager.Instance.GetLocalizedText("confirmDeleteSave"), "" });
             messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.Delete);
             messageBox.AddButton(DaggerfallMessageBox.MessageBoxButtons.Cancel);
             messageBox.OnButtonClick += ConfirmDelete_OnButtonClick;
             uiManager.PushWindow(messageBox);
         }
 
-        private void ConfirmDelete_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
+        protected virtual void ConfirmDelete_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
         {
             if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Delete)
             {
@@ -547,7 +606,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             CloseWindow();
         }
 
-        private void ConfirmOverwrite_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
+        protected virtual void ConfirmOverwrite_OnButtonClick(DaggerfallMessageBox sender, DaggerfallMessageBox.MessageBoxButtons messageBoxButton)
         {
             if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Yes)
             {
@@ -559,7 +618,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
-        private void SwitchCharButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void SwitchCharButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             DaggerfallListPickerWindow picker = new DaggerfallListPickerWindow(uiManager, this);
 
@@ -584,12 +643,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             uiManager.PushWindow(picker);
         }
 
-        private void SwitchClassicButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void SwitchClassicButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
-            uiManager.PushWindow(new DaggerfallLoadClassicGameWindow(uiManager));
+            uiManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.LoadClassicGame, uiManager, null));
         }
 
-        private void Picker_OnItemPicked(int index, string itemString)
+        protected virtual void Picker_OnItemPicked(int index, string itemString)
         {
             displayMostRecentChar = false;
 
@@ -602,7 +661,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             CloseWindow();
         }
 
-        private void SaveFolderLabel_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void SaveFolderLabel_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             // Get save key
             int key = GameManager.Instance.SaveLoadManager.FindSaveFolderByNames(currentPlayerName, saveNameTextBox.Text);

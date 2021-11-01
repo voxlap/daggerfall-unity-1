@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,6 +12,7 @@
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop;
+using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Utility;
 
@@ -35,15 +36,15 @@ namespace DaggerfallConnect.Arena2
             {
                 if (val == 0)
                 {
-                    return HardStrings.unchanged;
+                    return TextManager.Instance.GetLocalizedText("unchanged");
                 }
                 else if (val < 0)
                 {
-                    return HardStrings.lower;
+                    return TextManager.Instance.GetLocalizedText("lower");
                 }
                 else
                 {
-                    return HardStrings.higher;
+                    return TextManager.Instance.GetLocalizedText("higher");
                 }
             }
 
@@ -93,21 +94,21 @@ namespace DaggerfallConnect.Arena2
                 switch ((Races)parent.characterDocument.raceTemplate.ID)
                 {
                     case Races.Argonian:
-                        return HardStrings.blackMarsh;
+                        return TextManager.Instance.GetLocalizedText("blackMarsh");
                     case Races.Breton:
-                        return HardStrings.highRock;
+                        return TextManager.Instance.GetLocalizedText("highRock");
                     case Races.DarkElf:
-                        return HardStrings.morrowind;
+                        return TextManager.Instance.GetLocalizedText("morrowind");
                     case Races.HighElf:
-                        return HardStrings.sumurset;
+                        return TextManager.Instance.GetLocalizedText("sumurset");
                     case Races.Khajiit:
-                        return HardStrings.elsweyr;
+                        return TextManager.Instance.GetLocalizedText("elsweyr");
                     case Races.Nord:
-                        return HardStrings.skyrim;
+                        return TextManager.Instance.GetLocalizedText("skyrim");
                     case Races.Redguard:
-                        return HardStrings.hammerfell;
+                        return TextManager.Instance.GetLocalizedText("hammerfell");
                     case Races.WoodElf:
-                        return HardStrings.valenwood;
+                        return TextManager.Instance.GetLocalizedText("valenwood");
                     default:
                         return null;
                 }
@@ -116,24 +117,24 @@ namespace DaggerfallConnect.Arena2
             public override string GeographicalFeature()
             {
                 // %hpw
-                switch ((Races)parent.characterDocument.raceTemplate.ID) // Note: These are educated guesses based on lore.
+                switch ((Races)parent.characterDocument.raceTemplate.ID)
                 {
                     case Races.Argonian:
-                        return HardStrings.swamps;
+                        return TextManager.Instance.GetLocalizedText("swamps");
                     case Races.Breton:
-                        return HardStrings.rollingHills;
+                        return TextManager.Instance.GetLocalizedText("rollingHills");
                     case Races.DarkElf:
-                        return HardStrings.rollingHills;
+                        return TextManager.Instance.GetLocalizedText("mountains");
                     case Races.HighElf:
-                        return HardStrings.shores;
+                        return TextManager.Instance.GetLocalizedText("shores");
                     case Races.Khajiit:
-                        return HardStrings.desertLand;
+                        return TextManager.Instance.GetLocalizedText("desertLand");
                     case Races.Nord:
-                        return HardStrings.mountains;
+                        return TextManager.Instance.GetLocalizedText("mountains");
                     case Races.Redguard:
-                        return HardStrings.desertLand;
+                        return TextManager.Instance.GetLocalizedText("desertLand");
                     case Races.WoodElf:
-                        return HardStrings.forests;
+                        return TextManager.Instance.GetLocalizedText("forests");
                     default:
                         return null;
                 }
@@ -141,10 +142,9 @@ namespace DaggerfallConnect.Arena2
 
             public override string Name()
             {   // %bn
-                System.Random random = new System.Random();
-                DFRandom.Seed = (uint)random.Next();
-                NameHelper.BankTypes race = MacroHelper.GetNameBank((Races)parent.characterDocument.raceTemplate.ID);
-                return DaggerfallUnity.Instance.NameHelper.FullName(race, Genders.Male);
+                DFRandom.Seed = (uint)parent.GetHashCode();
+                NameHelper.BankTypes nameBank = MacroHelper.GetNameBank((Races)parent.characterDocument.raceTemplate.ID);
+                return DaggerfallUnity.Instance.NameHelper.FullName(nameBank, Genders.Male);
             }
 
             public override string Q1()
@@ -613,6 +613,28 @@ namespace DaggerfallConnect.Arena2
                 TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(parent.Q12Tokens[2]);
 
                 return tokens[0].text;
+            }
+
+            public override string ImperialName()
+            {   // %imp
+                string[] names = { "Pelagius", "Cephorus", "Uriel", "Cassynder", "Voragiel", "Trabbatus" };
+                DFRandom.Seed = (uint)parent.GetHashCode();
+                uint rand = DFRandom.rand() % 6;
+                return names[rand];
+            }
+
+            public override string FemaleName()
+            {   // %fn
+                DFRandom.Seed = (uint)parent.GetHashCode() + 123;
+                NameHelper.BankTypes nameBank = MacroHelper.GetNameBank((Races)parent.characterDocument.raceTemplate.ID);
+                return DaggerfallUnity.Instance.NameHelper.FullName(nameBank, Genders.Female);
+            }
+
+            public override string MaleName()
+            {   // %mn
+                DFRandom.Seed = (uint)parent.GetHashCode() + 9543;
+                NameHelper.BankTypes nameBank = MacroHelper.GetNameBank((Races)parent.characterDocument.raceTemplate.ID);
+                return DaggerfallUnity.Instance.NameHelper.FullName(nameBank, Genders.Male);
             }
         }
     }

@@ -6,6 +6,7 @@
 -- QuestId: 16
 Messages: 17
 Quest: R0C11Y16
+DisplayName: Espionage Equipment
 -- Message panels
 QRC:
 
@@ -92,8 +93,9 @@ QuestLogEntry:  [1010]
 <ce>                 expects you there in =2ndparton_ days.
 
 Message:  1015
-%qdt: A spy in the employ
- of _questgiver_ of ___questgiver_
+%qdt:
+ A spy in the employ of
+ _questgiver_ of ___questgiver_
  needs a telescope and I have been asked
  to deliver it. I have =1stparton_ days
  to get to _npc1_ in
@@ -102,7 +104,8 @@ Message:  1015
  instructions.
 
 Message:  1016
-%qdt: I gave _npc1_ %g3
+%qdt:
+ I gave _npc1_ %g3
  telescope and %g sent me on to someone named
  _npc2_ of ___npc2_ with
  a relic of some kind. I have =2ndparton_
@@ -138,8 +141,8 @@ Item _item1_ telescope
 Item _item2_ Holy_relic
 
 Person _questgiver_ face 140 group Questor
-Person _npc1_ group Local_3.0 female
-Person _npc2_ face 248 group Local_3.1
+Person _npc1_ group Local_3.0 remote
+Person _npc2_ face 248 group Local_3.1 remote
 
 
 Clock _1stparton_ 00:00 0 flag 1 range 1 4

@@ -7,8 +7,9 @@ namespace DaggerfallWorkshop.Game
         //DaggerfallSky sky;
         Camera mainCamera { get { return GameManager.Instance.MainCamera; } }
         public Color waterFogColor { get; set; }
-        private float fogDensityMin;
-        private float fogDensityMax;
+        public Color waterMapColor { get; set; }
+        public float fogDensityMin;
+        public float fogDensityMax;
 
         // store fog values to reset fog after leaving water
         private FogMode originalFogMode;               
@@ -22,9 +23,11 @@ namespace DaggerfallWorkshop.Game
 
         public UnderwaterFog()
         {
-            waterFogColor = new Color(0.25f, 0.55f, 0.79f, 1);
+            mainCamera = GameManager.Instance.MainCamera;
+            waterFogColor = new Color32(14, 25, 21, 255);
+            waterMapColor = new Color(0.1f, 0.3f, 0.25f, 0.4f);
             fogDensityMin = 0f;
-            fogDensityMax = 0.23f;
+            fogDensityMax = 0.25f;
             // get initial (backup) values - will be overwritten (this is just a safety net mechanism so we start out with some values)
             originalFogMode = RenderSettings.fogMode;
             originalFogDensity = RenderSettings.fogDensity;

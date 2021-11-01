@@ -6,6 +6,7 @@
 -- QuestId: 0
 Messages: 46
 Quest: W0C00Y00
+DisplayName: Hermaeus Mora's Quest
 -- Message panels
 QRC:
 
@@ -141,15 +142,14 @@ QBN:
 Item _artifact_ artifact Oghma_Infinium anyInfo 1013
 Item _magic_ magic_item
 
-Person _questgiver_ face 112 group Questor anyInfo 1012
-Person _contact_ group Librarian female anyInfo 1011
-Person _enemy_ face 1 factiontype Province
+Person _questgiver_ face 112 named Hermaeus_Mora anyInfo 1012
+Person _contact_ group Librarian remote anyInfo 1011
+Person _enemy_ face 1 factiontype Province remote
 
 Place _palace_ remote palace
 Place _L.01_ remote dungeon
 
 Clock _1stparton_ 00:00 0 flag 1 range 2 5
-Clock _delay_ 01:00 0 flag 1 range 0 1
 
 Foe _monster_ is Spellsword
 Foe _guard1_ is Barbarian
@@ -169,7 +169,8 @@ _pcgetsgold_ task:
 	when _npcclicked_ and _mondead_ 
 	when _S.10_ and _mondead_ 
 	give pc _artifact_ 
-	start timer _delay_ 
+	end quest 
+--removed unnecessary delay
 
 _mondead_ task:
 	killed 1 _monster_ 
@@ -207,6 +208,3 @@ _S.10_ task:
 _S.11_ task:
 	when _S.10_ and not _mondead_ 
 	say 1045 
-
-_delay_ task:
-	end quest 

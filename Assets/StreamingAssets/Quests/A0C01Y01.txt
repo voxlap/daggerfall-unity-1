@@ -7,6 +7,7 @@
 -- Edited for Daggerfall Unity by Jay_H
 Messages: 14
 Quest: A0C01Y01
+DisplayName: The Bodyguard
 -- Message panels
 QRC:
 
@@ -20,13 +21,13 @@ QuestorOffer:  [1000]
 <ce>               You find me in desperate straits, my dear
 <ce>                  %ra. I have received word from some
 <ce>                 %cn thugs that they intend to ransack
-<ce>                my house tonight.  I don't suppose you'd
+<ce>                my house tonight. I don't suppose you'd
 <ce>                  be available to do a little creative
 <ce>                 facial rearrangement on these fellows?
 
 RefuseQuest:  [1001]
 <ce>                    Fear not for my safety, %pcn. I
-<ce>                shall find another protector...somehow.
+<ce>                shall find another protector... somehow.
 
 AcceptQuest:  [1002]
 <ce>             Thank you and bless you! They will strike at
@@ -54,7 +55,7 @@ RumorsPostsuccess:  [1007]
 <ce>                           beat up _qgiver_?
 
 QuestorPostsuccess:  [1008]
-<ce>                 I still remember what you did for me
+<ce>                 I still remember what you did for me,
 <ce>                     %pcf. Chasing off those thugs
 <ce>                        leaves me in your debt.
 
@@ -118,7 +119,7 @@ _S.00_ task:
 	end quest 
 
 _S.01_ task:
-	daily from 21:00 to 23:59 
+	daily from 21:00 to 22:59
 	--changed 24:00 to 23:59. 24:00 shouldn't exist.
 	place npc _qgiver_ at _qgiverhome_ 
 
@@ -150,3 +151,16 @@ _S.08_ task:
 _mmap_ task:
 	when _questdone_ and not _S.05_ 
 	end quest 
+
+--on rare occasions, the enemies still would not spawn with the above logic.
+--A new back-up logic starting from 11PM is given below, to force an enemy
+--spawn if none has been injured by 11PM. If there's a better way to ensure
+--the enemies haven't spawned than with "injured," it would be preferable.
+
+_latehour_ task:
+	daily from 23:00 to 23:59
+	place npc _qgiver_ at _qgiverhome_ 
+
+_backupspawn_ task:
+	when _S.05_ and _latehour_ and not _S.06_
+	create foe _villains_ every 0 minutes 1 times with 100% success

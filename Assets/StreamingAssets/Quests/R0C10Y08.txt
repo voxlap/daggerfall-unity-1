@@ -6,6 +6,7 @@
 -- QuestId: 8
 Messages: 21
 Quest: R0C10Y08
+DisplayName: Theft from a Temple
 -- Message panels
 QRC:
 
@@ -89,7 +90,7 @@ Message:  1011
 <ce>           _transporter_ is a nervous-looking =transporter_
 <ce>                   with connections to _questgiver_.
                                      <--->
-A =transporter_ -- %g's %di of here at __tranporter_.
+A =transporter_ -- %g's %di of here at __transporter_.
 
 Message:  1012
 <ce>                        You pick up the _item_.
@@ -97,7 +98,7 @@ Message:  1012
 
 Message:  1015
 %qdt:
-_questgiver_ of
+_questgiver_
  has sent me to _itemplace_
  in __itemplace_ to steal
  a certain _item_, then deliver it to
@@ -143,8 +144,8 @@ Item _reward_ gold
 Item _item_ religious
 
 Person _questgiver_ face 112 group Questor
-Person _transporter_ face 1 group Local_3.0 anyInfo 1011
-Person shopkeeper2 factiontype Temple female
+Person _transporter_ face 1 group Local_3.0 remote anyInfo 1011
+Person _dummypriest_ factiontype Temple remote
 
 Place _itemplace_ remote temple
 Place _inn_ remote tavern
@@ -170,7 +171,7 @@ _pchasitem_ task:
 	clicked item _item_ 
 	pc at _itemplace_ set _S.09_ 
 	say 1012 
-	change repute with shopkeeper2 by -10 
+	change repute with _dummypriest_ by -10 
 
 _queston_ task:
 	when _2ndparton_ 

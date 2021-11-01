@@ -60,7 +60,7 @@ QuestorPostsuccess:  [1008]
 
 QuestorPostfailure:  [1009]
 <ce>                  Get outta here. You're so pathetic.
-<ce>                   You couldn't even handle werewolf.
+<ce>                   You couldn't even handle a werewolf.
 
 Message:  1020
 <ce>                   The lycanthrope threat is ended.
@@ -101,7 +101,7 @@ Message:  1080
 QBN:
 Item _reward_ gold
 
-Person _questgiver_ group Questor male
+Person _questgiver_ group Questor
 
 Place _mondung_ remote dungeon
 Place _newdung_ remote dungeon

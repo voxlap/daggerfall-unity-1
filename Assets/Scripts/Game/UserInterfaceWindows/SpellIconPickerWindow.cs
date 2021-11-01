@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -24,27 +24,25 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
     {
         #region UI Rects
 
-        Vector2 mainPanelSize = new Vector2(274, 180);
-        Vector2 scrollingPanelPosition = new Vector2(2, 2);
-        Vector2 scrollingPanelSize = new Vector2(262, 176);
-        Vector2 scrollerPosition = new Vector2(265, 2);
-        Vector2 scrollerSize = new Vector2(8, 176);
+        protected Vector2 mainPanelSize = new Vector2(274, 180);
+        protected Vector2 scrollingPanelPosition = new Vector2(2, 2);
+        protected Vector2 scrollingPanelSize = new Vector2(262, 176);
+        protected Vector2 scrollerPosition = new Vector2(265, 2);
+        protected Vector2 scrollerSize = new Vector2(8, 176);
 
         #endregion
 
         #region UI Controls
 
-        const string textDatabase = "DaggerfallUI";
-
-        Panel mainPanel = new Panel();
-        ScrollingPanel scrollingPanel = new ScrollingPanel();
-        VerticalScrollBar scroller = new VerticalScrollBar();
+        protected Panel mainPanel = new Panel();
+        protected ScrollingPanel scrollingPanel = new ScrollingPanel();
+        protected VerticalScrollBar scroller = new VerticalScrollBar();
 
         #endregion
 
         #region Fields
 
-        SpellIcon? selectedIcon = null;
+        protected SpellIcon? selectedIcon = null;
 
         #endregion
 
@@ -128,7 +126,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         const int iconSize = 16;
         const int iconSpacing = 22;
 
-        void AddIconPacks(ScrollingPanel parent, ref int xpos, ref int ypos)
+        protected virtual void AddIconPacks(ScrollingPanel parent, ref int xpos, ref int ypos)
         {
             int rowCount = 0;
             int startX = xpos;
@@ -159,7 +157,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
 
             // Add classic icons
-            AddHeaderLabel(parent, ref xpos, ref ypos, TextManager.Instance.GetText(textDatabase, "classicIcons"));
+            AddHeaderLabel(parent, ref xpos, ref ypos, TextManager.Instance.GetLocalizedText("classicIcons"));
             rowCount = 0;
             for (int i = 0; i < iconCollection.SpellIconCount; i++)
             {
@@ -172,7 +170,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             scroller.TotalUnits = parent.ScrollSteps;
         }
 
-        void AddIcon(SpellIconCollection iconCollection, SpellIconCollection.SpellIconPack pack, string key, int index, Panel parent, ref int rowCount, ref int startX, ref int xpos, ref int ypos)
+        protected virtual void AddIcon(SpellIconCollection iconCollection, SpellIconCollection.SpellIconPack pack, string key, int index, Panel parent, ref int rowCount, ref int startX, ref int xpos, ref int ypos)
         {
             // Get pack or classic texture
             Texture2D texture;
@@ -203,7 +201,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             };
         }
 
-        void AddHeaderLabel(Panel parent, ref int xpos, ref int ypos, string text)
+        protected virtual void AddHeaderLabel(Panel parent, ref int xpos, ref int ypos, string text)
         {
             TextLabel header = new TextLabel();
             header.Text = text;
@@ -217,7 +215,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             ypos += iconSpacing;
         }
 
-        void UpdateSelectedIcon()
+        protected virtual void UpdateSelectedIcon()
         {
             bool mouseOverIcon = false;
 
@@ -245,30 +243,30 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 selectedIcon = null;
         }
 
-        private void Scroller_OnScroll()
+        protected virtual void Scroller_OnScroll()
         {
             scrollingPanel.ScrollIndex = scroller.ScrollIndex;
             UpdateSelectedIcon();
         }
 
-        private void ScrollingPanel_OnMouseScrollDown(BaseScreenComponent sender)
+        protected virtual void ScrollingPanel_OnMouseScrollDown(BaseScreenComponent sender)
         {
             scroller.ScrollIndex++;
             UpdateSelectedIcon();
         }
 
-        private void ScrollingPanel_OnMouseScrollUp(BaseScreenComponent sender)
+        protected virtual void ScrollingPanel_OnMouseScrollUp(BaseScreenComponent sender)
         {
             scroller.ScrollIndex--;
             UpdateSelectedIcon();
         }
 
-        private void ScrollingPanel_OnMouseMove(int x, int y)
+        protected virtual void ScrollingPanel_OnMouseMove(int x, int y)
         {
             UpdateSelectedIcon();
         }
 
-        private void ScrollingPanel_OnMouseClick(BaseScreenComponent sender, Vector2 position)
+        protected virtual void ScrollingPanel_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
             UpdateSelectedIcon();
             if (selectedIcon != null)

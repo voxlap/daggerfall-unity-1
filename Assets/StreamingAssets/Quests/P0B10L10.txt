@@ -6,6 +6,7 @@
 -- QuestId: 10
 Messages: 18
 Quest: P0B10L10
+DisplayName: The Chaperone
 -- Message panels
 QRC:
 
@@ -21,7 +22,7 @@ Error: Questtext 1002 Called.
 QuestComplete:  [1004]
 <ce>                  It is not an easy thing for one of
 <ce>                   our kind to travel. With the added
-<ce>                        encumberance of _vamp_,
+<ce>                        encumbrance of _vamp_,
 <ce>                  I can only imagine your tribulation.
 <ce>                 Add to it the terror of that venomous
 <ce>                         =mage_, and I can see
@@ -93,7 +94,7 @@ Message:  1013
 <ce>                           more interesting!
 
 Message:  1014
-%dat:
+%qdt:
  I am escorting _vamp_
  to _vamp2_ in ___vamp2_.
  I must make it to __vamp2_
@@ -140,8 +141,8 @@ Message:  1017
 QBN:
 Item _letter_ letter used 1010
 
-Person _vamp_ factiontype Vampire_Clan male
-Person _vamp2_ factiontype Vampire_Clan female
+Person _vamp_ factiontype Vampire_Clan local
+Person _vamp2_ factiontype Vampire_Clan remote
 
 
 Clock _queston_ 00:00 0 flag 1 range 1 2

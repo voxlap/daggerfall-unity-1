@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -21,6 +21,7 @@ using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.MagicAndEffects;
 using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -33,27 +34,35 @@ namespace DaggerfallWorkshop.Game
         const float defaultBowReach = 50f;
         public const float defaultWeaponReach = 2.25f;
 
+        // Equip delay times for weapons
+        public static ushort[] EquipDelayTimes = { 500, 700, 1200, 900, 900, 1800, 1600, 1700, 1700, 3000, 3400, 2000, 2200, 2000, 2200, 2000, 4000, 5000 };
+
         // Max time-length of a trail of mouse positions for attack gestures
         private const float MaxGestureSeconds = 1.0f;
 
-        // Max time bow can be held drawn
+        // Max time bow can be held drawn and switch divisor
         private const int MaxBowHeldDrawnSeconds = 10;
+        private const float BowSwitchDivisor = 1.7f;
+
+        private const float resetJoystickSwingRadius = 0.4f;
 
         public FPSWeapon ScreenWeapon;              // Weapon displayed in FPS view
         public bool Sheathed;                       // Weapon is sheathed
-        public float SphereCastRadius = 0.3f;       // Radius of SphereCast used to target attacks
+        public float SphereCastRadius = 0.25f;      // Radius of SphereCast used to target attacks
+        int playerLayerMask = 0;
         [Range(0, 1)]
         public float AttackThreshold = 0.05f;       // Minimum mouse gesture travel distance for an attack. % of screen
         public float ChanceToBeParried = 0.1f;      // Example: Chance for player hit to be parried
         public DaggerfallMissile ArrowMissilePrefab;
 
-        float weaponSensitivity = 1.0f;             // Sensitivity of weapon swings to mouse movements
+        //float weaponSensitivity = 1.0f;             // Sensitivity of weapon swings to mouse movements
         private Gesture _gesture;
         private int _longestDim;                    // Longest screen dimension, used to compare gestures for attack
 
         PlayerEntity playerEntity;
         GameObject player;
         GameObject mainCamera;
+        bool joystickSwungOnce = false;
         bool isClickAttack = false;
         bool isAttacking = false;
         bool isDamageFinished = false;
@@ -73,6 +82,7 @@ namespace DaggerfallWorkshop.Game
 
         #region Properties
 
+        public DaggerfallUnityItem LastBowUsed { get { return lastBowUsed; } }
         public bool UsingRightHand { get { return usingRightHand; } set { usingRightHand = value; } }
 
         #endregion
@@ -183,9 +193,10 @@ namespace DaggerfallWorkshop.Game
 
         void Start()
         {
-            weaponSensitivity = DaggerfallUnity.Settings.WeaponSensitivity;
+            //weaponSensitivity = DaggerfallUnity.Settings.WeaponSensitivity;
             mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
             player = transform.gameObject;
+            playerLayerMask = ~(1 << LayerMask.NameToLayer("Player"));
             _gesture = new Gesture();
             _longestDim = Math.Max(Screen.width, Screen.height);
             SetMelee(ScreenWeapon);
@@ -204,10 +215,7 @@ namespace DaggerfallWorkshop.Game
             {
                 // If an attack with a bow just finished, set cooldown
                 if (ScreenWeapon.WeaponType == WeaponTypes.Bow && isAttacking)
-                {
-                    float cooldown = 10 * (100 - playerEntity.Stats.LiveSpeed) + 800;
-                    cooldownTime = Time.time + (cooldown / 980); // Approximates classic frame update
-                }
+                    cooldownTime = Time.time + FormulaHelper.GetBowCooldownTime(playerEntity);
 
                 isAttacking = false;
                 isDamageFinished = false;
@@ -220,6 +228,46 @@ namespace DaggerfallWorkshop.Game
                 return;
             }
 
+            // Do nothing if player paralyzed or is climbing
+            if (GameManager.Instance.PlayerEntity.IsParalyzed || GameManager.Instance.ClimbingMotor.IsClimbing)
+            {
+                ShowWeapons(false);
+                return;
+            }
+
+            bool doToggleSheath = false;
+
+            // Hide weapons and do nothing if spell is ready or cast animation in progress
+            if (GameManager.Instance.PlayerEffectManager)
+            {
+                if (GameManager.Instance.PlayerEffectManager.HasReadySpell || GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
+                {
+                    if (!isAttacking && InputManager.Instance.ActionStarted(InputManager.Actions.ReadyWeapon))
+                    {
+                        GameManager.Instance.PlayerEffectManager.AbortReadySpell();
+
+                        //if currently unsheathed, then sheath it, so we can give the effect of unsheathing it again
+                        if (!Sheathed)
+                            ToggleSheath();
+
+                        doToggleSheath = true;
+                    }
+                    else
+                    {
+                        ShowWeapons(false);
+                        return;
+                    }
+                }
+            }
+
+            // Toggle weapon sheath
+            if (doToggleSheath || (!isAttacking && InputManager.Instance.ActionStarted(InputManager.Actions.ReadyWeapon)))
+                ToggleSheath();
+
+            // Toggle weapon hand
+            if (!isAttacking && InputManager.Instance.ActionComplete(InputManager.Actions.SwitchHand))
+                ToggleHand();
+
             // Do nothing if weapon isn't done equipping
             if ((usingRightHand && EquipCountdownRightHand != 0)
                 || (!usingRightHand && EquipCountdownLeftHand != 0))
@@ -227,31 +275,6 @@ namespace DaggerfallWorkshop.Game
                 ShowWeapons(false);
                 return;
             }
-
-            // Hide weapons and do nothing if spell is ready or cast animation in progress
-            if (GameManager.Instance.PlayerEffectManager)
-            {
-                if (GameManager.Instance.PlayerEffectManager.HasReadySpell || GameManager.Instance.PlayerSpellCasting.IsPlayingAnim)
-                {
-                    ShowWeapons(false);
-                    return;
-                }
-            }
-
-            // Do nothing if player paralyzed
-            if (GameManager.Instance.PlayerEntity.IsParalyzed)
-            {
-                ShowWeapons(false);
-                return;
-            }
-
-            // Toggle weapon sheath
-            if (!isAttacking && InputManager.Instance.ActionStarted(InputManager.Actions.ReadyWeapon))
-                ToggleSheath();
-
-            // Toggle weapon hand
-            if (!isAttacking && InputManager.Instance.ActionComplete(InputManager.Actions.SwitchHand))
-                ToggleHand();
 
             // Do nothing if weapons sheathed
             if (Sheathed)
@@ -261,6 +284,14 @@ namespace DaggerfallWorkshop.Game
             }
             else
                 ShowWeapons(true);
+
+            // Do nothing if player has cursor active over large HUD (player is clicking on HUD not clicking to attack)
+            if (GameManager.Instance.PlayerMouseLook.cursorActive &&
+                DaggerfallUI.Instance.DaggerfallHUD != null &&
+                DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ActiveMouseOverLargeHUD)
+            {
+                return;
+            }
 
             // Get if bow is equipped
             bool bowEquipped = (ScreenWeapon && ScreenWeapon.WeaponType == WeaponTypes.Bow);
@@ -304,7 +335,7 @@ namespace DaggerfallWorkshop.Game
                 }
                 else if (isClickAttack)
                 {
-                    attackDirection = (MouseDirections)UnityEngine.Random.Range((int)MouseDirections.Left, (int)MouseDirections.DownRight + 1);
+                    attackDirection = (MouseDirections)UnityEngine.Random.Range((int)MouseDirections.UpRight, (int)MouseDirections.DownRight + 1);
                     isClickAttack = false;
                 }
                 else
@@ -339,11 +370,6 @@ namespace DaggerfallWorkshop.Game
             {
                 ScreenWeapon.PlaySwingSound();
                 isBowSoundFinished = true;
-
-                // Remove arrow
-                ItemCollection playerItems = playerEntity.Items;
-                DaggerfallUnityItem arrow = playerItems.GetItem(ItemGroups.Weapons, (int)Weapons.Arrow);
-                playerItems.RemoveOne(arrow);
             }
             else if (!isDamageFinished && ScreenWeapon.GetCurrentFrame() == ScreenWeapon.GetHitFrame())
             {
@@ -367,12 +393,19 @@ namespace DaggerfallWorkshop.Game
                     DaggerfallMissile missile = Instantiate(ArrowMissilePrefab);
                     if (missile)
                     {
+                        // Remove arrow
+                        ItemCollection playerItems = playerEntity.Items;
+                        DaggerfallUnityItem arrow = playerItems.GetItem(ItemGroups.Weapons, (int)Weapons.Arrow, allowQuestItem: false, priorityToConjured: true);
+                        bool isArrowSummoned = arrow.IsSummoned;
+                        playerItems.RemoveOne(arrow);
+
                         missile.Caster = GameManager.Instance.PlayerEntityBehaviour;
                         missile.TargetType = TargetTypes.SingleTargetAtRange;
                         missile.ElementType = ElementTypes.None;
                         missile.IsArrow = true;
+                        missile.IsArrowSummoned = isArrowSummoned;
 
-                        lastBowUsed = currentRightHandWeapon;
+                        lastBowUsed = usingRightHand ? currentRightHandWeapon : currentLeftHandWeapon;;
                     }
                 }
 
@@ -413,44 +446,45 @@ namespace DaggerfallWorkshop.Game
             SheathWeapons();
         }
 
-        // Returns true if hit an enemy entity
-        public bool WeaponDamage(RaycastHit hit, Vector3 direction, Collider arrowHitCollider = null, bool arrowHit = false)
+        // Returns true if hit the environment
+        public bool WeaponEnvDamage(DaggerfallUnityItem strikingWeapon, RaycastHit hit)
         {
-            DaggerfallUnityItem strikingWeapon = usingRightHand ? currentRightHandWeapon : currentLeftHandWeapon;
-
-            if (arrowHit)
+            // Check if hit has an DaggerfallAction component
+            DaggerfallAction action = hit.transform.gameObject.GetComponent<DaggerfallAction>();
+            if (action)
             {
-                strikingWeapon = lastBowUsed;
-            }
-            else
-            {
-                // Check if hit has an DaggerfallAction component
-                DaggerfallAction action = hit.transform.gameObject.GetComponent<DaggerfallAction>();
-                if (action)
-                {
-                    action.Receive(player, DaggerfallAction.TriggerTypes.Attack);
-                }
-
-                // Check if hit has an DaggerfallActionDoor component
-                DaggerfallActionDoor actionDoor = hit.transform.gameObject.GetComponent<DaggerfallActionDoor>();
-                if (actionDoor)
-                {
-                    actionDoor.AttemptBash(true);
-                    return false;
-                }
-
-                // Check if player hit a static exterior door
-                if (GameManager.Instance.PlayerActivate.AttemptExteriorDoorBash(hit))
-                {
-                    return false;
-                }
+                action.Receive(player, DaggerfallAction.TriggerTypes.Attack);
             }
 
-            // Set up for use below
-            Transform hitTransform = arrowHit ? arrowHitCollider.gameObject.transform : hit.transform;
-            Vector3 impactPosition = arrowHit ? hitTransform.position : hit.point;
+            // Check if hit has an DaggerfallActionDoor component
+            DaggerfallActionDoor actionDoor = hit.transform.gameObject.GetComponent<DaggerfallActionDoor>();
+            if (actionDoor)
+            {
+                actionDoor.AttemptBash(true);
+                return true;
+            }
+
+            // Check if player hit a static exterior door
+            if (GameManager.Instance.PlayerActivate.AttemptExteriorDoorBash(hit))
+            {
+                return true;
+            }
+
+            // Make hitting walls do a thud or clinging sound (not in classic)
+            if (GameObjectHelper.IsStaticGeometry(hit.transform.gameObject))
+            {
+                DaggerfallUI.Instance.PlayOneShot(strikingWeapon == null ? SoundClips.Hit2 : SoundClips.Parry6);
+                return true;
+            }
+
+            return false;
+        }
+
+        // Returns true if hit an enemy entity
+        public bool WeaponDamage(DaggerfallUnityItem strikingWeapon, bool arrowHit, bool arrowSummoned, Transform hitTransform, Vector3 impactPosition, Vector3 direction)
+        {
             DaggerfallEntityBehaviour entityBehaviour = hitTransform.GetComponent<DaggerfallEntityBehaviour>();
-            DaggerfallMobileUnit entityMobileUnit = hitTransform.GetComponentInChildren<DaggerfallMobileUnit>();
+            var entityMobileUnit = hitTransform.GetComponentInChildren<MobileUnit>();
             EnemyMotor enemyMotor = hitTransform.GetComponent<EnemyMotor>();
             EnemySounds enemySounds = hitTransform.GetComponent<EnemySounds>();
 
@@ -458,7 +492,7 @@ namespace DaggerfallWorkshop.Game
             MobilePersonNPC mobileNpc = hitTransform.GetComponent<MobilePersonNPC>();
             if (mobileNpc)
             {
-                if (!mobileNpc.Billboard.IsUsingGuardTexture)
+                if (!mobileNpc.IsGuard)
                 {
                     EnemyBlood blood = hitTransform.GetComponent<EnemyBlood>();
                     if (blood)
@@ -484,7 +518,7 @@ namespace DaggerfallWorkshop.Game
                     playerEntity.CrimeCommitted = PlayerEntity.Crimes.Assault;
                     GameObject guard = playerEntity.SpawnCityGuard(mobileNpc.transform.position, mobileNpc.transform.forward);
                     entityBehaviour = guard.GetComponent<DaggerfallEntityBehaviour>();
-                    entityMobileUnit = guard.GetComponentInChildren<DaggerfallMobileUnit>();
+                    entityMobileUnit = guard.GetComponentInChildren<MobileUnit>();
                     enemyMotor = guard.GetComponent<EnemyMotor>();
                     enemySounds = guard.GetComponent<EnemySounds>();
                 }
@@ -500,14 +534,17 @@ namespace DaggerfallWorkshop.Game
 
                     // Calculate damage
                     int animTime = (int)(ScreenWeapon.GetAnimTime() * 1000);    // Get animation time, converted to ms.
-                    int damage = FormulaHelper.CalculateAttackDamage(playerEntity, enemyEntity, entityMobileUnit.Summary.AnimStateRecord, animTime, strikingWeapon);
+                    bool isEnemyFacingAwayFromPlayer = entityMobileUnit.IsBackFacing &&
+                        entityMobileUnit.EnemyState != MobileStates.SeducerTransform1 &&
+                        entityMobileUnit.EnemyState != MobileStates.SeducerTransform2;
+                    int damage = FormulaHelper.CalculateAttackDamage(playerEntity, enemyEntity, isEnemyFacingAwayFromPlayer, animTime, strikingWeapon);
 
                     // Break any "normal power" concealment effects on player
                     if (playerEntity.IsMagicallyConcealedNormalPower && damage > 0)
                         EntityEffectManager.BreakNormalPowerConcealmentEffects(GameManager.Instance.PlayerEntityBehaviour);
 
-                    // Play arrow sound and add arrow to target's inventory
-                    if (arrowHit)
+                    // Add arrow to target's inventory
+                    if (arrowHit && !arrowSummoned)
                     {
                         DaggerfallUnityItem arrow = ItemBuilder.CreateItem(ItemGroups.Weapons, (int)Weapons.Arrow);
                         enemyEntity.Items.AddItem(arrow);
@@ -552,7 +589,7 @@ namespace DaggerfallWorkshop.Game
                         if (DaggerfallUnity.Settings.CombatVoices && entityBehaviour.EntityType == EntityTypes.EnemyClass && Dice100.SuccessRoll(40))
                         {
                             Genders gender;
-                            if (entityMobileUnit.Summary.Enemy.Gender == MobileGender.Male || enemyEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
+                            if (entityMobileUnit.Enemy.Gender == MobileGender.Male || enemyEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
                                 gender = Genders.Male;
                             else
                                 gender = Genders.Female;
@@ -581,24 +618,8 @@ namespace DaggerfallWorkshop.Game
                     // Remove health
                     enemyEntity.DecreaseHealth(damage);
 
-                    // Make foe attack their aggressor
-                    // Currently this is just player, but should be expanded later
-                    // for a wider variety of behaviours
-                    if (enemyMotor)
-                    {
-                        // Make enemies in an area aggressive if player attacked a non-hostile one.
-                        if (!enemyMotor.IsHostile)
-                        {
-                            GameManager.Instance.MakeEnemiesHostile();
-                        }
-                        enemyMotor.MakeEnemyHostileToAttacker(GameManager.Instance.PlayerEntityBehaviour);
-                    }
-
-                    if (enemyEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch && enemyEntity.CurrentHealth <= 0)
-                    {
-                        playerEntity.TallyCrimeGuildRequirements(false, 1);
-                        playerEntity.CrimeCommitted = PlayerEntity.Crimes.Murder;
-                    }
+                    // Handle attack from player
+                    enemyEntity.EntityBehaviour.HandleAttackFromSource(GameManager.Instance.PlayerEntityBehaviour);
 
                     // Allow custom race handling of weapon hit against enemies, e.g. vampire feeding or lycanthrope killing
                     RacialOverrideEffect racialOverride = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect();
@@ -643,7 +664,7 @@ namespace DaggerfallWorkshop.Game
                 if (EquipCountdownRightHand <= 0)
                 {
                     EquipCountdownRightHand = 0;
-                    string message = HardStrings.rightHandEquipped;
+                    string message = TextManager.Instance.GetLocalizedText("rightHandEquipped");
                     DaggerfallUI.Instance.PopupMessage(message);
                 }
             }
@@ -653,7 +674,7 @@ namespace DaggerfallWorkshop.Game
                 if (EquipCountdownLeftHand <= 0)
                 {
                     EquipCountdownLeftHand = 0;
-                    string message = HardStrings.leftHandEquipped;
+                    string message = TextManager.Instance.GetLocalizedText("leftHandEquipped");
                     DaggerfallUI.Instance.PopupMessage(message);
                 }
             }
@@ -669,9 +690,25 @@ namespace DaggerfallWorkshop.Game
 
             usingRightHand = !usingRightHand;
             if (usingRightHand)
-                DaggerfallUI.Instance.PopupMessage(HardStrings.usingRightHand);
+                DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("usingRightHand"));
             else
-                DaggerfallUI.Instance.PopupMessage(HardStrings.usingLeftHand);
+                DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("usingLeftHand"));
+
+            if (DaggerfallUnity.Settings.BowLeftHandWithSwitching)
+            {
+                int switchDelay = 0;
+                if (currentRightHandWeapon != null)
+                    switchDelay += EquipDelayTimes[currentRightHandWeapon.GroupIndex] - 500;
+                if (currentLeftHandWeapon != null)
+                    switchDelay += EquipDelayTimes[currentLeftHandWeapon.GroupIndex] - 500;
+                if (switchDelay > 0)
+                {
+                    if (UsingRightHand)
+                        EquipCountdownRightHand += switchDelay / BowSwitchDivisor;
+                    else
+                        EquipCountdownLeftHand += switchDelay / BowSwitchDivisor;
+                }
+            }
 
             ApplyWeapon();
         }
@@ -721,6 +758,7 @@ namespace DaggerfallWorkshop.Game
             // Setup target
             target.WeaponType = DaggerfallUnity.Instance.ItemHelper.ConvertItemToAPIWeaponType(weapon);
             target.MetalType = DaggerfallUnity.Instance.ItemHelper.ConvertItemMaterialToAPIMetalType(weapon);
+            target.WeaponHands = ItemEquipTable.GetItemHands(weapon);
             target.DrawWeaponSound = weapon.GetEquipSound();
             target.SwingWeaponSound = weapon.GetSwingSound();
         }
@@ -732,11 +770,29 @@ namespace DaggerfallWorkshop.Game
         MouseDirections TrackMouseAttack()
         {
             // Track action for idle plus all eight mouse directions
-            var sum = _gesture.Add(InputManager.Instance.MouseX, InputManager.Instance.MouseY) * weaponSensitivity;
+            var sum = _gesture.Add(InputManager.Instance.MouseX, InputManager.Instance.MouseY);
 
-            // Short mouse gestures are ignored
-            if (_gesture.TravelDist/_longestDim < AttackThreshold)
+            if (InputManager.Instance.UsingController)
+            {
+                float x = InputManager.Instance.MouseX;
+                float y = InputManager.Instance.MouseY;
+
+                bool inResetJoystickSwingRadius = (x >= -resetJoystickSwingRadius && x <= resetJoystickSwingRadius && y >= -resetJoystickSwingRadius && y <= resetJoystickSwingRadius);
+
+                if (joystickSwungOnce || inResetJoystickSwingRadius)
+                {
+                    if (inResetJoystickSwingRadius)
+                        joystickSwungOnce = false;
+
+                    return MouseDirections.None;
+                }
+            }
+            else if (_gesture.TravelDist/_longestDim < AttackThreshold)
+            {
                 return MouseDirections.None;
+            }
+
+            joystickSwungOnce = true;
 
             // Treat mouse movement as a vector from the origin
             // The angle of the vector will be used to determine the angle of attack/swing
@@ -830,16 +886,21 @@ namespace DaggerfallWorkshop.Game
                 return;
 
             // Fire ray along player facing using weapon range
-            // Origin point of ray is set back slightly to fix issue where strikes against enemy capsules touching player capsule do not connect
             RaycastHit hit;
-            Ray ray = new Ray(mainCamera.transform.position + -mainCamera.transform.forward * 0.1f, mainCamera.transform.forward);
-            if (Physics.SphereCast(ray, SphereCastRadius, out hit, weapon.Reach - SphereCastRadius))
+            Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
+            if (Physics.SphereCast(ray, SphereCastRadius, out hit, weapon.Reach, playerLayerMask))
             {
-                hitEnemy = WeaponDamage(hit, mainCamera.transform.forward);
+                DaggerfallUnityItem strikingWeapon = usingRightHand ? currentRightHandWeapon : currentLeftHandWeapon;
+                if(!WeaponEnvDamage(strikingWeapon, hit)
+                   // Fall back to simple ray for narrow cages https://forums.dfworkshop.net/viewtopic.php?f=5&t=2195#p39524
+                   || Physics.Raycast(ray, out hit, weapon.Reach, playerLayerMask))
+                {
+                    hitEnemy = WeaponDamage(strikingWeapon, false, false, hit.transform, hit.point, mainCamera.transform.forward);
+                }
             }
         }
 
-        private void ToggleSheath()
+        public void ToggleSheath()
         {
             Sheathed = !Sheathed;
             if (!Sheathed)

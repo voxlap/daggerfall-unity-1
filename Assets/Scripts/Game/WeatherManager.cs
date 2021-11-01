@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -13,7 +13,8 @@ using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Weather;
 using DaggerfallWorkshop.Utility;
 using UnityEngine;
-using UnityEngine.PostProcessing;
+using UnityEngine.Rendering.PostProcessing;
+using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 
 namespace DaggerfallWorkshop.Game
@@ -86,9 +87,10 @@ namespace DaggerfallWorkshop.Game
         float _pollTimer;
         private WeatherTable _weatherTable;
         private float _pollWeatherInSeconds = 30f;
+        DFLocation.ClimateBaseType lastRespawnClimate = DFLocation.ClimateBaseType.None;
 
         // used to set post processing fog settings (excludeSkybox setting)
-        private PostProcessingBehaviour postProcessingBehaviour;
+        private PostProcessLayer postProcessLayer;
 
         public bool IsRaining { get; private set; }
 
@@ -105,7 +107,8 @@ namespace DaggerfallWorkshop.Game
         void Awake()
         {
             StreamingWorld.OnInitWorld += StreamingWorld_OnInitWorld;
-            SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;            
+            SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
+            PlayerEnterExit.OnRespawnerComplete += PlayerEnterExit_OnRespawnerComplete;
             PlayerEnterExit.OnTransitionInterior += OnTransitionToInterior;
             PlayerEnterExit.OnTransitionExterior += OnTransitionToExterior;
             PlayerEnterExit.OnTransitionDungeonInterior += OnTransitionToDungeon;
@@ -127,12 +130,10 @@ namespace DaggerfallWorkshop.Game
             _dfUnity = DaggerfallUnity.Instance;
             _weatherTable = WeatherTable.ParseJsonTable();
 
-            postProcessingBehaviour = Camera.main.GetComponent<PostProcessingBehaviour>();
-            if (postProcessingBehaviour != null)
+            postProcessLayer = Camera.main.GetComponent<PostProcessLayer>();
+            if (postProcessLayer != null)
             {
-                var fogSettings = postProcessingBehaviour.profile.fog.settings;
-                fogSettings.excludeSkybox = true;
-                postProcessingBehaviour.profile.fog.settings = fogSettings;              
+                postProcessLayer.fog.excludeSkybox = true;
             }
             
             if (DaggerfallUnity.Settings.AssetInjection)
@@ -197,25 +198,21 @@ namespace DaggerfallWorkshop.Game
             {
                 //                RenderSettings.fogColor = Color.gray;
 
-                if (postProcessingBehaviour != null)
+                if (postProcessLayer != null)
                 {
-                    var fogPostProcess = postProcessingBehaviour.profile.fog.settings;
-                    fogPostProcess.excludeSkybox = false;
-                    postProcessingBehaviour.profile.fog.settings = fogPostProcess;
+                    postProcessLayer.fog.excludeSkybox = false;
                 }
             }
             else
-            {                
+            {
                 // TODO set this based on ... something.
                 // ex. time of day/angle of sun so we can get nice sunset/rise atmospheric effects
                 // also blend with climate so climates end up having faint 'tints' to them
                 //                RenderSettings.fogColor = Color.clear;
 
-                if (postProcessingBehaviour != null)
+                if (postProcessLayer != null)
                 {
-                    var fogPostProcess = postProcessingBehaviour.profile.fog.settings;
-                    fogPostProcess.excludeSkybox = true;
-                    postProcessingBehaviour.profile.fog.settings = fogPostProcess;
+                    postProcessLayer.fog.excludeSkybox = true;
                 }
             }
         }
@@ -259,6 +256,22 @@ namespace DaggerfallWorkshop.Game
         {
             IsRaining = false;
             IsStorming = false;
+        }
+
+        public static bool IsSnowFreeClimate(int climateIndex)
+        {
+            var climate = (MapsFile.Climates)climateIndex;
+            switch (climate)
+            {
+                case MapsFile.Climates.Desert:
+                case MapsFile.Climates.Desert2:
+                case MapsFile.Climates.Rainforest:
+                case MapsFile.Climates.Subtropical:
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         #endregion
@@ -370,11 +383,11 @@ namespace DaggerfallWorkshop.Game
             WeatherEffects.Presets = AmbientEffectsPlayer.AmbientSoundPresets.None;
         }
 
-        void PollWeatherChanges()
+        void PollWeatherChanges(bool forceUpdate = false)
         {
             // Increment poll timer
             _pollTimer += Time.deltaTime;
-            if (_pollTimer < _pollWeatherInSeconds)
+            if (_pollTimer < _pollWeatherInSeconds && !forceUpdate)
                 return;
 
             // Reset timer
@@ -493,6 +506,16 @@ namespace DaggerfallWorkshop.Game
             }
 
             startedFromLoadedSaveGame = true; // needed so StreamingWorld_OnInitWorld() does not break stuff again (see details in comment at variable definition of startedFromLoadedSaveGame)
+        }
+
+        private void PlayerEnterExit_OnRespawnerComplete()
+        {
+            DFLocation.ClimateBaseType currentClimate = GameManager.Instance.PlayerGPS.ClimateSettings.ClimateType;
+            if (currentClimate != lastRespawnClimate)
+            {
+                PollWeatherChanges(true);
+                lastRespawnClimate = currentClimate;
+            }
         }
 
         void StreamingWorld_OnInitWorld()

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -25,7 +25,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
     /// </summary>
     public abstract class DaggerfallQuestPopupWindow : DaggerfallPopupWindow, IMacroContextProvider
     {
-        protected const int NotEnoughGoldId = 454;
         protected const int SummonNotToday = 480;
         protected const int SummonAreYouSure = 481;
         protected const int SummonBefore = 482;
@@ -134,12 +133,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 // Show accept message, add quest
                 sender.CloseWindow();
                 ShowQuestPopupMessage(offeredQuest, (int)QuestMachine.QuestMessages.AcceptQuest);
-                QuestMachine.Instance.InstantiateQuest(offeredQuest);
-
-                // Assign QuestResourceBehaviour to questor NPC - this will be last NPC clicked
-                // This will ensure quests actions like "hide npc" will operate on questor at quest startup
-                if (QuestMachine.Instance.LastNPCClicked != null)
-                    QuestMachine.Instance.LastNPCClicked.AssignQuestResourceBehaviour();
+                QuestMachine.Instance.StartQuest(offeredQuest);
             }
             else
             {
@@ -171,23 +165,30 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         protected void DaedraSummoningService(int npcFactionId)
         {
-            if (!GameManager.Instance.PlayerEntity.FactionData.GetFactionData(npcFactionId, out summonerFactionData))
+            PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+            if (!playerEntity.FactionData.GetFactionData(npcFactionId, out summonerFactionData))
             {
                 DaggerfallUnity.LogMessage("Error no faction data for NPC FactionId: " + npcFactionId);
                 return;
             }
             // Select appropriate Daedra for summoning attempt.
+            int dayOfYear = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.DayOfYear;
             if (summonerFactionData.id == (int) FactionFile.FactionIDs.The_Glenmoril_Witches)
-            {   // Always Hircine at Glenmoril witches.
+            {   // Always Hircine at Glenmoril witches (reversed from classic: this is intentional)
                 daedraToSummon = daedraData[0];
             }
             else if ((FactionFile.FactionTypes) summonerFactionData.type == FactionFile.FactionTypes.WitchesCoven)
-            {   // Witches covens summon a random Daedra.
-                daedraToSummon = daedraData[Random.Range(1, daedraData.Length)];
+            {   // Witches covens summon a random Daedra each day.
+                int daedraIndex = playerEntity.DaedraSummonIndex;
+                if (playerEntity.DaedraSummonDay != dayOfYear || daedraIndex == 0)
+                {
+                    playerEntity.DaedraSummonIndex = daedraIndex = Random.Range(1, daedraData.Length);
+                    playerEntity.DaedraSummonDay = dayOfYear;
+                }
+                daedraToSummon = daedraData[daedraIndex];
             }
             else
             {   // Is this a summoning day?
-                int dayOfYear = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.DayOfYear;
                 foreach (DaedraData dd in daedraData)
                 {
                     if (dd.dayOfYear == dayOfYear)
@@ -226,23 +227,29 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 {
                     playerEntity.DeductGoldAmount(summonCost);
 
-                    // Default 30% bonus is only applicable to some Daedra in specific weather conditions.
                     WeatherManager weatherManager = GameManager.Instance.WeatherManager;
+
+                    // Sheogorath has a 5% (15% if stormy) chance to replace selected daedra.
+                    int sheoChance = (weatherManager.IsStorming) ? 15 : 5;
+                    if (Dice100.Roll() <= sheoChance)
+                    {
+                        daedraToSummon = daedraData[8];
+                    }
+
+                    // Default 30% bonus is only applicable to some Daedra in specific weather conditions.
                     int bonus = 0;
                     if (daedraToSummon.bonusCond == Weather.WeatherType.Rain && weatherManager.IsRaining ||
                         daedraToSummon.bonusCond == Weather.WeatherType.Thunder && weatherManager.IsStorming ||
                         daedraToSummon.bonusCond == Weather.WeatherType.None)
                         bonus = 30;
 
-                    // Sheogorath has a 5% (15% if stormy) chance to replace selected daedra.
-                    int sheoChance = (weatherManager.IsStorming) ? 15 : 5;
                     // Get summoning chance for selected daedra and roll.
                     int chance = FormulaHelper.CalculateDaedraSummoningChance(playerEntity.FactionData.GetReputation(daedraToSummon.factionId), bonus);
                     int roll = Dice100.Roll();
                     Debug.LogFormat("Summoning {0} with chance = {1}%, Sheogorath chance = {2}%, roll = {3}, summoner rep = {4}, cost: {5}",
                         daedraToSummon.vidFile.Substring(0, daedraToSummon.vidFile.Length-4), chance, sheoChance, roll, summonerFactionData.rep, summonCost);
 
-                    if (roll > chance + sheoChance)
+                    if (roll > chance)
                     {   // Daedra stood you up!
                         DaggerfallUI.MessageBox(SummonFailed, this);
                         // Spawn daedric foes if failed at a witches coven.
@@ -250,17 +257,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                             GameObjectHelper.CreateFoeSpawner(true, daedricFoes[Random.Range(0, 5)], Random.Range(1, 4), 4, 64);
                         return;
                     }
-                    else if (roll > chance)
-                    {   // Sheogorath appears instead.
-                        daedraToSummon = daedraData[8];
-                    }
 
                     // Has this Daedra already been summoned by the player?
                     if (playerEntity.FactionData.GetFlag(daedraToSummon.factionId, FactionFile.Flags.Summoned))
                     {
                         // Close menu and push DaggerfallDaedraSummoningWindow here for video and dismissal..
                         CloseWindow();
-                        uiManager.PushWindow(new DaggerfallDaedraSummonedWindow(uiManager, daedraToSummon, SummonBefore, this));
+                        uiManager.PushWindow(UIWindowFactory.GetInstanceWithArgs(UIWindowType.DaedraSummoned, new object[] { uiManager, daedraToSummon, SummonBefore, this }));
                     }
                     else
                     {   // Record the summoning.
@@ -272,17 +275,17 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                         {
                             // Close menu and push DaggerfallDaedraSummoningWindow here for video and custom quest offer..
                             CloseWindow();
-                            uiManager.PushWindow(new DaggerfallDaedraSummonedWindow(uiManager, daedraToSummon, offeredQuest));
+                            uiManager.PushWindow(UIWindowFactory.GetInstanceWithArgs(UIWindowType.DaedraSummoned, new object[] { uiManager, daedraToSummon, offeredQuest }));
                         }
                     }
                 }
                 else
                 {   // Display customised not enough gold message so players don't need to guess the cost.
-                    TextFile.Token[] notEnoughGold = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(NotEnoughGoldId);
+                    TextFile.Token[] notEnoughGold = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(DaggerfallTradeWindow.NotEnoughGoldId);
                     TextFile.Token[] msg = new TextFile.Token[] {
-                        new TextFile.Token() { formatting = TextFile.Formatting.Text, text = HardStrings.serviceSummonCost1 },
+                        new TextFile.Token() { formatting = TextFile.Formatting.Text, text = TextManager.Instance.GetLocalizedText("serviceSummonCost1") },
                         new TextFile.Token() { formatting = TextFile.Formatting.JustifyCenter },
-                        new TextFile.Token() { formatting = TextFile.Formatting.Text, text = HardStrings.serviceSummonCost2 + summonCost + HardStrings.serviceSummonCost3 },
+                        new TextFile.Token() { formatting = TextFile.Formatting.Text, text = TextManager.Instance.GetLocalizedText("serviceSummonCost2") + summonCost + TextManager.Instance.GetLocalizedText("serviceSummonCost3") },
                         new TextFile.Token() { formatting = TextFile.Formatting.JustifyCenter },
                         new TextFile.Token() { formatting = TextFile.Formatting.NewLine },
                         notEnoughGold[0],

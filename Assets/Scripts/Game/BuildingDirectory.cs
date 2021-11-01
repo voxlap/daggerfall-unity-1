@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -81,14 +81,14 @@ namespace DaggerfallWorkshop.Game
         /// Setup building directory from specified location.
         /// </summary>
         /// <param name="location">Source location data.</param>
-        public void SetLocation(DFLocation location)
+        /// <param name="blocks">Exterior blocks.</param>
+        public void SetLocation(in DFLocation location, out DFBlock[] blocks)
         {
             // Clear existing buildings
             buildingDict.Clear();
 
             // Get block data pre-populated with map building data.
-            DFBlock[] blocks;
-            RMBLayout.GetLocationBuildingData(location, out blocks);
+            blocks = RMBLayout.GetLocationBuildingData(location);
 
             // Construct building directory
             int width = location.Exterior.ExteriorData.Width;

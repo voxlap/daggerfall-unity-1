@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -108,7 +108,7 @@ namespace DaggerfallWorkshop
             // Create tileMap texture
             if (tileMapTexture == null)
             {
-                tileMapTexture = new Texture2D(tilemapDim, tilemapDim, TextureFormat.ARGB32, false);
+                tileMapTexture = new Texture2D(tilemapDim, tilemapDim, TextureFormat.ARGB32, false, true);
                 tileMapTexture.filterMode = FilterMode.Point;
                 tileMapTexture.wrapMode = TextureWrapMode.Clamp;
             }
@@ -116,14 +116,7 @@ namespace DaggerfallWorkshop
             // Create terrain material
             if (terrainMaterial == null)
             {
-                if ((SystemInfo.supports2DArrayTextures) && DaggerfallUnity.Settings.EnableTextureArrays)
-                {
-                    terrainMaterial = new Material(Shader.Find(MaterialReader._DaggerfallTilemapTextureArrayShaderName));
-                }
-                else
-                {
-                    terrainMaterial = new Material(Shader.Find(MaterialReader._DaggerfallTilemapShaderName));
-                }
+                terrainMaterial = dfUnity.TerrainMaterialProvider.CreateMaterial();
                 UpdateClimateMaterial();
             }
 
@@ -133,49 +126,14 @@ namespace DaggerfallWorkshop
 
         /// <summary>
         /// Updates climate material based on current map pixel data.
+        /// Use <see cref="PromoteTerrainData()"/> to apply changes.
         /// </summary>
         public void UpdateClimateMaterial(bool init = false)
         {
             // Update atlas texture if world climate changed
             if (currentWorldClimate != MapData.worldClimate || dfUnity.WorldTime.Now.SeasonValue != season || init)
             {
-                // Get current climate and ground archive
-                DFLocation.ClimateSettings climate = MapsFile.GetWorldClimateSettings(MapData.worldClimate);
-                int groundArchive = climate.GroundArchive;
-                if (climate.ClimateType != DFLocation.ClimateBaseType.Desert &&
-                    dfUnity.WorldTime.Now.SeasonValue == DaggerfallDateTime.Seasons.Winter)
-                {
-                    // Offset to snow textures
-                    groundArchive++;
-                }
-
-                if ((SystemInfo.supports2DArrayTextures) && DaggerfallUnity.Settings.EnableTextureArrays)
-                {
-                    Material tileMaterial = dfUnity.MaterialReader.GetTerrainTextureArrayMaterial(groundArchive);
-                    currentWorldClimate = MapData.worldClimate;
-
-                    // Assign textures (propagate material settings from tileMaterial to terrainMaterial)
-                    terrainMaterial.SetTexture(TileTexArrUniforms.TileTexArr, tileMaterial.GetTexture(TileTexArrUniforms.TileTexArr));
-                    terrainMaterial.SetTexture(TileTexArrUniforms.TileNormalMapTexArr, tileMaterial.GetTexture(TileTexArrUniforms.TileNormalMapTexArr));
-                    if (tileMaterial.IsKeywordEnabled(KeyWords.NormalMap))
-                        terrainMaterial.EnableKeyword(KeyWords.NormalMap);
-                    else
-                        terrainMaterial.DisableKeyword(KeyWords.NormalMap);
-                    terrainMaterial.SetTexture(TileTexArrUniforms.TileMetallicGlossMapTexArr, tileMaterial.GetTexture(TileTexArrUniforms.TileMetallicGlossMapTexArr));
-                    terrainMaterial.SetTexture(TileTexArrUniforms.TilemapTex, tileMapTexture);
-                }
-                else
-                {
-                    // Get tileset material to "steal" atlas texture for our shader
-                    // TODO: Improve material system to handle custom shaders
-                    Material tileSetMaterial = dfUnity.MaterialReader.GetTerrainTilesetMaterial(groundArchive);
-                    currentWorldClimate = MapData.worldClimate;
-
-                    // Assign textures
-                    terrainMaterial.SetTexture(TileUniforms.TileAtlasTex, tileSetMaterial.GetTexture(TileUniforms.TileAtlasTex));
-                    terrainMaterial.SetTexture(TileUniforms.TilemapTex, tileMapTexture);
-                    terrainMaterial.SetInt(TileUniforms.TilemapDim, tilemapDim);
-                }
+                currentWorldClimate = MapData.worldClimate;
             }
         }
 
@@ -185,9 +143,9 @@ namespace DaggerfallWorkshop
         /// 1) BeginMapPixelDataUpdate - Schedules terrain data update using jobs system.
         /// 2) CompleteMapPixelDataUpdate - Completes terrain data update using jobs system.
         /// </summary>
-        /// <param name="terrainTexturing">Instance of TerrainTexturing class to use.</param>
+        /// <param name="terrainTexturing">Instance of ITerrainTexturing implementation class to use.</param>
         /// <returns>JobHandle of the scheduled jobs</returns>
-        public JobHandle BeginMapPixelDataUpdate(TerrainTexturing terrainTexturing = null)
+        public JobHandle BeginMapPixelDataUpdate(ITerrainTexturing terrainTexturing = null)
         {
             // Get basic terrain data.
             MapData = TerrainHelper.GetMapPixelData(dfUnity.ContentReader, MapPixelX, MapPixelY);
@@ -221,8 +179,13 @@ namespace DaggerfallWorkshop
                 // Set location tiles.
                 TerrainHelper.SetLocationTiles(ref MapData);
 
-                // Schedule job to blend and flatten location heights. (depends on SetLocationTiles being done first)
-                blendLocationTerrainJobHandle = TerrainHelper.ScheduleBlendLocationTerrainJob(ref MapData, calcAvgMaxHeightJobHandle);
+                if (!dfUnity.TerrainSampler.IsLocationTerrainBlended())
+                {
+                    // Schedule job to blend and flatten location heights. (depends on SetLocationTiles being done first)
+                    blendLocationTerrainJobHandle = TerrainHelper.ScheduleBlendLocationTerrainJob(ref MapData, calcAvgMaxHeightJobHandle);
+                }
+                else
+                    blendLocationTerrainJobHandle = calcAvgMaxHeightJobHandle;
             }
             else
                 blendLocationTerrainJobHandle = generateHeightmapSamplesJobHandle;
@@ -240,8 +203,8 @@ namespace DaggerfallWorkshop
         /// <summary>
         /// Complete terrain data update using jobs system. (second of a two stage process)
         /// </summary>
-        /// <param name="terrainTexturing">Instance of TerrainTexturing class to use.</param>
-        public void CompleteMapPixelDataUpdate(TerrainTexturing terrainTexturing = null)
+        /// <param name="terrainTexturing">Instance of ITerrainTexturing implementation class to use.</param>
+        public void CompleteMapPixelDataUpdate(ITerrainTexturing terrainTexturing = null)
         {
             // Convert heightmap data back to standard managed 2d array.
             MapData.heightmapSamples = new float[heightmapDim, heightmapDim];
@@ -335,8 +298,9 @@ namespace DaggerfallWorkshop
             tileMapTexture.Apply(false);
 
             // Promote material
+            var terrainMaterialData = new TerrainMaterialData(terrainMaterial, terrain.terrainData, tileMapTexture, currentWorldClimate);
+            dfUnity.TerrainMaterialProvider.PromoteMaterial(this, terrainMaterialData);
             terrain.materialTemplate = terrainMaterial;
-            terrain.materialType = Terrain.MaterialType.Custom;
 
             // Promote heights
             Vector3 size = terrain.terrainData.size;

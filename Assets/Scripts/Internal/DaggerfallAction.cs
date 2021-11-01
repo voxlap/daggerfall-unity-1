@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -174,6 +174,12 @@ namespace DaggerfallWorkshop
             if (IsPlaying())
                 return;
 
+            // Special handling for magically locked foyer doors in Castle Daggerfall
+            // Allows player to just open doors after teleporting inside and finding themselves locked in
+            // Not entirely happy with check here, but there's no really satisfying way to intercept and change action behavior directly on these doors
+            // Check is fast using direct numeric tests for player location and doors
+            CastleDaggerfallMagicDoorsSpecialOpenHack();
+
             //assume actions triggered by other action objects are always valid, 
             //otherwise make sure trigger type is valid for this action
             if(triggerType != TriggerTypes.ActionObject)
@@ -243,6 +249,29 @@ namespace DaggerfallWorkshop
             activationCount++;
             Play(prev);
             return;
+        }
+
+        void CastleDaggerfallMagicDoorsSpecialOpenHack()
+        {
+            // Execute only when player recently teleported inside Castle Daggerfall dungeon and clicks on either magically held door in foyer
+            // Uses LoadID to identify doors which is based on unique position in gamedata and always the same
+            // Theoretically could break if player has non-standard gamedata, but they can still speak with guard through crack in door as per classic
+            // This check is very fast and doesn't require any scene searches, just numerical comparisons
+            if (GameManager.Instance.PlayerEnterExit.PlayerTeleportedIntoDungeon &&
+                GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon &&
+                GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId == 1291010263 &&
+                (loadID == 29331574 || loadID == 29331622))
+            {
+                // If door is still locked and closed then unlock and open doors
+                // Player still sees "this is a magically held lock" but door will open anyway
+                // The purpose of this change is just to prevent player being locked inside throne room under special circumstances
+                DaggerfallActionDoor door = GetComponent<DaggerfallActionDoor>();
+                if (door && door.IsLocked && door.IsClosed)
+                {
+                    door.CurrentLockValue = 0;
+                    door.ToggleDoor();
+                }
+            }
         }
 
         public void Play(GameObject prev)
@@ -473,11 +502,19 @@ namespace DaggerfallWorkshop
                         {
                             // Spell is fired at player, at strength of player level, from triggering object
                             DaggerfallMissile missile = GameManager.Instance.PlayerEffectManager.InstantiateSpellMissile(bundleSettings.ElementType);
-                            missile.Payload = new EntityEffectBundle(bundleSettings, GameManager.Instance.PlayerEntityBehaviour);
+                            missile.Payload = new EntityEffectBundle(bundleSettings);
                             Vector3 customAimPosition = thisAction.transform.position;
                             customAimPosition.y += 40 * MeshReader.GlobalScale;
                             missile.CustomAimPosition = customAimPosition;
                             missile.CustomAimDirection = Vector3.Normalize(GameManager.Instance.PlayerObject.transform.position - thisAction.transform.position);
+
+                            // If action spell payload is "touch" then set to "target at range" (targets player position as above)
+                            if (missile.Payload.Settings.TargetType == TargetTypes.ByTouch)
+                            {
+                                EffectBundleSettings settings = missile.Payload.Settings;
+                                settings.TargetType = TargetTypes.SingleTargetAtRange;
+                                missile.Payload.Settings = settings;
+                            }
                         }
                     }
                 }
@@ -672,10 +709,8 @@ namespace DaggerfallWorkshop
 
         /// <summary>
         /// 21
-        /// Damages players health, uses random range & activates sporadically
+        /// Damages players health, uses random range and activates sporadically.
         /// </summary>
-        /// <param name="prevObj"></param>
-        /// <param name="thisAction"></param>
         public static void DrainHealth21(GameObject triggerObj, DaggerfallAction thisAction)
         {
             //action type 21 activates every ~20 times for some reason.  Might be better to rand instead

@@ -6,6 +6,7 @@
 -- QuestId: 0
 Messages: 31
 Quest: P0A01L00
+DisplayName: The Rite of Acceptance
 -- Message panels
 QRC:
 
@@ -86,8 +87,9 @@ That =questgiver_ is a mentor of the vampiric bloodline, %vam.
 _questgiver_ is a proud and capable member of %vam bloodline.
 
 Message:  1015
-%qdt: I received a
- letter from a member of my "family."
+%qdt:
+ I received a letter from
+ a member of my "family."
  I have been told to slay a "member
  of a lesser bloodline," presumably
  not one of %vam, in a
@@ -129,7 +131,7 @@ QBN:
 Item _reward_ ring
 Item _letter_ letter used QuestorOffer
 
-Person _questgiver_ factiontype Vampire_Clan female anyInfo 1010 rumors 1011
+Person _questgiver_ factiontype Vampire_Clan remote anyInfo 1010 rumors 1011
 
 Place _mondung_ remote dungeon0
 

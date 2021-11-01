@@ -17,7 +17,7 @@ QuestorOffer:  [1000]
 <ce>            If we can get a representative of the Guild over
 <ce>            to a place within a reasonable distance of here,
 <ce>                    the eminent scholar, _scholar_,
-<ce>            and has agreed to share %g3 research. Would you
+<ce>            has agreed to share %g3 research. Would you
 <ce>                         be available for this?
                                      <--->
 <ce>                     The Mages Guild of ___qgiver_
@@ -221,7 +221,7 @@ Message:  1019
 <ce>                look alike anyhow. When they don't yield
 <ce>                results, the Guild will just throw more
 <ce>                assistants at it or give up the project
-<ce>                  in embarassment. The Mages Guild is
+<ce>                  in embarrassment. The Mages Guild is
 <ce>                  simply a tedious pack of researchers
 <ce>                   who don't have to worry about gold
 <ce>                  and thus are never happier than when
@@ -283,9 +283,9 @@ Item research2 letter used 1016
 Item _dbgold_ gold
 Item _gold_ gold
 
-Person _qgiver_ group Questor male
-Person _db_ face 78 faction The_Dark_Brotherhood
-Person _scholar_ factiontype Temple female anyInfo 1017
+Person _qgiver_ group Questor
+Person _db_ face 78 faction The_Dark_Brotherhood female local
+Person _scholar_ factiontype Temple remote anyInfo 1017
 
 
 Clock _queston_ 00:00 0 flag 17 range 1 2

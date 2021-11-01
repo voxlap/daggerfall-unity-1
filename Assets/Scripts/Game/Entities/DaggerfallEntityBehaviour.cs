@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -11,6 +11,7 @@
 
 using UnityEngine;
 using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 using DaggerfallWorkshop.Game.Questing;
 
 namespace DaggerfallWorkshop.Game.Entity
@@ -97,7 +98,7 @@ namespace DaggerfallWorkshop.Game.Entity
             // Warrior does not aggro in classic and it seems impossible to cast this class of spell on non-hostiles in classic
             // Would prefer a better system such as a quest action to whitelist certain spells on a Foe resource
             // But this will get job done in this case and we can expand/improve later
-            if (!IsHostileEnemy())
+            if (!IsHostileEnemy() && !(Entity is PlayerEntity))
                 return;
 
             DamageFatigueFromSource(sourceEffect.Caster, amount, assignMultiplier);
@@ -195,7 +196,7 @@ namespace DaggerfallWorkshop.Game.Entity
         public void HandleAttackFromSource(DaggerfallEntityBehaviour sourceEntityBehaviour)
         {
             // Break "normal power" concealment effects on source
-            if (sourceEntityBehaviour.Entity.IsMagicallyConcealedNormalPower)
+            if (sourceEntityBehaviour && sourceEntityBehaviour.Entity.IsMagicallyConcealedNormalPower)
                 EntityEffectManager.BreakNormalPowerConcealmentEffects(sourceEntityBehaviour);
 
             // When source is player
@@ -216,7 +217,7 @@ namespace DaggerfallWorkshop.Game.Entity
                         }
                         else
                         {
-                            if (!mobileNpc.Billboard.IsUsingGuardTexture)
+                            if (!mobileNpc.IsGuard)
                             {
                                 playerEntity.TallyCrimeGuildRequirements(false, 5);
                                 playerEntity.CrimeCommitted = PlayerEntity.Crimes.Murder;
@@ -231,6 +232,17 @@ namespace DaggerfallWorkshop.Game.Entity
                             // Disable when dead
                             mobileNpc.Motor.gameObject.SetActive(false);
                         }
+                    }
+                }
+
+                // Handle equipped Azura's Star trapping slain enemy monsters
+                // This is always successful if Azura's Star is empty and equipped
+                if (EntityType == EntityTypes.EnemyMonster && playerEntity.IsAzurasStarEquipped && entity.CurrentHealth <= 0)
+                {
+                    EnemyEntity enemyEntity = entity as EnemyEntity;
+                    if (SoulTrap.FillEmptyTrapItem((MobileTypes)enemyEntity.MobileEnemy.ID, true))
+                    {
+                        DaggerfallUI.AddHUDText(TextManager.Instance.GetLocalizedText("trapSuccess"), 1.5f);
                     }
                 }
 

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -17,6 +17,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using DaggerfallConnect;
 using DaggerfallConnect.Utility;
 using DaggerfallConnect.Arena2;
@@ -45,6 +46,7 @@ namespace DaggerfallWorkshop
         internal static readonly int SmoothnessTextureChannel       = Shader.PropertyToID("_SmoothnessTextureChannel");           
         internal static readonly int Metallic                       = Shader.PropertyToID("_Metallic");    
         internal static readonly int MetallicGlossMap               = Shader.PropertyToID("_MetallicGlossMap");
+        internal static readonly int Smoothness                     = Shader.PropertyToID("_Smoothness");
         internal static readonly int BumpMap                        = Shader.PropertyToID("_BumpMap");
         internal static readonly int HeightMap                      = Shader.PropertyToID("_ParallaxMap");
         internal static readonly int EmissionColor                  = Shader.PropertyToID("_EmissionColor");
@@ -71,6 +73,7 @@ namespace DaggerfallWorkshop
     {
         internal static readonly int TileTexArr                     = Shader.PropertyToID("_TileTexArr");
         internal static readonly int TileNormalMapTexArr            = Shader.PropertyToID("_TileNormalMapTexArr");
+        internal static readonly int TileParallaxMapTexArr          = Shader.PropertyToID("_TileParallaxMapTexArr");
         internal static readonly int TileMetallicGlossMapTexArr     = Shader.PropertyToID("_TileMetallicGlossMapTexArr");
         internal static readonly int TilemapTex                     = Shader.PropertyToID("_TilemapTex");
     }
@@ -86,6 +89,9 @@ namespace DaggerfallWorkshop
     public class MaterialReader : MonoBehaviour
     {
         #region Fields
+
+        // Constants
+        public const int FireWallsArchive = 356;
 
         // General settings
         public bool AtlasTextures = true;
@@ -124,12 +130,17 @@ namespace DaggerfallWorkshop
 
         // Shader names
         public const string _StandardShaderName = "Standard";
+        public const string _DaggerfallDefaultShaderName = "Daggerfall/Default";
         public const string _DaggerfallTilemapShaderName = "Daggerfall/Tilemap";
         public const string _DaggerfallTilemapTextureArrayShaderName = "Daggerfall/TilemapTextureArray";
         public const string _DaggerfallBillboardShaderName = "Daggerfall/Billboard";
         public const string _DaggerfallBillboardBatchShaderName = "Daggerfall/BillboardBatch";
+        public const string _DaggerfallGhostShaderName = "Daggerfall/GhostShader";
         public const string _DaggerfallPixelFontShaderName = "Daggerfall/PixelFont";
         public const string _DaggerfallSDFFontShaderName = "Daggerfall/SDFFont";
+        public const string _DaggerfallRetroDepthShaderName = "Daggerfall/DepthProcessShader";
+        public const string _DaggerfallRetroPosterizationShaderName = "Daggerfall/RetroPosterization";
+        public const string _DaggerfallRetroPalettizationShaderName = "Daggerfall/RetroPalettization";
 
         DaggerfallUnity dfUnity;
         TextureReader textureReader;
@@ -217,9 +228,34 @@ namespace DaggerfallWorkshop
         #region Material Creation
 
         /// <summary>
+        /// Creates a new default material for world geometry.
+        /// </summary>
+        /// <returns>Material using Daggerfall/Default shader.</returns>
+        public static Material CreateDefaultMaterial()
+        {
+            Shader shader = Shader.Find(_DaggerfallDefaultShaderName);
+            Material material = new Material(shader);
+            //material.EnableKeyword("_COLORBOOST");
+
+            return material;
+        }
+
+        /// <summary>
+        /// Creates a new transparent cutout billboard material for mobiles, misc. objects, etc.
+        /// </summary>
+        /// <returns>Material using Daggerfall/Billboard shader.</returns>
+        public static Material CreateBillboardMaterial()
+        {
+            Shader shader = Shader.Find(_DaggerfallBillboardShaderName);
+            Material material = new Material(shader);
+
+            return material;
+        }
+
+        /// <summary>
         /// Creates new Standard material with default properties suitable for most Daggerfall textures.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Material using Standard shader.</returns>
         public static Material CreateStandardMaterial(
             CustomBlendMode blendMode = CustomBlendMode.Opaque,
             CustomSmoothnessMapChannel smoothnessChannel = CustomSmoothnessMapChannel.AlbedoAlpha,
@@ -347,7 +383,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)record, (byte)frame);
             if (materialDict.ContainsKey(key))
             {
-                CachedMaterial cm = materialDict[key];
+                CachedMaterial cm = GetMaterialFromCache(key);
                 rectOut = cm.singleRect;
                 return cm.material;
             }
@@ -387,9 +423,9 @@ namespace DaggerfallWorkshop
 
                 // Create material
                 if (isBillboard)
-                    material = CreateStandardMaterial(CustomBlendMode.Cutout);
+                    material = CreateBillboardMaterial();
                 else
-                    material = CreateStandardMaterial();
+                    material = CreateDefaultMaterial();
 
                 // Setup material
                 material.name = FormatName(archive, record);
@@ -448,6 +484,7 @@ namespace DaggerfallWorkshop
                 recordScales = recordScales,
                 recordOffsets = recordOffsets,
                 singleFrameCount = results.textureFile.GetFrameCount(record),
+                framesPerSecond = archive == FireWallsArchive ? 5 : 0, // Slow down fire walls
             };
             materialDict.Add(key, newcm);
 
@@ -458,8 +495,7 @@ namespace DaggerfallWorkshop
         /// Gets Unity Material atlas from Daggerfall texture archive.
         /// </summary>
         /// <param name="archive">Archive index to create atlas from.</param>
-        /// <param name="alphaIndex">Index to receive transparent alpha.</param>
-        /// <param name="rectsOut">Array of rects, one for each record sub-texture and frame.</param>
+        /// <param name="alphaIndex">Index to receive transparent alpha.</param>        
         /// <param name="padding">Number of pixels each sub-texture.</param>
         /// <param name="maxAtlasSize">Max size of atlas.</param>
         /// <param name="rectsOut">Array of rects, one for each record sub-texture and frame.</param>
@@ -468,7 +504,6 @@ namespace DaggerfallWorkshop
         /// <param name="dilate">Blend texture into surrounding empty pixels.</param>
         /// <param name="shrinkUVs">Number of pixels to shrink UV rect.</param>
         /// <param name="copyToOppositeBorder">Copy texture edges to opposite border. Requires border, will overwrite dilate.</param>
-        /// <param name="shader">Shader for material. If null, DefaultShaderName will be applied.</param>
         /// <param name="isBillboard">Set true when creating atlas material for simple billboards.</param>
         /// <returns>Material or null.</returns>
         public Material GetMaterialAtlas(
@@ -495,7 +530,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)0, (byte)0, AtlasKeyGroup);
             if (materialDict.ContainsKey(key))
             {
-                CachedMaterial cm = materialDict[key];
+                CachedMaterial cm = GetMaterialFromCache(key);
                 if (cm.filterMode == MainFilterMode)
                 {
                     // Properties are the same
@@ -513,9 +548,9 @@ namespace DaggerfallWorkshop
             // Create material
             Material material;
             if (isBillboard)
-                material = CreateStandardMaterial(CustomBlendMode.Cutout);
+                material = CreateBillboardMaterial();
             else
-                material = CreateStandardMaterial();
+                material = CreateDefaultMaterial();
 
             // Create settings
             GetTextureSettings settings = TextureReader.CreateTextureSettings(archive, 0, 0, alphaIndex, border, dilate);
@@ -590,7 +625,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)0, (byte)0, TileMapKeyGroup);
             if (materialDict.ContainsKey(key))
             {
-                CachedMaterial cm = materialDict[key];
+                CachedMaterial cm = GetMaterialFromCache(key);
                 if (cm.filterMode == MainFilterMode)
                 {
                     // Properties are the same
@@ -646,7 +681,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)0, (byte)0, TileMapKeyGroup);
             if (materialDict.ContainsKey(key))
             {
-                CachedMaterial cm = materialDict[key];
+                CachedMaterial cm = GetMaterialFromCache(key);
                 if (cm.filterMode == MainFilterMode)
                 {
                     // Properties are the same
@@ -660,9 +695,10 @@ namespace DaggerfallWorkshop
             }
 
             // Generate texture array
-            Texture2DArray textureArrayTerrainTiles = textureReader.GetTerrainAlbedoTextureArray(archive);
-            Texture2DArray textureArrayTerrainTilesNormalMap = textureReader.GetTerrainNormalMapTextureArray(archive);
-            Texture2DArray textureArrayTerrainTilesMetallicGloss = textureReader.GetTerrainMetallicGlossMapTextureArray(archive);
+            Texture2DArray textureArrayTerrainTiles = textureReader.GetTerrainTextureArray(archive, TextureMap.Albedo);
+            Texture2DArray textureArrayTerrainTilesNormalMap = textureReader.GetTerrainTextureArray(archive, TextureMap.Normal);
+            Texture2DArray textureArrayTerrainTilesParallaxMap = textureReader.GetTerrainTextureArray(archive, TextureMap.Height);
+            Texture2DArray textureArrayTerrainTilesMetallicGloss = textureReader.GetTerrainTextureArray(archive, TextureMap.MetallicGloss);
             textureArrayTerrainTiles.filterMode = MainFilterMode;
 
             Shader shader = Shader.Find(_DaggerfallTilemapTextureArrayShaderName);
@@ -672,14 +708,25 @@ namespace DaggerfallWorkshop
             material.SetTexture(TileTexArrUniforms.TileTexArr, textureArrayTerrainTiles);
             if (textureArrayTerrainTilesNormalMap != null)
             {
-                // if normal map texture array was loaded successfully enable normalmap in shader and set texture
+                // If normal map texture array was loaded successfully enable _NORMALMAP in shader and set texture
                 material.SetTexture(TileTexArrUniforms.TileNormalMapTexArr, textureArrayTerrainTilesNormalMap);
                 material.EnableKeyword(KeyWords.NormalMap);
+                //textureArrayTerrainTilesNormalMap.filterMode = MainFilterMode;
+            }
+            if (textureArrayTerrainTilesParallaxMap != null)
+            {
+                // If parallax map texture array was loaded successfully enable _PARALLAXMAP in shader and set texture
+                material.SetTexture(TileTexArrUniforms.TileParallaxMapTexArr, textureArrayTerrainTilesParallaxMap);
+                material.EnableKeyword(KeyWords.HeightMap);
+                //textureArrayTerrainTilesParallaxMap.filterMode = MainFilterMode;
             }
             if (textureArrayTerrainTilesMetallicGloss != null)
             {
-                // if metallic gloss map texture array was loaded successfully set texture (should always contain a valid texture array - since it defaults to 1x1 textures)
+                // If metallic gloss map texture array was loaded successfully enable _METALLICGLOSSMAP in shader and set texture
                 material.SetTexture(TileTexArrUniforms.TileMetallicGlossMapTexArr, textureArrayTerrainTilesMetallicGloss);
+                material.EnableKeyword(KeyWords.MetallicGlossMap);
+                material.SetFloat(Uniforms.Smoothness, 0.35f);
+                //textureArrayTerrainTilesMetallicGloss.filterMode = MainFilterMode;
             }
 
             CachedMaterial newcm = new CachedMaterial()
@@ -713,7 +760,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)record, (byte)frame);
             if (materialDict.ContainsKey(key))
             {
-                cachedMaterialOut = materialDict[key];
+                cachedMaterialOut = GetMaterialFromCache(key);
                 return true;
             }
             else
@@ -766,7 +813,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)0, (byte)0, AtlasKeyGroup);
             if (materialDict.ContainsKey(key))
             {
-                cachedMaterialOut = materialDict[key];
+                cachedMaterialOut = GetMaterialFromCache(key);
                 return true;
             }
 
@@ -786,7 +833,7 @@ namespace DaggerfallWorkshop
             int key = MakeTextureKey((short)archive, (byte)record, (byte)frame, CustomBillboardKeyGroup);
             if (materialDict.ContainsKey(key))
             {
-                cachedMaterialOut = materialDict[key];
+                cachedMaterialOut = GetMaterialFromCache(key);
                 return true;
             }
 
@@ -867,6 +914,16 @@ namespace DaggerfallWorkshop
         }
 
         /// <summary>
+        /// Removes from cache all materials that have not been accessed from the time in minutes defined
+        /// by <paramref name="threshold"/>.
+        /// </summary>
+        internal void PruneCache(float time, float threshold)
+        {
+            foreach (var item in materialDict.Where(x => time - x.Value.timeStamp > threshold).ToList())
+                materialDict.Remove(item.Key);
+        }
+
+        /// <summary>
         /// Clears material cache dictionary, forcing material to reload.
         /// </summary>
         public void ClearCache()
@@ -933,7 +990,23 @@ namespace DaggerfallWorkshop
             materialOut = GetMaterial(archive, record);
             int key = MakeTextureKey((short)archive, (byte)record);
 
-            return materialDict[key];
+            return GetMaterialFromCache(key);
+        }
+
+        private CachedMaterial GetMaterialFromCache(int key)
+        {
+            CachedMaterial cachedMaterial = materialDict[key];
+
+            // Update timestamp of last access, but only if difference is
+            // significant to limit the number of reassignment to dictionary.
+            float time = Time.realtimeSinceStartup;
+            if (time - cachedMaterial.timeStamp > 59)
+            {
+                cachedMaterial.timeStamp = time;
+                materialDict[key] = cachedMaterial;
+            }
+
+            return cachedMaterial;
         }
 
         private bool ReadyCheck()

@@ -58,7 +58,7 @@ QuestComplete:  [1004]
 RumorsDuringQuest:  [1005]
 I know what I'm talking about. _knight_ is going to be our next ruler.
 <--->
-Someday _knight_ going to be our ruler. Then we'll know real tyranny.
+Someday _knight_ is going to be our ruler. Then we'll know real tyranny.
 
 RumorsPostfailure:  [1006]
 _knight_ left the court for a while, but %g'll be back. That's for certain.
@@ -109,7 +109,7 @@ QBN:
 Item _reward_ gold
 
 Person _questgiver_ face 112 group Questor
-Person _knight_ face 5 faction The_Host_of_the_Horn
+Person _knight_ face 5 faction The_Host_of_the_Horn male remote
 
 Place _mondung_ remote palace
 

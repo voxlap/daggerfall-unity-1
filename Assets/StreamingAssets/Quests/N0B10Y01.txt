@@ -11,7 +11,7 @@ DisplayName: Atronach Hunting
 QRC:
 
 QuestorOffer:  [1000]
-<ce>          Rather embarassing, but one of our experiments has
+<ce>          Rather embarrassing, but one of our experiments has
 <ce>           prematurely evacuated our laboratory. Even worse,
 <ce>              it left before it was fed so it's doubtless
 <ce>             going to be ill-tempered. Thankfully, it is a
@@ -32,7 +32,7 @@ QuestorOffer:  [1000]
 <ce>              that can easily be traced back to this Guild
 <ce>               and our maladministration. You're the type
 <ce>                   who could end this affair with the
-<ce>                     minimum of embarassment, yes?
+<ce>                     minimum of embarrassment, yes?
 
 RefuseQuest:  [1001]
 <ce>               A pity indeed. Well, I suppose some other
@@ -59,7 +59,7 @@ QuestFail:  [1003]
 
 QuestComplete:  [1004]
 <ce>              The hunter returns! You have saved us some
-<ce>                  considerable discomforture with your
+<ce>                  considerable discomfiture with your
 <ce>                precipitate amelioration of our atronach
 <ce>                 crisis. A first-rate job, all around.
 <ce>                   Accept your gold and my gratitude.
@@ -96,9 +96,10 @@ QuestLogEntry:  [1010]
 <ce>                       from the atronach's eyes.
 
 Message:  1020
-%qdt: The Mages Guild of
- ___questgiver_ has hired me to find an
- atronach that escaped from their laboratory.
+%qdt:
+ The Mages Guild of ___questgiver_
+ has hired me to find an atronach
+ that escaped from their laboratory.
  It has laired in ___mondung_.
  I need to have the creature dead and be back
  in ___questgiver_ in =1stparton_ days.
@@ -120,7 +121,7 @@ Message:  1020
 QBN:
 Item _reward_ gold
 
-Person _questgiver_ group Questor male
+Person _questgiver_ group Questor
 
 Place _mondung_ remote dungeon
 

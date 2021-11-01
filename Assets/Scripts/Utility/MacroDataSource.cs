@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -20,7 +20,7 @@ namespace DaggerfallWorkshop.Utility
     // TODO: extract interface when complete set of handlers done? : IMacroDataSource
     {
         public virtual string Name()
-        {   // %n %nam
+        {   // %n %nam %bn
             throw new NotImplementedException();
         }
 
@@ -637,6 +637,24 @@ namespace DaggerfallWorkshop.Utility
         public virtual string Q12b()
         {
             // %q12b
+            throw new NotImplementedException();
+        }
+
+        public virtual string ImperialName()
+        {
+            // %imp
+            throw new NotImplementedException();
+        }
+
+        public virtual string FemaleName()
+        {
+            // %fn %fn2
+            throw new NotImplementedException();
+        }
+
+        public virtual string MaleName()
+        {
+            // %mn %mn2
             throw new NotImplementedException();
         }
     }

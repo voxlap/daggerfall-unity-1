@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -16,12 +16,10 @@ namespace DaggerfallWorkshop.Game
 {
     /// <summary>
     /// A temporary replacement motor for player levitation and swimming.
-    /// This is just so player can navigate Mantellan Crux and other places where levitation useful, and to allow for work on swimming mechanics.
-    /// Will be removed after PlayerMotor refactor and magic system able to perform job properly.
     /// </summary>
     public class LevitateMotor : MonoBehaviour
     {
-        const float levitateMoveSpeed = 4.0f;
+        const float standardLevitateMoveSpeed = 4.0f;
 
         bool playerLevitating = false;
         bool playerSwimming = false;
@@ -29,7 +27,9 @@ namespace DaggerfallWorkshop.Game
         PlayerSpeedChanger speedChanger;
         PlayerGroundMotor groundMotor;
         ClimbingMotor climbingMotor;
-        float moveSpeed = levitateMoveSpeed;
+        Camera playerCamera;
+        float levitateMoveSpeed = standardLevitateMoveSpeed;
+        float moveSpeed = standardLevitateMoveSpeed;
         Vector3 moveDirection = Vector3.zero;
 
         public bool IsLevitating
@@ -44,9 +44,10 @@ namespace DaggerfallWorkshop.Game
             set { SetSwimming(value); }
         }
 
-        private Camera playerCamera
+        public float LevitateMoveSpeed
         {
-            get { return GameManager.Instance.MainCamera; }
+            get { return levitateMoveSpeed; }
+            set { levitateMoveSpeed = value; }
         }
 
         private void Start()
@@ -55,6 +56,7 @@ namespace DaggerfallWorkshop.Game
             groundMotor = GetComponent<PlayerGroundMotor>();
             speedChanger = GetComponent<PlayerSpeedChanger>();
             climbingMotor = GetComponent<ClimbingMotor>();
+            playerCamera = GameManager.Instance.MainCamera;
         }
 
         private void Update()
@@ -66,17 +68,14 @@ namespace DaggerfallWorkshop.Game
             if (GameManager.Instance.PlayerEntity.IsParalyzed)
                 return;
 
-            // Forward/backwards
-            if (InputManager.Instance.HasAction(InputManager.Actions.MoveForwards))
-                AddMovement(playerCamera.transform.forward);
-            else if (InputManager.Instance.HasAction(InputManager.Actions.MoveBackwards))
-                AddMovement(-playerCamera.transform.forward);
+            float inputX = InputManager.Instance.Horizontal;
+            float inputY = InputManager.Instance.Vertical;
 
-            // Right/left
-            if (InputManager.Instance.HasAction(InputManager.Actions.MoveRight))
-                AddMovement(playerCamera.transform.right);
-            else if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft))
-                AddMovement(-playerCamera.transform.right);
+            if (inputX != 0.0f || inputY != 0.0f)
+            {
+                float inputModifyFactor = (inputX != 0.0f && inputY != 0.0f && playerMotor.limitDiagonalSpeed) ? .7071f : 1.0f;
+                AddMovement(playerCamera.transform.TransformDirection(new Vector3(inputX * inputModifyFactor, 0, inputY * inputModifyFactor)));
+            }
 
             // Up/down
             Vector3 upDownVector = new Vector3 (0, 0, 0);

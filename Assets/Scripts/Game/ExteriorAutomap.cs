@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -51,8 +51,6 @@ namespace DaggerfallWorkshop.Game
         #endregion
 
         #region Fields
-
-        const string textDatabase = "DaggerfallUI";
 
         // this structure defines all the infos used for building nameplates (appearance and placement)
         public struct BuildingNameplate
@@ -137,7 +135,7 @@ namespace DaggerfallWorkshop.Game
             public int x;
             public int y;
             public Rectangle rect;
-            public string name;
+            public int blockIndex;
             public DFBlock.BlockTypes blocktype;
             public DFBlock.RdbTypes rdbType;
         }
@@ -171,11 +169,6 @@ namespace DaggerfallWorkshop.Game
         #endregion
 
         #region Properties
-
-        public static string TextDatabase
-        {
-            get { return textDatabase; }
-        }
 
         /// <summary>
         /// DaggerfallExteriorAutomapWindow script will use this to get automap layer
@@ -273,7 +266,7 @@ namespace DaggerfallWorkshop.Game
             //cameraExteriorAutomap.orthographicSize = cameraOrthographicSizeSaved;
 
             // recreate building nameplates (since a discovery could have happened since exterior automap has been opened last time)
-            CreateBuildingNameplates(location);
+            CreateBuildingNameplates();
 
             // focus player position
             cameraExteriorAutomap.transform.position = GameobjectPlayerMarkerArrow.transform.position + new Vector3(0.0f, 10.0f, 0.0f);
@@ -321,21 +314,21 @@ namespace DaggerfallWorkshop.Game
         public void SwitchToExteriorAutomapViewModeOriginal()
         {
             currentExteriorAutomapViewMode = ExteriorAutomapViewMode.Original;
-            CreateExteriorLayoutTexture(location, false, true, false);
+            CreateExteriorLayoutTexture(false, true, false);
             AssignExteriorLayoutTextureToCustomCanvas();
         }
 
         public void SwitchToExteriorAutomapViewModeExtra()
         {
             currentExteriorAutomapViewMode = ExteriorAutomapViewMode.Extra;
-            CreateExteriorLayoutTexture(location, true, true, false);
+            CreateExteriorLayoutTexture(true, true, false);
             AssignExteriorLayoutTextureToCustomCanvas();
         }
 
         public void SwitchToExteriorAutomapViewModeAll()
         {
             currentExteriorAutomapViewMode = ExteriorAutomapViewMode.All;
-            CreateExteriorLayoutTexture(location, true, false, false);
+            CreateExteriorLayoutTexture(true, false, false);
             AssignExteriorLayoutTextureToCustomCanvas();
         }
 
@@ -639,7 +632,7 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
-        private void CreateBuildingNameplates(DFLocation location)
+        private void CreateBuildingNameplates()
         {
             DeleteBuildingNameplates();
 
@@ -648,17 +641,16 @@ namespace DaggerfallWorkshop.Game
             gameObjectBuildingNameplates = new GameObject("building name plates");
             gameObjectBuildingNameplates.transform.SetParent(gameobjectExteriorAutomap.transform);
 
-            DFBlock[] blocks;
-            RMBLayout.GetLocationBuildingData(location, out blocks);
+            DFBlock[] blocks = RMBLayout.GetLocationBuildingData(location);
             int width = location.Exterior.ExteriorData.Width;
             int height = location.Exterior.ExteriorData.Height;
             int uniqueIndex = 0;
 
-            for (int y = 0; y < height; y++)
+            int index = 0;
+            for (int y = 0; y < height; ++y)
             {
-                for (int x = 0; x < width; x++)
+                for (int x = 0; x < width; ++x, ++index)
                 {
-                    int index = y * width + x;
                     BuildingSummary[] buildingsInBlock = RMBLayout.GetBuildingData(blocks[index], x, y);
                     BlockLayout layout = exteriorLayout[index];
 
@@ -727,55 +719,55 @@ namespace DaggerfallWorkshop.Game
                             switch (buildingSummary.BuildingType)
                             {
                                 case DFLocation.BuildingTypes.Alchemist:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeAlchemist");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeAlchemist");
                                     break;
                                 case DFLocation.BuildingTypes.Armorer:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeArmorer");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeArmorer");
                                     break;
                                 case DFLocation.BuildingTypes.Bank:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeBank");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeBank");
                                     break;
                                 case DFLocation.BuildingTypes.Bookseller:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeBookSeller");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeBookSeller");
                                     break;
                                 case DFLocation.BuildingTypes.ClothingStore:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeClothingStore");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeClothingStore");
                                     break;
                                 case DFLocation.BuildingTypes.FurnitureStore:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeFurnitureStore");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeFurnitureStore");
                                     break;
                                 case DFLocation.BuildingTypes.GemStore:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeGemStore");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeGemStore");
                                     break;
                                 case DFLocation.BuildingTypes.GeneralStore:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeGeneralStore");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeGeneralStore");
                                     break;
                                 case DFLocation.BuildingTypes.GuildHall:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeGuildHall");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeGuildHall");
                                     break;
                                 case DFLocation.BuildingTypes.HouseForSale:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeHouseForSale");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeHouseForSale");
                                     break;
                                 case DFLocation.BuildingTypes.Library:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeLibrary");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeLibrary");
                                     break;
                                 case DFLocation.BuildingTypes.Palace:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypePalace");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypePalace");
                                     break;
                                 case DFLocation.BuildingTypes.PawnShop:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypePawnShop");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypePawnShop");
                                     break;
                                 case DFLocation.BuildingTypes.Tavern:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeTavern");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeTavern");
                                     break;
                                 case DFLocation.BuildingTypes.Temple:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeTemple");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeTemple");
                                     break;
                                 case DFLocation.BuildingTypes.WeaponSmith:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeWeaponSmith");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeWeaponSmith");
                                     break;
                                 default:
-                                    newBuildingNameplate.name = TextManager.Instance.GetText(textDatabase, "exteriorAutomapBuildingTypeUnknown");
+                                    newBuildingNameplate.name = TextManager.Instance.GetLocalizedText("exteriorAutomapBuildingTypeUnknown");
                                     break;
                             }
                         }
@@ -1342,7 +1334,7 @@ namespace DaggerfallWorkshop.Game
         /// <summary>
         /// creates the map layout in the exterior layout texture
         /// </summary>  
-        private void CreateExteriorLayoutTexture(DFLocation location, bool showAll = false, bool removeGroundFlats = true, bool createNameplates = true)
+        private void CreateExteriorLayoutTexture(bool showAll = false, bool removeGroundFlats = true, bool createNameplates = true)
         {
             if (exteriorLayoutTexture != null)
             {
@@ -1354,20 +1346,12 @@ namespace DaggerfallWorkshop.Game
             int ypos = 0; //locationHeight * blockSizeHeight - blockSizeHeight;
             exteriorLayout = new BlockLayout[locationWidth * locationHeight];
 
-            for (int y = 0; y < locationHeight; y++)
+            DFBlock[] blocks = RMBLayout.GetLocationBuildingData(location);
+            int index = 0;
+            for (int y = 0; y < locationHeight; ++y)
             {
-                for (int x = 0; x < locationWidth; x++)
+                for (int x = 0; x < locationWidth; ++x, ++index)
                 {
-                    // Get the block name
-                    string blockName = DaggerfallUnity.Instance.ContentReader.BlockFileReader.CheckName(DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRmbBlockName(ref location, x, y));
-
-                    // Get the block data
-                    //                    DFBlock block = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(blockName);
-
-                    // Now we can get the automap image data for this block and lay it out
-                    //block.RmbBlock.SubRecords.
-
-                    int index = y * locationWidth + x;
                     exteriorLayout[index].x = x;
                     exteriorLayout[index].y = y;
                     exteriorLayout[index].rect = new Rectangle();
@@ -1375,7 +1359,7 @@ namespace DaggerfallWorkshop.Game
                     exteriorLayout[index].rect.ypos = ypos;
                     exteriorLayout[index].rect.width = blockSizeWidth;
                     exteriorLayout[index].rect.height = blockSizeHeight;
-                    exteriorLayout[index].name = blockName;
+                    exteriorLayout[index].blockIndex = index;
                     exteriorLayout[index].blocktype = DFBlock.BlockTypes.Rmb;
                     exteriorLayout[index].rdbType = DFBlock.RdbTypes.Unknown;
                     xpos += blockSizeWidth;
@@ -1385,17 +1369,7 @@ namespace DaggerfallWorkshop.Game
             }
 
             // test if it is a custom location (layouting is different there)
-            isCustomLocation = false;
-            // But some 1x1 locations (e.g. Privateer's Hold exterior) are positioned differently
-            // Seems to be 1x1 blocks using CUST prefix, but possibly more research needed
-            const int custPrefixIndex = 40;
-            if (locationWidth == 1 && locationHeight == 1)
-            {
-                if (location.Exterior.ExteriorData.BlockIndex[0] == custPrefixIndex)
-                {
-                    isCustomLocation = true;
-                }
-            }
+            isCustomLocation = location.HasCustomLocationPosition();
 
             // Create layout image (texture)
             exteriorLayoutTexture = new Texture2D(layoutWidth, layoutHeight, TextureFormat.ARGB32, false);
@@ -1404,10 +1378,10 @@ namespace DaggerfallWorkshop.Game
             // Render map layout
             foreach (var layout in exteriorLayout)
             {
-                DFBlock block = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(layout.name);
-                DaggerfallUnity.Instance.ContentReader.BlockFileReader.LoadBlock(block.Index);
+                ref readonly DFBlock block = ref blocks[layout.blockIndex];
+
                 // Get block automap image
-                DFBitmap dfBitmap = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlockAutoMap(layout.name, removeGroundFlats);
+                DFBitmap dfBitmap = BlocksFile.GetBlockAutoMap(block, removeGroundFlats);
 
                 int size = blockSizeWidth * blockSizeHeight;
                 Color32[] colors = new Color32[size];
@@ -1424,10 +1398,7 @@ namespace DaggerfallWorkshop.Game
                             // guilds
                             case 12: // guildhall
                             case 15: // temple
-                                colors[o].r = 69;
-                                colors[o].g = 125;
-                                colors[o].b = 195;
-                                colors[o].a = 255;
+                                colors[o] = DaggerfallUnity.Settings.AutomapTempleColor;
                                 break;
                             // shops
                             case 1: // alchemist
@@ -1440,16 +1411,10 @@ namespace DaggerfallWorkshop.Game
                             case 11: // library
                             case 13: // pawn shop
                             case 14: // weapon smith
-                                colors[o].r = 190;
-                                colors[o].g = 85;
-                                colors[o].b = 24;
-                                colors[o].a = 255;
+                                colors[o] = DaggerfallUnity.Settings.AutomapShopColor;
                                 break;
                             case 16: // tavern
-                                colors[o].r = 85;
-                                colors[o].g = 117;
-                                colors[o].b = 48;
-                                colors[o].a = 255;
+                                colors[o] = DaggerfallUnity.Settings.AutomapTavernColor;
                                 break;
                             // common
                             case 2: // house for sale
@@ -1463,10 +1428,7 @@ namespace DaggerfallWorkshop.Game
                             case 22: // house 5 (hedge)
                             case 23: // house 6
                             case 24: // town23
-                                colors[o].r = 69;
-                                colors[o].g = 60;
-                                colors[o].b = 40;
-                                colors[o].a = 255;
+                                colors[o] = DaggerfallUnity.Settings.AutomapHouseColor;
                                 break;
                             case 25: // ship
                             case 117: // special 1
@@ -1475,10 +1437,7 @@ namespace DaggerfallWorkshop.Game
                             case 251: // special 4
                                 if (showAll)
                                 {
-                                    colors[o].r = 69;
-                                    colors[o].g = 60;
-                                    colors[o].b = 40;
-                                    colors[o].a = 255;
+                                    colors[o] = DaggerfallUnity.Settings.AutomapHouseColor;
                                 }
                                 break;
                             case 0:
@@ -1509,45 +1468,25 @@ namespace DaggerfallWorkshop.Game
                 //}
 
                 exteriorLayoutTexture.Apply();
-
-                DaggerfallUnity.Instance.ContentReader.BlockFileReader.DiscardBlock(block.Index);
             }
 
             if (createNameplates)
             {
-                CreateBuildingNameplates(location);
+                CreateBuildingNameplates();
             }
         }
 
         private void LoadAndCreateLocationExteriorAutomap()
         {
-            ContentReader.MapSummary mapSummary;
-            DFPosition mapPixel = GameManager.Instance.PlayerGPS.CurrentMapPixel;
-            if (!DaggerfallUnity.Instance.ContentReader.HasLocation(mapPixel.X, mapPixel.Y, out mapSummary))
+            // Do nothing if already loaded
+            if (location.Loaded && GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId == location.MapTableData.MapId)
             {
-                // no location found
-                return; // do nothing
-            }
-
-            DFLocation currentPlayerLocation = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetLocation(mapSummary.RegionIndex, mapSummary.MapIndex);
-            if (!currentPlayerLocation.Loaded)
-            {
-                // Location not loaded, something went wrong
-                DaggerfallUnity.LogMessage("error when loading location for exterior automap layouting", true);
-                if (Application.isEditor)
-                    Debug.Break();
-                else
-                    Application.Quit();
-            }
-
-            if ((location.Loaded) && (currentPlayerLocation.Name == location.Name)) // if already loaded
-            {
-                return; // do nothing
+                return;
             }
 
             UnloadLocationExteriorAutomap(); // first make sure to unload location exterior automap and destroy resources
 
-            location = currentPlayerLocation; // set current location as new location
+            location = GameManager.Instance.PlayerGPS.CurrentLocation; // set current location as new location
 
             // and now layout it
 
@@ -1563,13 +1502,13 @@ namespace DaggerfallWorkshop.Game
             switch (currentExteriorAutomapViewMode)
             {
                 case ExteriorAutomapViewMode.Original:
-                    CreateExteriorLayoutTexture(location, false, true);
+                    CreateExteriorLayoutTexture(false, true);
                     break;
                 case ExteriorAutomapViewMode.Extra:
-                    CreateExteriorLayoutTexture(location, true, true);
+                    CreateExteriorLayoutTexture(true, true);
                     break;
                 case ExteriorAutomapViewMode.All:
-                    CreateExteriorLayoutTexture(location, true, false);
+                    CreateExteriorLayoutTexture(true, false);
                     break;
             }
 

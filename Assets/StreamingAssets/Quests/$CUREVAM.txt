@@ -153,7 +153,7 @@ Message:  1025
 <ce>                    will not need to hunt you down.
 
 Message:  1030
-<ce>               Stripling, do not disturb my mediations!
+<ce>               Stripling, do not disturb my meditations!
 <ce>                    Begone, or my hunger will force
 <ce>                            me to slay you!
 
@@ -235,9 +235,9 @@ QBN:
 Item _letter_ letter used 1020
 Item _token_ bracelet
 
-Person _vamp1_ face 40 factiontype Vampire_Clan
-Person _vamp2_ face 4 factiontype Vampire_Clan
-Person _hunter_ face 1 factiontype Knightly_Guard anyInfo 1011 rumors 1012
+Person _vamp1_ face 40 factiontype Vampire_Clan remote
+Person _vamp2_ face 4 factiontype Vampire_Clan male remote
+Person _hunter_ face 1 factiontype Knightly_Guard remote anyInfo 1011 rumors 1012
 
 Place _fatherdung_ remote dungeon8
 Place _wrongdung_ remote dungeon5

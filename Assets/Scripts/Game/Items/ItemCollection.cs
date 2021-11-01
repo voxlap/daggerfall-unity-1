@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -35,12 +35,12 @@ namespace DaggerfallWorkshop.Game.Items
 
         private static Dictionary<string, Type> customItems = new Dictionary<string, Type>();
 
-        public static bool RegisterCustomItem(string className, Type guildType)
+        public static bool RegisterCustomItem(string itemClassName, Type itemClassType)
         {
-            DaggerfallUnity.LogMessage("RegisterCustomItem: " + className, true);
-            if (!customItems.ContainsKey(className))
+            DaggerfallUnity.LogMessage("RegisterCustomItem: " + itemClassName, true);
+            if (!customItems.ContainsKey(itemClassName))
             {
-                customItems.Add(className, guildType);
+                customItems.Add(itemClassName, itemClassType);
                 return true;
             }
             return false;
@@ -348,16 +348,57 @@ namespace DaggerfallWorkshop.Game.Items
         /// </summary>
         /// <param name="itemGroup">Item group.</param>
         /// <param name="itemIndex">Template index.</param>
+        /// <param name="priorityToConjured">Prefer (short lived) conjured items.</param>
         /// <returns>An item of this type, or null if none found.</returns>
-        public DaggerfallUnityItem GetItem(ItemGroups itemGroup, int itemIndex)
+
+        public DaggerfallUnityItem GetItem(ItemGroups itemGroup, int itemIndex, bool priorityToConjured)
+        {
+            return GetItem(itemGroup, itemIndex, true, true, priorityToConjured);
+        }
+
+        /// <summary>
+        /// Get the first of an item type from this collection that satisfies extra conditions.
+        /// </summary>
+        /// <param name="itemGroup">Item group.</param>
+        /// <param name="itemIndex">Template index.</param>
+        /// <param name="allowEnchantedItem">Include enchanted items.</param>
+        /// <param name="allowQuestItem">Include quest items.</param>
+        /// <param name="priorityToConjured">Prefer (short lived) conjured items.</param>
+        /// <returns>An item of this type, or null if none found.</returns>
+
+        public DaggerfallUnityItem GetItem(ItemGroups itemGroup, int itemIndex, bool allowEnchantedItem = true, bool allowQuestItem = true, bool priorityToConjured = false)
         {
             int groupIndex = DaggerfallUnity.Instance.ItemHelper.GetGroupIndex(itemGroup, itemIndex);
-            foreach (DaggerfallUnityItem item in items.Values)
+            if (!priorityToConjured)
             {
-                if (item.ItemGroup == itemGroup && item.GroupIndex == groupIndex)
-                    return item;
+                foreach (DaggerfallUnityItem item in items.Values)
+                {
+                    if (item.ItemGroup == itemGroup && item.GroupIndex == groupIndex && (allowEnchantedItem || !item.IsEnchanted) && (allowQuestItem || !item.IsQuestItem))
+                        return item;
+                }
+                return null;
             }
-            return null;
+            else
+            {
+                DaggerfallUnityItem selectedItem = null;
+
+                foreach (DaggerfallUnityItem item in items.Values)
+                {
+                    if (item.ItemGroup == itemGroup && item.GroupIndex == groupIndex && (allowEnchantedItem || !item.IsEnchanted) && (allowQuestItem || !item.IsQuestItem))
+                    {
+                        if (item.IsSummoned)
+                        {
+                            // pick conjured items with shortest life
+                            if (selectedItem == null || !selectedItem.IsSummoned || selectedItem.TimeForItemToDisappear > item.TimeForItemToDisappear)
+                                selectedItem = item;
+                        }
+                        else // real item
+                            if (selectedItem == null)
+                                selectedItem = item;
+                    }
+                }
+                return selectedItem;
+            }
         }
 
         /// <summary>
@@ -443,15 +484,15 @@ namespace DaggerfallWorkshop.Game.Items
         /// UIDs will be retained.
         /// </summary>
         /// <param name="items">Items array.</param>
-        public void Import(DaggerfallUnityItem[] items)
+        public void Import(IEnumerable<DaggerfallUnityItem> items)
         {
-            if (items == null || items.Length == 0)
+            if (items == null)
                 return;
 
             Clear();
-            for (int i = 0; i < items.Length; i++)
+            foreach (var item in items)
             {
-                AddItem(items[i]);
+                AddItem(item);
             }
         }
 
@@ -461,14 +502,14 @@ namespace DaggerfallWorkshop.Game.Items
         /// UIDs will be retained.
         /// </summary>
         /// <param name="items">Items array.</param>
-        public void AddItems(DaggerfallUnityItem[] items)
+        public void AddItems(IEnumerable<DaggerfallUnityItem> items)
         {
-            if (items == null || items.Length == 0)
+            if (items == null)
                 return;
 
-            for (int i = 0; i < items.Length; i++)
+            foreach (var item in items)
             {
-                AddItem(items[i]);
+                AddItem(item);
             }
         }
 
@@ -507,6 +548,27 @@ namespace DaggerfallWorkshop.Game.Items
             Clear();
 
             return itemArray;
+        }
+
+        /// <summary>
+        /// Gets all quest items for a specific quest and item Symbol.
+        /// Ignores ex-quest items that have been made permanent.
+        /// </summary>
+        /// <param name="questUID">Quest UID for item search.</param>
+        /// <param name="itemSymbol">Item Symbol for item search.</param>
+        public DaggerfallUnityItem[] ExportQuestItems(ulong questUID, Symbol itemSymbol)
+        {
+            if (itemSymbol == null)
+                return null;
+
+            List<DaggerfallUnityItem> results = new List<DaggerfallUnityItem>();
+            foreach (DaggerfallUnityItem item in items.Values)
+            {
+                if (item.IsQuestItem && item.QuestUID == questUID && itemSymbol.Equals(item.QuestItemSymbol))
+                    results.Add(item);
+            }
+
+            return results.ToArray();
         }
 
         /// <summary>
@@ -551,12 +613,12 @@ namespace DaggerfallWorkshop.Game.Items
                     {
                         DaggerfallUnityItem modItem = (DaggerfallUnityItem)Activator.CreateInstance(itemClassType);
                         modItem.FromItemData(itemArray[i]);
-                        AddItem(modItem, AddPosition.DontCare, true);
+                        AddItem(modItem, noStack: true);
                         continue;
                     }
                 }
                 DaggerfallUnityItem item = new DaggerfallUnityItem(itemArray[i]);
-                AddItem(item);
+                AddItem(item, noStack: true);
             }
         }
 
@@ -575,7 +637,7 @@ namespace DaggerfallWorkshop.Game.Items
             {
                 if (templateIndex == -1)
                 {
-                    if (item.GroupIndex == (int)itemGroup)
+                    if (item.ItemGroup == itemGroup)
                     {
                         results.Add(item);
                     }
@@ -644,8 +706,9 @@ namespace DaggerfallWorkshop.Game.Items
             {
                 if (checkItem != item && 
                     checkItem.ItemGroup == itemGroup && checkItem.GroupIndex == groupIndex &&
+                    checkItem.message == item.message &&
                     checkItem.PotionRecipeKey == item.PotionRecipeKey &&
-                    checkItem.IsSummoned == item.IsSummoned &&
+                    checkItem.TimeForItemToDisappear == item.TimeForItemToDisappear &&
                     checkItem.IsStackable())
                     return checkItem;
             }

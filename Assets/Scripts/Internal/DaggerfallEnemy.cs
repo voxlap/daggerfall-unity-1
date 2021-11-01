@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,6 +12,7 @@
 using UnityEngine;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Utility.ModSupport;
 
 namespace DaggerfallWorkshop
 {
@@ -35,6 +36,17 @@ namespace DaggerfallWorkshop
             set { questSpawn = value; }
         }
 
+        /// <summary>
+        /// Daggerfall mobile billboard or custom implementation.
+        /// This property is initialized in Awake() so it can be accessed from Start().
+        /// </summary>
+        public MobileUnit MobileUnit { get; private set; }
+
+        private void Awake()
+        {
+            MobileUnit = FindMobileUnit();
+        }
+
         private void Start()
         {
             // UESP describes acute hearing as "allows you to hear sounds from farther away"
@@ -53,6 +65,31 @@ namespace DaggerfallWorkshop
                 if (audioSource)
                     audioSource.maxDistance *= (GameManager.Instance.PlayerEntity.ImprovedAcuteHearing) ? improvedAcuteHearingMultiplier : acuteHearingMultiplier;
             }
+        }
+
+        private MobileUnit FindMobileUnit()
+        {
+            var mobileUnit = GetComponentInChildren<MobileUnit>();
+
+            if (ModManager.Instance && ModManager.Instance.TryGetAsset("DaggerfallMobileUnit", true, out GameObject customMobileUnitGo))
+            {
+                var customMobileUnit = customMobileUnitGo.GetComponent<MobileUnit>();
+                if (customMobileUnit)
+                {
+                    // Disable deault implementation (it can't be removed because it's part of a prefab)
+                    if (mobileUnit)
+                        mobileUnit.gameObject.SetActive(false);
+
+                    customMobileUnitGo.transform.SetParent(gameObject.transform);
+                    mobileUnit = customMobileUnit;
+                }
+                else
+                {
+                    Debug.LogError("Failed to retrieve MobileUnit component from GameObject.", customMobileUnitGo);
+                }
+            }
+
+            return mobileUnit;
         }
     }
 }

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -41,12 +41,20 @@ namespace DaggerfallWorkshop
         public SoundClips PickedLockSound = SoundClips.ActivateLockUnlock;      // Sound clip to use when successfully picked a locked door
 
         ActionState currentState;
+        bool isMeshColliderConvexAlready;
         int startingLockValue = 0;                      // if > 0, is locked.
         ulong loadID = 0;
 
         Quaternion startingRotation;
         AudioSource audioSource;
-        BoxCollider boxCollider;
+
+        [SerializeField]
+        [Tooltip("Box Collider used to define a door's collision model. An enabled Box Collider is prioritised above a Mesh Collider")]
+        private BoxCollider boxCollider;
+
+        [SerializeField]
+        [Tooltip("Optional. Allows you to use a Mesh Collider instead of a Box Collider for the door's collision. To use this, disable the door's Box Collider component and add a Mesh Collider. You can use either a Box Collider or Mesh Collider, not both.")]
+        private MeshCollider meshCollider;
 
         public int StartingLockValue                    // Use to set starting lock value, will set current lock value as well
         {
@@ -99,7 +107,10 @@ namespace DaggerfallWorkshop
         void Awake()
         {
             audioSource = GetComponent<AudioSource>();
-            boxCollider = GetComponent<BoxCollider>();
+            if (boxCollider == null)
+                boxCollider = GetComponent<BoxCollider>();
+            if ((boxCollider?.enabled != true) && (meshCollider == null))
+                meshCollider = GetComponent<MeshCollider>();
         }
 
         void Start()
@@ -153,12 +164,12 @@ namespace DaggerfallWorkshop
 
                 if (Dice100.FailedRoll(chance))
                 {
-                    Game.DaggerfallUI.Instance.PopupMessage(HardStrings.lockpickingFailure);
+                    Game.DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("lockpickingFailure"));
                     FailedSkillLevel = player.Skills.GetLiveSkillValue(DFCareer.Skills.Lockpicking);
                 }
                 else
                 {
-                    Game.DaggerfallUI.Instance.PopupMessage(HardStrings.lockpickingSuccess);
+                    Game.DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("lockpickingSuccess"));
                     CurrentLockValue = 0;
 
                     if (PlaySounds && PickedLockSound > 0 && audioSource)
@@ -172,37 +183,39 @@ namespace DaggerfallWorkshop
             }
             else
             {
-                Game.DaggerfallUI.Instance.PopupMessage(HardStrings.lockpickingFailure);
+                Game.DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("lockpickingFailure"));
             }
         }
 
         public void AttemptBash(bool byPlayer)
         {
-            if (!IsOpen)
+            // Play bash sound if flagged and ready
+            if (PlaySounds && BashSound > 0 && audioSource)
             {
-                // Play bash sound if flagged and ready
-                if (PlaySounds && BashSound > 0 && audioSource)
-                {
-                    DaggerfallAudioSource dfAudioSource = GetComponent<DaggerfallAudioSource>();
-                    if (dfAudioSource != null)
-                        dfAudioSource.PlayOneShot(BashSound);
-                }
-
-                // Cannot bash magically held doors
-                if (!IsMagicallyHeld)
-                {
-                    // Roll for chance to open
-                    int chance = 20 - CurrentLockValue;
-                    if (Dice100.SuccessRoll(chance))
-                    {
-                        CurrentLockValue = 0;
-                        ToggleDoor(true);
-                    }
-                }
-
-                if (byPlayer && Game.GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeonCastle)
-                    Game.GameManager.Instance.MakeEnemiesHostile();
+                DaggerfallAudioSource dfAudioSource = GetComponent<DaggerfallAudioSource>();
+                if (dfAudioSource != null)
+                    dfAudioSource.PlayOneShot(BashSound);
             }
+
+            if (IsOpen)
+            {
+                // Bash-close the door
+                ToggleDoor(true);
+            }
+            // Cannot bash magically held doors
+            else if (!IsMagicallyHeld)
+            {
+                // Roll for chance to open
+                int chance = 20 - CurrentLockValue;
+                if (Dice100.SuccessRoll(chance))
+                {
+                    CurrentLockValue = 0;
+                    ToggleDoor(true);
+                }
+            }
+
+            if (byPlayer && Game.GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeonCastle)
+                Game.GameManager.Instance.MakeEnemiesHostile();
         }
 
         public void SetInteriorDoorSounds()
@@ -242,7 +255,9 @@ namespace DaggerfallWorkshop
             DaggerfallAction action = GetComponent<DaggerfallAction>();
             if (action != null
                 && action.ActionFlag == DFBlock.RdbActionFlags.DoorText
-                && (action.TriggerFlag == DFBlock.RdbTriggerFlags.Door || action.TriggerFlag == DFBlock.RdbTriggerFlags.Direct) // Door to Mynisera's room has a "Direct" trigger flag
+                && action.Index > 0
+                && (action.TriggerFlag == DFBlock.RdbTriggerFlags.Door || action.TriggerFlag == DFBlock.RdbTriggerFlags.Direct // Door to Mynisera's room has a "Direct" trigger flagged
+                    || action.TriggerFlag == DFBlock.RdbTriggerFlags.MultiTrigger) // Some Castle Wayrest doors have "MultiTrigger" trigger flag
                 && action.activationCount == 0
                 && activatedByPlayer)
             {
@@ -335,8 +350,28 @@ namespace DaggerfallWorkshop
 
         private void MakeTrigger(bool isTrigger)
         {
-            if (IsTriggerWhenOpen && boxCollider != null)
+            if ((IsTriggerWhenOpen) && (boxCollider != null) && (boxCollider?.enabled == true))
                 boxCollider.isTrigger = isTrigger;
+            else if ((IsTriggerWhenOpen) && (meshCollider != null) && (boxCollider?.enabled != true))
+            {
+                if (isTrigger == true)
+                {
+                    isMeshColliderConvexAlready = false;
+                    if (meshCollider.convex == false)
+                        meshCollider.convex = true;
+                    else
+                        isMeshColliderConvexAlready = true;
+                    meshCollider.isTrigger = true;
+                }
+                else
+                {
+                    meshCollider.isTrigger = false;
+                    if (isMeshColliderConvexAlready == true)
+                        isMeshColliderConvexAlready = false;
+                    else
+                        meshCollider.convex = false;
+                }
+            }
         }
 
         //For Doors that are also action objects, executes action when door opened / closed

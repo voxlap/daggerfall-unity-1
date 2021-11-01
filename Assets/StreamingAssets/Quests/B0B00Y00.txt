@@ -66,14 +66,14 @@ QuestComplete:  [1004]
 <ce>                             be forgotten.
 
 RumorsDuringQuest:  [1005]
-Poor Princess _lady_. When her father gets to %cn, he will be furious.
+Poor Princess _lady_. When her father gets to ___qgiver_, he will be furious.
 <--->
 _qgiver_ promised Princess _lady_'s father that she would be protected.
 
 RumorsPostfailure:  [1006]
 The Princess managed to escape ___mondung_ by herself. Some knightly valor.
 <--->
-The Princess just wandered in %cn by herself, pale from bloodloss.
+The Princess just wandered in ___qgiver_ by herself, pale from bloodloss.
 
 RumorsPostsuccess:  [1007]
 The knights are celebrating the heroism of the great %ra who rescued _lady_.
@@ -133,7 +133,7 @@ Message:  1015
 
 -- Symbols used in the QRC file:
 --
---               %cn occurs 2 times.
+--               ___qgiver_ occurs 2 times.
 --              %god occurs 3 times.
 --              %pcf occurs 5 times.
 --              %pcn occurs 1 time.
@@ -153,10 +153,10 @@ QBN:
 Item letter31 letter used 1014
 
 Person _qgiver_ group Questor
-Person _lady_ face 2 group Noble female
-Person _vamp_ face 40 factiontype Vampire_Clan
+Person _lady_ face 2 group Noble female local
+Person _vamp_ face 40 factiontype Vampire_Clan local
 
-Place _mondung_ remote dungeon
+Place _mondung_ remote dungeon8
 
 Clock _2mondung_ 00:00 0 flag 17 range 0 2
 Clock _S.07_ 10:00 1.16:00

@@ -1,10 +1,10 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
 // Original Author: Gavin Clayton (interkarma@dfworkshop.net)
-// Contributors:    Nystul, Hazelnut, Numidium
+// Contributors:    Nystul, Hazelnut, Numidium, Ferital
 // 
 // Notes:
 //
@@ -148,15 +148,7 @@ namespace DaggerfallWorkshop
             this.entryDoor = door;
             this.doorOwner = doorOwner;
 
-            // Get block data
-            blockData = dfUnity.ContentReader.BlockFileReader.GetBlock(door.blockIndex);
-            if (blockData.Type != DFBlock.BlockTypes.Rmb)
-                throw new Exception(string.Format("Could not load RMB block index {0}", door.blockIndex), null);
-
-            // Get record data
-            recordData = blockData.RmbBlock.SubRecords[door.recordIndex];
-            if (recordData.Interior.Header.Num3dObjectRecords == 0)
-                throw new Exception(string.Format("No interior 3D models found for record index {0}", door.recordIndex), null);
+            AssignBlockData(door);
 
             // Layout interior data
             AddModels(buildingData);
@@ -186,18 +178,10 @@ namespace DaggerfallWorkshop
             this.entryDoor = door;
             this.doorOwner = doorOwner;
 
-            // Get block data
-            blockData = dfUnity.ContentReader.BlockFileReader.GetBlock(door.blockIndex);
-            if (blockData.Type != DFBlock.BlockTypes.Rmb)
-                throw new Exception(string.Format("Could not load RMB block index {0}", door.blockIndex), null);
-
-            // Get record data
-            recordData = blockData.RmbBlock.SubRecords[door.recordIndex];
-            if (recordData.Interior.Header.Num3dObjectRecords == 0)
-                throw new Exception(string.Format("No interior 3D models found for record index {0}", door.recordIndex), null);
+            AssignBlockData(door);
 
             // Layout interior data
-            AddModels(mapBD);
+            AddModels(mapBD, true);
 
             return true;
         }
@@ -220,20 +204,19 @@ namespace DaggerfallWorkshop
         }
 
         /// <summary>
-        /// Finds the interior door that is closest to ground level.
+        /// Finds the interior door that is closest to ground level and farthest from the center of the building.
         /// </summary>
         /// <param name="lowestDoorPositionOut">Position of lowest door in scene.</param>
         /// <param name="lowestDoorNormalOut">Normal vector of lowest door in scene.</param>
-        /// <returns>True if successful.</returns>
-        public bool FindLowestInteriorDoor(out Vector3 lowestDoorPositionOut, out Vector3 lowestDoorNormalOut)
+        /// <returns>True if successful. False if no doors are found.</returns>
+        public bool FindLowestOuterInteriorDoor(out Vector3 lowestDoorPositionOut, out Vector3 lowestDoorNormalOut)
         {
             lowestDoorPositionOut = lowestDoorNormalOut = Vector3.zero;
             DaggerfallStaticDoors interiorDoors = GetComponent<DaggerfallStaticDoors>();
             if (!interiorDoors)
                 return false;
 
-            int doorIndex;
-            if (interiorDoors.FindLowestDoor(-1, out lowestDoorPositionOut, out doorIndex))
+            if (interiorDoors.FindLowestOutermostDoor(-1, out lowestDoorPositionOut, out int doorIndex))
             {
                 lowestDoorNormalOut = interiorDoors.GetDoorNormal(doorIndex);
                 return true;
@@ -362,7 +345,7 @@ namespace DaggerfallWorkshop
             PlayerEnterExit playerEnterExit = GameManager.Instance.PlayerEnterExit;
             DFLocation.BuildingTypes buildingType = playerEnterExit.BuildingType;
             if ((RMBLayout.IsShop(buildingType) && !playerEnterExit.IsPlayerInsideOpenShop) ||
-                (buildingType <= DFLocation.BuildingTypes.Palace && !RMBLayout.IsShop(buildingType)))
+                (!RMBLayout.IsShop(buildingType) && buildingType <= DFLocation.BuildingTypes.Palace && buildingType != DFLocation.BuildingTypes.HouseForSale))
             {
                 Transform npcTransforms = transform.Find(peopleFlats);
                 if (PlayerActivate.IsBuildingOpen(buildingType))
@@ -379,9 +362,36 @@ namespace DaggerfallWorkshop
         #region Private Methods
 
         /// <summary>
+        /// Set block data corresponding to interior.
+        /// </summary>
+        private void AssignBlockData(StaticDoor door)
+        {
+            // Get block data
+            DFLocation location = GameManager.Instance.PlayerGPS.CurrentLocation;
+            DFBlock[] blocks = RMBLayout.GetLocationBuildingData(location);
+            bool foundBlock = false;
+            for (int index = 0; index < blocks.Length && !foundBlock; ++index)
+            {
+                if (blocks[index].Index == door.blockIndex)
+                {
+                    this.blockData = blocks[index];
+                    foundBlock = true;
+                }
+            }
+
+            if (!foundBlock || this.blockData.Type != DFBlock.BlockTypes.Rmb)
+                throw new Exception(string.Format("Could not load RMB block index {0}", door.blockIndex), null);
+
+            // Get record data
+            recordData = blockData.RmbBlock.SubRecords[door.recordIndex];
+            if (recordData.Interior.Header.Num3dObjectRecords == 0)
+                throw new Exception(string.Format("No interior 3D models found for record index {0}", door.recordIndex), null);
+        }
+
+        /// <summary>
         /// Add interior models.
         /// </summary>
-        private void AddModels(PlayerGPS.DiscoveredBuilding buildingData)
+        private void AddModels(PlayerGPS.DiscoveredBuilding buildingData, bool isAutomapRun = false)
         {
             List<StaticDoor> doors = new List<StaticDoor>();
             GameObject node = new GameObject("Models");
@@ -394,6 +404,10 @@ namespace DaggerfallWorkshop
             foreach (DFBlock.RmbBlock3dObjectRecord obj in recordData.Interior.Block3dObjectRecords)
             {
                 bool stopCombine = false;
+
+                // Filter out bad interior models
+                if (IsBadInteriorModel(obj.ModelIdNum))
+                    continue;
 
                 // Get model data
                 ModelData modelData;
@@ -420,23 +434,24 @@ namespace DaggerfallWorkshop
                     modelPosition = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
                 }
 
-                // Stop special object from being combined
-                if (obj.ModelIdNum == ladderModelId)
+                // Stop special objects or those with actions from being combined
+                if (obj.ModelIdNum == ladderModelId || PlayerActivate.HasCustomActivation(obj.ModelIdNum))
                     stopCombine = true;
 
                 // Get model transform
-                Vector3 modelRotation = new Vector3(0, -obj.YRotation / BlocksFile.RotationDivisor, 0);
-                Matrix4x4 modelMatrix = Matrix4x4.TRS(modelPosition, Quaternion.Euler(modelRotation), Vector3.one);
+                Vector3 modelRotation = new Vector3(-obj.XRotation / BlocksFile.RotationDivisor, -obj.YRotation / BlocksFile.RotationDivisor, -obj.ZRotation / BlocksFile.RotationDivisor);
+                Vector3 modelScale = RMBLayout.GetModelScaleVector(obj);
+                Matrix4x4 modelMatrix = Matrix4x4.TRS(modelPosition, Quaternion.Euler(modelRotation), modelScale);
 
                 // Does this model have doors?
                 if (modelData.Doors != null)
                     doors.AddRange(GameObjectHelper.GetStaticDoors(ref modelData, entryDoor.blockIndex, entryDoor.recordIndex, modelMatrix));
 
                 // Inject custom GameObject if available
-                GameObject go = MeshReplacement.ImportCustomGameobject(obj.ModelIdNum, node.transform, modelMatrix);
+                GameObject modelGO = MeshReplacement.ImportCustomGameobject(obj.ModelIdNum, node.transform, modelMatrix);
 
                 // Otherwise use Daggerfall mesh - combine or add
-                if (!go)
+                if (!modelGO)
                 {
                     if (dfUnity.Option_CombineRMB && !stopCombine)
                     {
@@ -445,27 +460,31 @@ namespace DaggerfallWorkshop
                     else
                     {
                         // Add individual GameObject
-                        go = GameObjectHelper.CreateDaggerfallMeshGameObject(obj.ModelIdNum, node.transform, dfUnity.Option_SetStaticFlags);
-                        go.transform.position = modelMatrix.GetColumn(3);
-                        go.transform.rotation = GameObjectHelper.QuaternionFromMatrix(modelMatrix);
+                        modelGO = GameObjectHelper.CreateDaggerfallMeshGameObject(obj.ModelIdNum, node.transform, dfUnity.Option_SetStaticFlags);
+                        modelGO.transform.position = modelMatrix.GetColumn(3);
+                        modelGO.transform.rotation = modelMatrix.rotation;
+                        modelGO.transform.localScale = modelMatrix.lossyScale;
 
                         // Update climate
-                        DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
+                        DaggerfallMesh dfMesh = modelGO.GetComponent<DaggerfallMesh>();
                         dfMesh.SetClimate(climateBase, climateSeason, WindowStyle.Disabled);
                     }
                 }
 
-                // Make ladder collider convex
-                if (obj.ModelIdNum == ladderModelId)
+                if ((modelGO != null) && (isAutomapRun))
+                    modelGO.AddComponent<AutomapModel>();
+
+                // Make ladder collider convex and ladder functionality, if set up as propModelType
+                if (obj.ModelIdNum == ladderModelId && obj.ObjectType == propModelType)
                 {
-                    var meshCollider = go.GetComponent<MeshCollider>();
+                    var meshCollider = modelGO.GetComponent<MeshCollider>();
                     if (meshCollider) meshCollider.convex = true;
-                    go.AddComponent<DaggerfallLadder>();
+                    modelGO.AddComponent<DaggerfallLadder>();
                 }
 
                 // Optionally add action objects to specific furniture items (e.g. loot containers), except when laying out map (buildingType=AllValid)
                 if (obj.ObjectType == propModelType && buildingData.buildingType != DFLocation.BuildingTypes.AllValid)
-                    AddFurnitureAction(obj, go, buildingData);
+                    AddFurnitureAction(obj, modelGO, buildingData);
             }
 
             // Add combined GameObject
@@ -474,10 +493,13 @@ namespace DaggerfallWorkshop
                 if (combiner.VertexCount > 0)
                 {
                     combiner.Apply();
-                    GameObject go = GameObjectHelper.CreateCombinedMeshGameObject(combiner, "CombinedModels", node.transform, dfUnity.Option_SetStaticFlags);
+                    GameObject modelGO = GameObjectHelper.CreateCombinedMeshGameObject(combiner, "CombinedModels", node.transform, dfUnity.Option_SetStaticFlags);
+
+                    if ((modelGO != null) && (isAutomapRun))
+                        modelGO.AddComponent<AutomapModel>();
 
                     // Update climate
-                    DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
+                    DaggerfallMesh dfMesh = modelGO.GetComponent<DaggerfallMesh>();
                     dfMesh.SetClimate(climateBase, climateSeason, WindowStyle.Disabled);
                 }
             }
@@ -485,6 +507,31 @@ namespace DaggerfallWorkshop
             // Add static doors component
             DaggerfallStaticDoors c = this.gameObject.AddComponent<DaggerfallStaticDoors>();
             c.Doors = doors.ToArray();
+        }
+
+        /// <summary>
+        /// Identify specific bad interior models.
+        /// </summary>
+        /// <returns>True if model should be filtered out from this specific interior.</returns>
+        bool IsBadInteriorModel(uint modelID)
+        {
+            // RESIBM01.RMB (Index 601), BuildingRecord 7
+            if (EntryDoor.blockIndex == 601 && EntryDoor.recordIndex == 7)
+            {
+                // Bad placement of modelID 31000 overlapping stairs, trapping player upstairs
+                if (modelID == 31000)
+                    return true;
+            }
+
+            // CUSTAA02.RMB (Index 697), BuildingRecord 1
+            if (EntryDoor.blockIndex == 697 && EntryDoor.recordIndex == 1)
+            {
+                // Bad placement of modelID 31000 overlapping stairs, trapping player upstairs
+                if (modelID == 31000)
+                    return true;
+            }
+
+            return false;
         }
 
         private void AddFurnitureAction(DFBlock.RmbBlock3dObjectRecord obj, GameObject go, PlayerGPS.DiscoveredBuilding buildingData)
@@ -611,7 +658,7 @@ namespace DaggerfallWorkshop
                 }
 
                 // Add point lights
-                if (obj.TextureArchive == TextureReader.LightsTextureArchive)
+                if (obj.TextureArchive == TextureReader.LightsTextureArchive && !DaggerfallUnity.Settings.AmbientLitInteriors)
                 {
                     AddLight(obj, go.transform);
                 }
@@ -869,7 +916,8 @@ namespace DaggerfallWorkshop
         {
             GameObject node = new GameObject(peopleFlats);
             node.transform.parent = this.transform;
-            bool isMemberOfBuildingGuild = GameManager.Instance.GuildManager.GetGuild(buildingData.factionID).IsMember();
+            IGuild guild = GameManager.Instance.GuildManager.GetGuild(buildingData.factionID);
+            bool isMemberOfBuildingGuild = guild.IsMember();
 
             // Add block flats
             foreach (DFBlock.RmbBlockPeopleRecord obj in recordData.Interior.BlockPeopleRecords)
@@ -900,7 +948,8 @@ namespace DaggerfallWorkshop
                 // Disable people if shop or building is closed
                 DFLocation.BuildingTypes buildingType = buildingData.buildingType;
                 if ((RMBLayout.IsShop(buildingType) && !GameManager.Instance.PlayerEnterExit.IsPlayerInsideOpenShop) ||
-                    (buildingType <= DFLocation.BuildingTypes.Palace && !RMBLayout.IsShop(buildingType) && !PlayerActivate.IsBuildingOpen(buildingType)))
+                    (buildingType <= DFLocation.BuildingTypes.Palace && !RMBLayout.IsShop(buildingType) 
+                     && !(PlayerActivate.IsBuildingOpen(buildingType) || buildingType == DFLocation.BuildingTypes.GuildHall && guild.HallAccessAnytime())))
                 {
                     go.SetActive(false);
                 }
@@ -939,33 +988,38 @@ namespace DaggerfallWorkshop
                 Vector3 modelPosition = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
 
                 // Instantiate door prefab and add model - DoorModelIndex is modulo to known-good range just in case
+                // A custom prefab can be provided by mods and must include DaggerfallActionDoor component with all requirements.
                 uint modelId = (uint)(doorModelBaseId + obj.DoorModelIndex % 5);
-                GameObject go = GameObjectHelper.InstantiatePrefab(dfUnity.Option_InteriorDoorPrefab.gameObject, string.Empty, actionDoorsNode.transform, Vector3.zero);
-                GameObjectHelper.CreateDaggerfallMeshGameObject(modelId, actionDoorsNode.transform, false, go, true);
-
-                // Resize box collider to new mesh bounds
-                BoxCollider boxCollider = go.GetComponent<BoxCollider>();
-                MeshRenderer meshRenderer = go.GetComponent<MeshRenderer>();
-                if (boxCollider != null && meshRenderer != null)
+                GameObject go = MeshReplacement.ImportCustomGameobject(modelId, actionDoorsNode.transform, Matrix4x4.identity);
+                if (!go)
                 {
-                    boxCollider.center = meshRenderer.bounds.center;
-                    boxCollider.size = meshRenderer.bounds.size;
+                    go = GameObjectHelper.InstantiatePrefab(dfUnity.Option_InteriorDoorPrefab.gameObject, string.Empty, actionDoorsNode.transform, Vector3.zero);
+                    GameObjectHelper.CreateDaggerfallMeshGameObject(modelId, actionDoorsNode.transform, false, go, true);
+
+                    // Resize box collider to new mesh bounds
+                    BoxCollider boxCollider = go.GetComponent<BoxCollider>();
+                    MeshRenderer meshRenderer = go.GetComponent<MeshRenderer>();
+                    if (boxCollider != null && meshRenderer != null)
+                    {
+                        boxCollider.center = meshRenderer.bounds.center;
+                        boxCollider.size = meshRenderer.bounds.size;
+                    }  
+
+                    // Update climate
+                    DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
+                    dfMesh.SetClimate(climateBase, climateSeason, WindowStyle.Disabled);
                 }
 
                 // Apply transforms
                 go.transform.rotation = Quaternion.Euler(modelRotation);
                 go.transform.position = modelPosition;
 
-                // Update climate
-                DaggerfallMesh dfMesh = go.GetComponent<DaggerfallMesh>();
-                dfMesh.SetClimate(climateBase, climateSeason, WindowStyle.Disabled);
-
-                // Get action door script
+                // Get action door script and assign loadID
                 DaggerfallActionDoor actionDoor = go.GetComponent<DaggerfallActionDoor>();
-
-                // Assign loadID
                 if (actionDoor)
                     actionDoor.LoadID = loadID;
+                else
+                    Debug.LogError($"Failed to get DaggerfallActionDoor on {modelId}. Make sure is added to door prefab.");
 
                 if (SaveLoadManager.Instance != null)
                     go.AddComponent<SerializableActionDoor>();

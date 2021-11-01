@@ -6,6 +6,7 @@
 -- QuestId: 6
 Messages: 101
 Quest: K0C00Y06
+DisplayName: A Mix-Up
 -- Message panels
 QRC:
 
@@ -134,7 +135,7 @@ _thief_, well, %g's a retired jewel thief. Or semi-retired, as I understand.
 <--->
 _thief_ used to be quite a jewel thief in __thiefhome_ once upon a time.
 <--->
-Someone told me that _thief_ lurks about _thiefhouse_ this time everyday.
+Someone told me that _thief_ lurks about _thiefhome_ this time everyday.
 <--->
 _merchant_ doesn't believe that _thief_ has reformed %g3 life at all.
 <--->
@@ -241,7 +242,7 @@ Message:  1022
  nothing, you unnderstand? I used to work for
  this =merchant_ by a name
  of _merchant_. Now %g was a
- crazy one, %g was. Allways trying to find a
+ crazy one, %g was. Always trying to find a
  way to get rich. And always quick to blame
  someone else when %g got caught with %g3
  hands in the cookie jar. That's how I got
@@ -266,7 +267,7 @@ Dear %pcn,
      There is a =noble_
  of my acquaintance who I believe knows more
  about the affair than most. It may be that
- %g even arranged or even commited the
+ %g even arranged or even committed the
  crime. I can say no more, except that %g3
  name is _noble_ and %g lives
  in __noblehome_.
@@ -282,7 +283,7 @@ Dear %pcn,
       Perhaps it would interest you to know
  that there is at least one person who doesn't
  think you did it. Or maybe I should say
- two people in __thiefhouse_
+ two people in __thiefhome_
  don't think you did it. Me and the one who
  did it -- a =thief_ who
  did do the burglary.
@@ -378,7 +379,7 @@ Message:  1032
  from an anonymous source identifying
  someone named _thief_
  as a notorious jewel-thief living right
- in __thiefhouse_. Even if %g
+ in __thiefhome_. Even if %g
  didn't actually rob __qgiver_,
  a conference may reveal who did.
 
@@ -571,9 +572,9 @@ Message:  1044
 QuestTimeLapse:  [1045]
 %qdt:
  _witness_
- confessed that %g knew who commited the
+ confessed that %g knew who committed the
  burglary and it isn't me. On the other
- hands, _priest_, the true
+ hand, _priest_, the true
  engineer behind it, will be difficult to
  convict. The two places where I might find
  evidence, _witness_ says,
@@ -886,15 +887,15 @@ Item letter23 letter used 1050
 Item letter22 letter used 1049
 Item _reward_ trinket
 
-Person _qgiver_ group Questor male anyInfo 1011
-Person _priest_ factiontype Temple male anyInfo 1014
-Person _noble_ face 174 factiontype Knightly_Guard anyInfo 1013
-Person _merchant_ face 86 faction The_Merchants anyInfo 1012
-Person _thief_ face 190 faction The_Thieves_Guild anyInfo 1015
-Person _witness_ face 1 group Innkeeper anyInfo 1016
-Person necromancer faction The_Necromancers female
-Person underking faction Agents_of_The_Underking female
-Person _tg_ faction The_Thieves_Guild female
+Person _qgiver_ group Questor anyInfo 1011
+Person _priest_ factiontype Temple local anyInfo 1014
+Person _noble_ face 174 factiontype Knightly_Guard female local anyInfo 1013
+Person _merchant_ face 86 faction The_Merchants female local anyInfo 1012
+Person _thief_ face 190 faction The_Thieves_Guild female local anyInfo 1015
+Person _witness_ face 1 group Innkeeper local anyInfo 1016
+Person necromancer faction The_Necromancers remote
+Person underking faction Agents_of_The_Underking remote
+Person _tg_ faction The_Thieves_Guild remote
 
 Place _mondung_ remote dungeon
 Place _thiefhouse_ local house2
@@ -931,7 +932,7 @@ Foe _guard4_ is Spellsword
 	log 1010 step 0 
 	pick one of _S.03_ _S.01_ _S.00_ _S.02_ 
 	letter19 used do _S.26_ 
-	legal repute -200 
+	legal repute -15 
 	place npc _noble_ at _noblehome_ 
 	place npc _merchant_ at _merchanthome_ 
 	place npc _witness_ at _inn_ 
@@ -1145,7 +1146,7 @@ _mow2_ task:
 	toting _gem_ and _qgiver_ clicked 
 	give pc _reward_ 
 	change repute with _qgiver_ by +10 
-	legal repute +110 
+	legal repute +20
 	end quest 
 
 _S.51_ task:

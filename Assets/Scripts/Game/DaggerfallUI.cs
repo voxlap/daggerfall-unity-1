@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -13,6 +13,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
@@ -24,6 +25,8 @@ using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.MagicAndEffects;
 using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
+using UnityEngine.Localization.Settings;
+using static DaggerfallWorkshop.Game.UserInterface.BaseScreenComponent;
 
 namespace DaggerfallWorkshop.Game
 {
@@ -42,6 +45,8 @@ namespace DaggerfallWorkshop.Game
         public static Color DaggerfallDefaultTextColor = new Color32(243, 239, 44, 255);
         public static Color DaggerfallDefaultInputTextColor = new Color32(227, 223, 0, 255);
         public static Color DaggerfallHighlightTextColor = new Color32(219, 130, 40, 255);
+        public static Color DaggerfallDisabledTextColor = new Color32(128, 128, 128, 255);
+        public static Color DaggerfallHighlightDisabledTextColor = DaggerfallDisabledTextColor;
         public static Color DaggerfallAlternateHighlightTextColor = new Color32(255, 130, 40, 255);
         public static Color DaggerfallQuestionTextColor = new Color(0.698f, 0.812f, 1.0f);
         public static Color DaggerfallAnswerTextColor = DaggerfallDefaultInputTextColor;
@@ -59,6 +64,11 @@ namespace DaggerfallWorkshop.Game
         public static Color DaggerfallUnityNotImplementedColor = new Color(1, 0, 0, 0.5f);
         public static Color DaggerfallPrisonDaysUntilFreedomColor = new Color32(232, 196, 76, 255);
         public static Color DaggerfallPrisonDaysUntilFreedomShadowColor = new Color32(48, 36, 20, 255);
+        public static Color DaggerfallInfoPanelTextColor = new Color32(250, 250, 220, 255);
+        public static Color DaggerfallDefaultTempleAutomapColor = new Color32(69, 125, 195, 255);
+        public static Color DaggerfallDefaultShopAutomapColor = new Color32(190, 85, 24, 255);
+        public static Color DaggerfallDefaultTavernAutomapColor = new Color32(85, 117, 48, 255);
+        public static Color DaggerfallDefaultHouseAutomapColor = new Color32(69, 60, 40, 255);
         public static Vector2 DaggerfallDefaultShadowPos = Vector2.one;
 
         public FilterMode globalFilterMode = FilterMode.Point;
@@ -81,7 +91,11 @@ namespace DaggerfallWorkshop.Game
         DaggerfallFont[] daggerfallFonts = new DaggerfallFont[5];
         char lastCharacterTyped;
         KeyCode lastKeyCode;
+        bool processHotkeys;
+        HotkeySequence.KeyModifiers lastKeyModifiers;
+        HotkeySequence.HotkeySequenceProcessStatus hotkeySequenceProcessed = HotkeySequence.HotkeySequenceProcessStatus.NotFound;
         FadeBehaviour fadeBehaviour = null;
+        bool instantiatePersistentWindowInstances = true;
 
         bool hudSetup = false;
         DaggerfallHUD dfHUD;
@@ -104,24 +118,28 @@ namespace DaggerfallWorkshop.Game
         DaggerfallItemMakerWindow dfItemMakerWindow;
         DaggerfallPotionMakerWindow dfPotionMakerWindow;
         DaggerfallCourtWindow dfCourtWindow;
+        GameEffectsConfigWindow gameEffectsConfigWindow;
+
+        private List<System.Tuple<string, Action>> pauseOptionsDropdownItems
+            = new List<System.Tuple<string, Action>>();
 
         Material pixelFontMaterial;
         Material sdfFontMaterial;
 
         Questing.Actions.GivePc lastPendingOfferSender = null;
 
-        public DaggerfallFont Font1 { get { return GetFont(1); } }
-        public DaggerfallFont Font2 { get { return GetFont(2); } }
-        public DaggerfallFont Font3 { get { return GetFont(3); } }
-        public DaggerfallFont Font4 { get { return GetFont(4); } }
-        public DaggerfallFont Font5 { get { return GetFont(5); } }
+        public DaggerfallFont Font1 { get { return GetFont(DaggerfallFont.FontName.FONT0000); } }
+        public DaggerfallFont Font2 { get { return GetFont(DaggerfallFont.FontName.FONT0001); } }
+        public DaggerfallFont Font3 { get { return GetFont(DaggerfallFont.FontName.FONT0002); } }
+        public DaggerfallFont Font4 { get { return GetFont(DaggerfallFont.FontName.FONT0003); } }
+        public DaggerfallFont Font5 { get { return GetFont(DaggerfallFont.FontName.FONT0004); } }
 
         public UserInterfaceManager UserInterfaceManager { get { return uiManager; } }
 
-        public static DaggerfallFont LargeFont { get { return Instance.GetFont(1); } }
-        public static DaggerfallFont TitleFont { get { return Instance.GetFont(2); } }
-        public static DaggerfallFont SmallFont { get { return Instance.GetFont(3); } }
-        public static DaggerfallFont DefaultFont { get { return Instance.GetFont(4); } }
+        public static DaggerfallFont LargeFont { get { return Instance.GetFont(DaggerfallFont.FontName.FONT0000); } }
+        public static DaggerfallFont TitleFont { get { return Instance.GetFont(DaggerfallFont.FontName.FONT0001); } }
+        public static DaggerfallFont SmallFont { get { return Instance.GetFont(DaggerfallFont.FontName.FONT0002); } }
+        public static DaggerfallFont DefaultFont { get { return Instance.GetFont(DaggerfallFont.FontName.FONT0003); } }
         
         public static IUserInterfaceManager UIManager { get { return Instance.uiManager; } }
 
@@ -129,6 +147,11 @@ namespace DaggerfallWorkshop.Game
         public Material SDFFontMaterial { get { return sdfFontMaterial; } set { sdfFontMaterial = value; } }
 
         PaperDollRenderer paperDollRenderer;
+
+        public void ReinstantiatePersistentWindowInstances()
+        {
+            instantiatePersistentWindowInstances = true;
+        }
 
         public UserInterfaceRenderTarget CustomRenderTarget
         {
@@ -168,6 +191,8 @@ namespace DaggerfallWorkshop.Game
             set { globalFilterMode = value; }
         }
 
+        public Event KeyEvent { get; private set; } = new Event();
+
         public char LastCharacterTyped
         {
             get { return lastCharacterTyped; }
@@ -176,6 +201,17 @@ namespace DaggerfallWorkshop.Game
         public KeyCode LastKeyCode
         {
             get { return lastKeyCode; }
+        }
+
+        public HotkeySequence.KeyModifiers LastKeyModifiers
+        {
+            get { return lastKeyModifiers; }
+        }
+
+        public HotkeySequence.HotkeySequenceProcessStatus HotkeySequenceProcessed
+        {
+            get { return hotkeySequenceProcessed; }
+            private set {  hotkeySequenceProcessed = value; }
         }
 
         public DaggerfallHUD DaggerfallHUD
@@ -233,6 +269,11 @@ namespace DaggerfallWorkshop.Game
             get { return dfCourtWindow; }
         }
 
+        public GameEffectsConfigWindow GameEffectsConfigWindow
+        {
+            get { return gameEffectsConfigWindow; }
+        }
+
         public DaggerfallSpellMakerWindow DfSpellMakerWindow
         {
             get { return dfSpellMakerWindow; }
@@ -263,11 +304,6 @@ namespace DaggerfallWorkshop.Game
             Parchment,
         }
 
-        public enum HQPixelFonts
-        {
-            Petrock_32,
-        }
-
         public bool ShowVersionText { get; set; }
 
         /// <summary>
@@ -287,30 +323,15 @@ namespace DaggerfallWorkshop.Game
             dfSongPlayer = GetComponent<DaggerfallSongPlayer>();
             fadeBehaviour = GetComponent<FadeBehaviour>();
 
-            dfPauseOptionsWindow = new DaggerfallPauseOptionsWindow(uiManager);
-            dfCharacterSheetWindow = new DaggerfallCharacterSheetWindow(uiManager);
-            dfInventoryWindow = new DaggerfallInventoryWindow(uiManager);
-            dfControlsWindow = new DaggerfallControlsWindow(uiManager);
-            dfJoystickControlsWindow = new DaggerfallJoystickControlsWindow(uiManager);
-            dfUnityMouseControlsWindow = new DaggerfallUnityMouseControlsWindow(uiManager);
-            dfTravelMapWindow = new DaggerfallTravelMapWindow(uiManager);
-            dfAutomapWindow = new DaggerfallAutomapWindow(uiManager);
-            dfBookReaderWindow = new DaggerfallBookReaderWindow(uiManager);
-            dfQuestJournalWindow = new DaggerfallQuestJournalWindow(uiManager);
-            dfPlayerHistoryWindow = new DaggerfallPlayerHistoryWindow(uiManager);
-            dfTalkWindow = new DaggerfallTalkWindow(uiManager);
-            dfSpellBookWindow = new DaggerfallSpellBookWindow(uiManager);
-            dfUseMagicItemWindow = new DaggerfallUseMagicItemWindow(uiManager);
-            dfSpellMakerWindow = new DaggerfallSpellMakerWindow(uiManager);
-            dfItemMakerWindow = new DaggerfallItemMakerWindow(uiManager);
-            dfPotionMakerWindow = new DaggerfallPotionMakerWindow(uiManager);
-            dfCourtWindow = new DaggerfallCourtWindow(uiManager);
-            dfExteriorAutomapWindow = new DaggerfallExteriorAutomapWindow(uiManager);
-
             Questing.Actions.GivePc.OnOfferPending += GivePc_OnOfferPending;
 
             // Create 8x scale paper doll renderer
             paperDollRenderer = new PaperDollRenderer(8);
+
+            // Create persistent Game Effects window
+            // This window isn't intended to be replaced by mods - rather mods should plug in custom pages implementing IGameEffectConfigPage
+            // Mods should register their custom pages using gameEffectsConfigWindow.OnRegisterCustomPages event
+            gameEffectsConfigWindow = new GameEffectsConfigWindow((IUserInterfaceManager)uiManager);
 
             SetupSingleton();
         }
@@ -347,6 +368,9 @@ namespace DaggerfallWorkshop.Game
             // Route messages to top window or handle locally
             if (uiManager.MessageCount > 0)
             {
+                if (instantiatePersistentWindowInstances)
+                    InstantiatePersistentWindowInstances();
+
                 // Top window has first chance at message
                 if (uiManager.TopWindow != null)
                     uiManager.TopWindow.ProcessMessages();
@@ -375,6 +399,8 @@ namespace DaggerfallWorkshop.Game
             // Store key downs for alternate input (e.g. text box input)
             // Possible to get multiple keydown events per frame, one with character, one with keycode
             // Only accept character or keycode if valid
+            lastKeyModifiers = HotkeySequence.GetKeyboardKeyModifiers();
+            
             if (Event.current.type == EventType.KeyDown)
             {
                 if (Event.current.character != (char)0)
@@ -387,6 +413,16 @@ namespace DaggerfallWorkshop.Game
                     lastCharacterTyped = (char)0;
             }
 
+            if (processHotkeys)
+            {
+                processHotkeys = false;
+                HotkeySequenceProcessed = ProcessHotKeySequences();
+            }
+            else if (uiManager?.TopWindow?.FocusControl?.OverridesHotkeySequences == true)
+                HotkeySequenceProcessed = HotkeySequence.HotkeySequenceProcessStatus.Disabled;
+            else
+                HotkeySequenceProcessed = HotkeySequence.HotkeySequenceProcessStatus.NotFound;
+
             if (Event.current.type == EventType.Repaint)
             {
                 RenderTexture oldRT = null;
@@ -396,6 +432,14 @@ namespace DaggerfallWorkshop.Game
                     RenderTexture.active = customRenderTarget.TargetTexture;
                     customRenderTarget.Clear();
                 }
+
+                // A docked large HUD changes viewport area
+                // This can result in bottom part of display becoming stale (i.e. blank or filled with garbage) while in overlapping UI
+                // When using a large HUD, always repaint HUD before main window
+                // This generally matches classes where small windows (e.g. spellbook, pause) do not clear large HUD and large windows overlap it completely
+                // Repainting large HUD whether docked or not for consistency
+                if (dfHUD != null && DaggerfallUnity.Settings.LargeHUD)
+                    dfHUD.Draw();
 
                 // Draw top window
                 if (uiManager.TopWindow != null)
@@ -408,6 +452,42 @@ namespace DaggerfallWorkshop.Game
                     RenderTexture.active = oldRT;
                 }
             }
+        }
+
+        public void OnKeyPress(KeyCode key, bool down)
+        {
+            KeyEvent.type = down ? EventType.KeyDown : EventType.KeyUp;
+            KeyEvent.keyCode = key;
+
+            if (down && key != KeyCode.None)
+                lastKeyCode = key;
+            processHotkeys = true;
+        }
+
+        private void InstantiatePersistentWindowInstances()
+        {
+            dfPauseOptionsWindow = (DaggerfallPauseOptionsWindow)UIWindowFactory.GetInstance(UIWindowType.PauseOptions, uiManager, null);
+            dfCharacterSheetWindow = (DaggerfallCharacterSheetWindow)UIWindowFactory.GetInstance(UIWindowType.CharacterSheet, uiManager);
+            dfInventoryWindow = (DaggerfallInventoryWindow)UIWindowFactory.GetInstance(UIWindowType.Inventory, uiManager, null);
+            dfControlsWindow = (DaggerfallControlsWindow)UIWindowFactory.GetInstance(UIWindowType.Controls, uiManager, null);
+            dfJoystickControlsWindow = (DaggerfallJoystickControlsWindow)UIWindowFactory.GetInstance(UIWindowType.JoystickControls, uiManager, null);
+            dfUnityMouseControlsWindow = (DaggerfallUnityMouseControlsWindow)UIWindowFactory.GetInstance(UIWindowType.UnityMouseControls, uiManager, null);
+            dfTravelMapWindow = (DaggerfallTravelMapWindow)UIWindowFactory.GetInstance(UIWindowType.TravelMap, uiManager);
+            dfAutomapWindow = (DaggerfallAutomapWindow)UIWindowFactory.GetInstance(UIWindowType.Automap, uiManager);
+            dfBookReaderWindow = (DaggerfallBookReaderWindow)UIWindowFactory.GetInstance(UIWindowType.BookReader, uiManager);
+            dfQuestJournalWindow = (DaggerfallQuestJournalWindow)UIWindowFactory.GetInstance(UIWindowType.QuestJournal, uiManager);
+            dfPlayerHistoryWindow = (DaggerfallPlayerHistoryWindow)UIWindowFactory.GetInstance(UIWindowType.PlayerHistory, uiManager);
+            dfTalkWindow = (DaggerfallTalkWindow)UIWindowFactory.GetInstance(UIWindowType.Talk, uiManager, null);
+            dfSpellBookWindow = (DaggerfallSpellBookWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.SpellBook, new object[] { uiManager, null, false });
+            dfUseMagicItemWindow = (DaggerfallUseMagicItemWindow)UIWindowFactory.GetInstance(UIWindowType.UseMagicItem, uiManager, null);
+            dfSpellMakerWindow = (DaggerfallSpellMakerWindow)UIWindowFactory.GetInstance(UIWindowType.SpellMaker, uiManager, null);
+            dfItemMakerWindow = (DaggerfallItemMakerWindow)UIWindowFactory.GetInstance(UIWindowType.ItemMaker, uiManager, null);
+            dfPotionMakerWindow = (DaggerfallPotionMakerWindow)UIWindowFactory.GetInstance(UIWindowType.PotionMaker, uiManager, null);
+            dfCourtWindow = (DaggerfallCourtWindow)UIWindowFactory.GetInstance(UIWindowType.Court, uiManager, null);
+            dfExteriorAutomapWindow = (DaggerfallExteriorAutomapWindow)UIWindowFactory.GetInstance(UIWindowType.ExteriorAutomap, uiManager);
+
+            instantiatePersistentWindowInstances = false;
+            RaiseOnInstantiatePersistentWindowInstances();
         }
 
         void ProcessMessages()
@@ -451,14 +531,14 @@ namespace DaggerfallWorkshop.Game
                         if (GameManager.Instance.PlayerEntity.Items.Contains(Items.ItemGroups.MiscItems, (int)Items.MiscItems.Spellbook))
                             uiManager.PushWindow(dfSpellBookWindow);
                         else
-                            AddHUDText(TextManager.Instance.GetText("ClassicEffects", "noSpellbook"));
+                            AddHUDText(TextManager.Instance.GetLocalizedText("noSpellbook"));
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenUseMagicItemWindow:
                     if (dfUseMagicItemWindow.UpdateUsableMagicItems() > 0)
                         uiManager.PushWindow(dfUseMagicItemWindow);
                     else
-                        AddHUDText(TextManager.Instance.GetText("SpellmakerUI", "noItemToActivate"));
+                        AddHUDText(TextManager.Instance.GetLocalizedText("noItemToActivate"));
                     break;
                 case DaggerfallUIMessages.dfuiOpenCourtWindow:
                     uiManager.PushWindow(dfCourtWindow);
@@ -475,18 +555,28 @@ namespace DaggerfallWorkshop.Game
                 case DaggerfallUIMessages.dfuiOpenTravelMapWindow:
                     if (GameManager.Instance.IsPlayerInside)
                     {
-                        AddHUDText(HardStrings.cannotTravelIndoors);
+                        AddHUDText(TextManager.Instance.GetLocalizedText("cannotTravelIndoors"));
                     }
                     else
                     {
                         if (GameManager.Instance.AreEnemiesNearby())
                         {
-                            MessageBox(HardStrings.cannotTravelWithEnemiesNearby);
+                            MessageBox(TextManager.Instance.GetLocalizedText("cannotTravelWithEnemiesNearby"));
                         }
                         else
                         {
                             if (!GiveOffer())
                             {
+                                if (GameManager.Instance.PlayerEntity.Career.DamageFromSunlight && DaggerfallUnity.Instance.WorldTime.Now.IsDay)
+                                {
+                                    DaggerfallMessageBox mb = new DaggerfallMessageBox(DaggerfallUI.Instance.UserInterfaceManager);
+                                    mb.PreviousWindow = DaggerfallUI.Instance.UserInterfaceManager.TopWindow;
+                                    mb.ClickAnywhereToClose = true;
+                                    mb.SetText(TextManager.Instance.GetLocalizedText("sunlightDamageFastTravelDay"));
+                                    mb.Show();
+                                    return;
+                                }
+
                                 racialOverride = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect(); // Allow custom race to block fast travel (e.g. vampire during day)
                                 if (racialOverride != null && !racialOverride.CheckFastTravel(GameManager.Instance.PlayerEntity))
                                     return;
@@ -515,8 +605,11 @@ namespace DaggerfallWorkshop.Game
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenRestWindow:
-                    if (GameManager.Instance.AreEnemiesNearby())
+                    if (GameManager.Instance.AreEnemiesNearby(true))
                     {
+                        // Raise enemy alert status when monsters nearby
+                        GameManager.Instance.PlayerEntity.SetEnemyAlert(true);
+
                         // Alert player if monsters nearby
                         const int enemiesNearby = 354;
                         MessageBox(enemiesNearby);
@@ -529,25 +622,36 @@ namespace DaggerfallWorkshop.Game
                     }
                     else
                     {
-                        if (!GiveOffer())
+                        var preventedRestMessage = GameManager.Instance.GetPreventedRestMessage();
+                        if (preventedRestMessage != null)
+                        {
+                            if (preventedRestMessage != "")
+                                MessageBox(preventedRestMessage);
+                            else
+                            {
+                                const int cannotRestNow = 355;
+                                MessageBox(cannotRestNow);
+                            }
+                        }
+                        else if (!GiveOffer())
                         {
                             racialOverride = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect(); // Allow custom race to block rest (e.g. vampire not sated)
                             if (racialOverride != null && !racialOverride.CheckStartRest(GameManager.Instance.PlayerEntity))
                                 return;
 
-                            uiManager.PushWindow(new DaggerfallRestWindow(uiManager));
+                            uiManager.PushWindow(UIWindowFactory.GetInstanceWithArgs(UIWindowType.Rest, new object[] { uiManager, false }));
                         }
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenTransportWindow:
                     if (GameManager.Instance.IsPlayerInside)
                     {
-                        AddHUDText(HardStrings.cannotChangeTransportationIndoors);
+                        AddHUDText(TextManager.Instance.GetLocalizedText("cannotChangeTransportationIndoors"));
                     }
                     else
                     {
                         if (GameManager.Instance.PlayerController.isGrounded)
-                            uiManager.PushWindow(new DaggerfallTransportWindow(uiManager));
+                            uiManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.Transport, uiManager));
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenBookReaderWindow:
@@ -582,7 +686,29 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        public HotkeySequence.HotkeySequenceProcessStatus ProcessHotKeySequences()
+        {
+            if (uiManager.TopWindow != null)
+            {
+                BaseScreenComponent focusControl = uiManager.TopWindow.FocusControl;
+                if (focusControl == null || !focusControl.OverridesHotkeySequences)
+                {
+                    if (uiManager.TopWindow.ParentPanel != null)
+                        return uiManager.TopWindow.ParentPanel.ProcessHotkeySequences(lastKeyModifiers);
+                }
+                else if (focusControl != null && focusControl.OverridesHotkeySequences)
+                    return HotkeySequence.HotkeySequenceProcessStatus.Disabled;
+            }
+            return HotkeySequence.HotkeySequenceProcessStatus.NotFound;
+        }
+
         #region Helpers
+
+        public static void RefreshLargeHUDHeadTexture()
+        {
+            if (Instance.dfHUD != null && Instance.dfHUD.LargeHUD != null)
+                Instance.dfHUD.LargeHUD.HeadTexture = null;
+        }
 
         public static void AddHUDText(string message)
         {
@@ -622,6 +748,29 @@ namespace DaggerfallWorkshop.Game
                 Instance.uiManager.PostMessage(message);
         }
 
+        /// <summary>
+        /// Registers a title and click event to add to the pause window dropdown menu
+        /// </summary>
+        /// <param name="text">The text of the dropdown button. </param>
+        /// <param name="action">The action executed for clicking on the button.</param>
+        public void RegisterPauseOptionToDropdown(string text, Action action)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                throw new ArgumentException("'text' cannot be null or whitespace");
+            if (action == null)
+                throw new ArgumentNullException("action");
+
+            pauseOptionsDropdownItems.Add(new System.Tuple<string, Action>(text, action));
+        }
+
+        /// <summary>
+        /// Returns shallow copied list of registered dropdown items in alphabetical order
+        /// </summary>
+        public IEnumerable<System.Tuple<string, Action>> GetPauseOptionsDropdownItems()
+        {
+            return pauseOptionsDropdownItems.OrderBy(it => it.Item1);
+        }
+
         public void PopupMessage(string text)
         {
             if (dfHUD != null)
@@ -641,12 +790,27 @@ namespace DaggerfallWorkshop.Game
         }
 
         /// <summary>
-        /// Gets a new DaggerfallFont.
+        /// Sets internal fonts used by game. Useful for standalone font mods.
+        /// Locale mods can still override this by registering a new font for current locale.
         /// </summary>
-        /// <param name="index">Index of font between 1-5 (default is 4).</param>
-        /// <returns>DaggerfallFont</returns>
-        public DaggerfallFont GetFont(int index = 4)
+        /// <param name="fontName">Name of font to set.</param>
+        /// <param name="font">Font object.</param>
+        public void SetFont(DaggerfallFont.FontName fontName, DaggerfallFont font)
         {
+            daggerfallFonts[(int)fontName] = font;
+        }
+
+        /// <summary>
+        /// Gets a DaggerfallFont.
+        /// </summary>
+        /// <param name="index">Name of font, which must be one of the 5 Daggerfall fonts..</param>
+        /// <returns>DaggerfallFont</returns>
+        public DaggerfallFont GetFont(DaggerfallFont.FontName fontName)
+        {
+            // If current locale has a custom font registered this will always have priority over any other font
+            if (TextManager.Instance.HasLocalizedFont(fontName))
+                return TextManager.Instance.GetLocalizedFont(fontName);
+
             // Attempt to use StreamingAssets for FNT files
             string path = FontsFolder;
             if (!Directory.Exists(path))
@@ -666,26 +830,26 @@ namespace DaggerfallWorkshop.Game
             }
 
             // Try to load font from target path
-            switch (index)
+            switch (fontName)
             {
-                case 1:
+                case DaggerfallFont.FontName.FONT0000:
                     if (daggerfallFonts[0] == null) daggerfallFonts[0] = new DaggerfallFont(path, DaggerfallFont.FontName.FONT0000);
                     daggerfallFonts[0].FilterMode = globalFilterMode;
                     return daggerfallFonts[0];
-                case 2:
+                case DaggerfallFont.FontName.FONT0001:
                     if (daggerfallFonts[1] == null) daggerfallFonts[1] = new DaggerfallFont(path, DaggerfallFont.FontName.FONT0001);
                     daggerfallFonts[1].FilterMode = globalFilterMode;
                     return daggerfallFonts[1];
-                case 3:
+                case DaggerfallFont.FontName.FONT0002:
                     if (daggerfallFonts[2] == null) daggerfallFonts[2] = new DaggerfallFont(path, DaggerfallFont.FontName.FONT0002);
                     daggerfallFonts[2].FilterMode = globalFilterMode;
                     return daggerfallFonts[2];
-                case 4:
+                case DaggerfallFont.FontName.FONT0003:
                 default:
                     if (daggerfallFonts[3] == null) daggerfallFonts[3] = new DaggerfallFont(path, DaggerfallFont.FontName.FONT0003);
                     daggerfallFonts[3].FilterMode = globalFilterMode;
                     return daggerfallFonts[3];
-                case 5:
+                case DaggerfallFont.FontName.FONT0004:
                     if (daggerfallFonts[4] == null) daggerfallFonts[4] = new DaggerfallFont(path, DaggerfallFont.FontName.FONT0004);
                     daggerfallFonts[4].FilterMode = globalFilterMode;
                     return daggerfallFonts[4];
@@ -890,9 +1054,14 @@ namespace DaggerfallWorkshop.Game
 
         public static HorizontalSlider AddSlider(Vector2 position, Action<HorizontalSlider> setIndicator, float textScale = 1, Panel panel = null)
         {
+            return AddSlider(position, 80.0f, setIndicator, textScale, panel);
+        }
+
+        public static HorizontalSlider AddSlider(Vector2 position, float length, Action<HorizontalSlider> setIndicator, float textScale = 1, Panel panel = null)
+        {
             var slider = new HorizontalSlider();
             slider.Position = position;
-            slider.Size = new Vector2(80.0f, 4.0f);
+            slider.Size = new Vector2(length, 4.0f);
             slider.DisplayUnits = 20;
             slider.BackgroundColor = new Color(0.5f, 0.5f, 0.5f, 0.3f);
             slider.TintColor = new Color(153, 153, 0);
@@ -1345,9 +1514,9 @@ namespace DaggerfallWorkshop.Game
         {
             if (dfUnity.IsPathValidated)
             {
-                uiManager.PushWindow(new DaggerfallStartWindow(uiManager));
+                uiManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.Start, uiManager));
                 if (!string.IsNullOrEmpty(video) && enableVideos)
-                    uiManager.PushWindow(new DaggerfallVidPlayerWindow(uiManager, video));
+                    uiManager.PushWindow(UIWindowFactory.GetInstanceWithArgs(UIWindowType.VidPlayer, new object[] { uiManager, video }));
             }
         }
 
@@ -1370,6 +1539,16 @@ namespace DaggerfallWorkshop.Game
         private void GivePc_OnOfferPending(Questing.Actions.GivePc sender)
         {
             lastPendingOfferSender = sender;
+        }
+
+        /// <summary>
+        /// Event raised when the persistent window instances have been instantiated.
+        /// </summary>
+        public delegate void OnInstantiatePersistentWindowInstancesHandler();
+        public event OnInstantiatePersistentWindowInstancesHandler OnInstantiatePersistentWindowInstances;
+        protected virtual void RaiseOnInstantiatePersistentWindowInstances()
+        {
+            OnInstantiatePersistentWindowInstances?.Invoke();
         }
 
         #endregion

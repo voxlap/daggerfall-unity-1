@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -25,6 +25,8 @@ namespace DaggerfallWorkshop.Game
     [RequireComponent(typeof(EnemySenses))]
     public class EnemyAttack : MonoBehaviour
     {
+        public const float minRangedDistance = 240 * MeshReader.GlobalScale; // 6m
+        public const float maxRangedDistance = 2048 * MeshReader.GlobalScale; // 51.2m
         public float MeleeDistance = 2.25f;                // Maximum distance for melee attack
         public float ClassicMeleeDistanceVsAI = 1.5f;      // Maximum distance for melee attack vs other AI in classic AI mode
         public float MeleeTimer = 0;                       // Must be 0 for a melee attack or touch spell to be done
@@ -33,7 +35,7 @@ namespace DaggerfallWorkshop.Game
         EnemyMotor motor;
         EnemySenses senses;
         EnemySounds sounds;
-        DaggerfallMobileUnit mobile;
+        MobileUnit mobile;
         DaggerfallEntityBehaviour entityBehaviour;
         int damage = 0;
 
@@ -42,14 +44,20 @@ namespace DaggerfallWorkshop.Game
             motor = GetComponent<EnemyMotor>();
             senses = GetComponent<EnemySenses>();
             sounds = GetComponent<EnemySounds>();
-            mobile = GetComponentInChildren<DaggerfallMobileUnit>();
+            mobile = GetComponent<DaggerfallEnemy>().MobileUnit;
             entityBehaviour = GetComponent<DaggerfallEntityBehaviour>();
         }
 
         void FixedUpdate()
         {
+            const int speedFloor = 8;
+
             // Unable to attack if AI disabled or paralyzed
             if (GameManager.Instance.DisableAI || entityBehaviour.Entity.IsParalyzed)
+                return;
+
+            // Unable to attack when playing certain oneshot anims
+            if (mobile && mobile.IsPlayingOneShot() && mobile.OneShotPauseActionsWhilePlaying())
                 return;
 
             // Countdown to next melee attack
@@ -58,8 +66,15 @@ namespace DaggerfallWorkshop.Game
             if (MeleeTimer < 0)
                 MeleeTimer = 0;
 
+            // Get entity speed and enforce a lower limit so Drain Speed does not prevent attack ever firing
             EnemyEntity entity = entityBehaviour.Entity as EnemyEntity;
             int speed = entity.Stats.LiveSpeed;
+            if (speed < speedFloor)
+                speed = speedFloor;
+
+            // Slow down enemy frame rate based on floored speed value
+            // If enemy is still at maximum speed then divisor is 1 and will experience no change to frame rate
+            mobile.FrameSpeedDivisor = entity.Stats.PermanentSpeed / speed;
 
             // Note: Speed comparison here is reversed from classic. Classic's way makes fewer attack
             // attempts at higher speeds, so it seems backwards.
@@ -201,7 +216,7 @@ namespace DaggerfallWorkshop.Game
                 if (DaggerfallUnity.Settings.CombatVoices && entity.EntityType == EntityTypes.EnemyClass && Dice100.SuccessRoll(20))
                 {
                     Genders gender;
-                    if (mobile.Summary.Enemy.Gender == MobileGender.Male || entity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
+                    if (mobile.Enemy.Gender == MobileGender.Male || entity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
                         gender = Genders.Male;
                     else
                         gender = Genders.Female;
@@ -234,7 +249,7 @@ namespace DaggerfallWorkshop.Game
             PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
 
             // Calculate damage
-            damage = FormulaHelper.CalculateAttackDamage(entity, playerEntity, -1, 0, weapon);
+            damage = FormulaHelper.CalculateAttackDamage(entity, playerEntity, false, 0, weapon);
 
             // Break any "normal power" concealment effects on enemy
             if (entity.IsMagicallyConcealedNormalPower && damage > 0)
@@ -295,7 +310,7 @@ namespace DaggerfallWorkshop.Game
             EnemyMotor targetMotor = senses.Target.transform.GetComponent<EnemyMotor>();
 
             // Calculate damage
-            damage = FormulaHelper.CalculateAttackDamage(entity, targetEntity, -1, 0, weapon);
+            damage = FormulaHelper.CalculateAttackDamage(entity, targetEntity, false, 0, weapon);
 
             // Break any "normal power" concealment effects on enemy
             if (entity.IsMagicallyConcealedNormalPower && damage > 0)
@@ -336,9 +351,9 @@ namespace DaggerfallWorkshop.Game
 
                 if (DaggerfallUnity.Settings.CombatVoices && senses.Target.EntityType == EntityTypes.EnemyClass && Dice100.SuccessRoll(40))
                 {
-                    DaggerfallMobileUnit targetMobileUnit = senses.Target.GetComponentInChildren<DaggerfallMobileUnit>();
+                    var targetMobileUnit = senses.Target.GetComponentInChildren<MobileUnit>();
                     Genders gender;
-                    if (targetMobileUnit.Summary.Enemy.Gender == MobileGender.Male || targetEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
+                    if (targetMobileUnit.Enemy.Gender == MobileGender.Male || targetEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
                         gender = Genders.Male;
                     else
                         gender = Genders.Female;

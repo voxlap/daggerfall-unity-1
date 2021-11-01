@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -411,7 +411,7 @@ namespace DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings
             Preset preset = settings.Presets[listBox.SelectedIndex];
             string fileName = string.Join("_", preset.Title.Split(Path.GetInvalidFileNameChars())) + ".json";
 
-            string dirPath = ModManager.CombinePaths(Application.persistentDataPath, "Mods", "ExportedPresets", mod.FileName);
+            string dirPath = Path.Combine(DaggerfallUnity.Settings.PersistentDataPath, "Mods", "ExportedPresets", mod.FileName);
             string filePath = Path.Combine(dirPath, fileName);
 
             var messageBox = new DaggerfallMessageBox(uiManager, this, true);

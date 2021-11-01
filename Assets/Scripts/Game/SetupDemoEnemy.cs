@@ -22,6 +22,8 @@ namespace DaggerfallWorkshop.Game
 
         DaggerfallEntityBehaviour entityBehaviour;
 
+        public GameObject LightAura;
+
         void Awake()
         {
             // Must have an entity behaviour
@@ -33,11 +35,40 @@ namespace DaggerfallWorkshop.Game
         void Start()
         {
             // Disable this game object if missing mobile setup
-            DaggerfallMobileUnit dfMobile = GetMobileBillboardChild();
+            MobileUnit dfMobile = GetMobileBillboardChild();
             if (dfMobile == null)
                 this.gameObject.SetActive(false);
-            if (!dfMobile.Summary.IsSetup)
+            if (!dfMobile.IsSetup)
                 this.gameObject.SetActive(false);
+        }
+
+
+        enum ControllerJustification
+        {
+            TOP,
+            CENTER,
+            BOTTOM
+        }
+
+        static void AdjustControllerHeight(CharacterController controller, float newHeight, ControllerJustification justification)
+        {
+            Vector3 newCenter = controller.center;
+            switch (justification)
+            {
+                case ControllerJustification.TOP:
+                    newCenter.y -= (newHeight - controller.height) / 2;
+                    break;
+
+                case ControllerJustification.BOTTOM:
+                    newCenter.y += (newHeight - controller.height) / 2;
+                    break;
+
+                case ControllerJustification.CENTER:
+                    // do nothing, centered is normal CharacterController behavior
+                    break;
+            }
+            controller.height = newHeight;
+            controller.center = newCenter;
         }
 
         /// <summary>
@@ -52,12 +83,13 @@ namespace DaggerfallWorkshop.Game
                 mobileEnemy.Team = MobileTeams.PlayerAlly;
 
             // Find mobile unit in children
-            DaggerfallMobileUnit dfMobile = GetMobileBillboardChild();
+            MobileUnit dfMobile = GetMobileBillboardChild();
             if (dfMobile != null)
             {
                 // Setup mobile billboard
                 Vector2 size = Vector2.one;
                 mobileEnemy.Gender = gender;
+                mobileEnemy.Reactions = EnemyReaction;
                 dfMobile.SetEnemy(dfUnity, mobileEnemy, EnemyReaction, ClassicSpawnDistanceType);
 
                 // Setup controller
@@ -65,24 +97,19 @@ namespace DaggerfallWorkshop.Game
                 if (controller)
                 {
                     // Set base height from sprite
-                    size = dfMobile.Summary.RecordSizes[0];
+                    size = dfMobile.GetSize();
                     controller.height = size.y;
 
                     // Reduce height of flying creatures as their wing animation makes them taller than desired
                     // This helps them get through doors while aiming for player eye height
-                    if (dfMobile.Summary.Enemy.Behaviour == MobileBehaviour.Flying)
-                        controller.height /= 2f;
+                    if (dfMobile.Enemy.Behaviour == MobileBehaviour.Flying)
+                        // (in frame 0 wings are in high position, assume body is  the lower half)
+                        AdjustControllerHeight(controller, controller.height / 2, ControllerJustification.BOTTOM);
 
                     // Limit minimum controller height
                     // Stops very short characters like rats from being walked upon
                     if (controller.height < 1.6f)
-                    {
-                        // Adjust center to match new height
-                        Vector3 newCenter = controller.center;
-                        newCenter.y += (1.6f - controller.height) / 2;
-                        controller.center = newCenter;
-                        controller.height = 1.6f;
-                    }
+                        AdjustControllerHeight(controller, 1.6f, ControllerJustification.BOTTOM);
 
                     controller.gameObject.layer = LayerMask.NameToLayer("Enemies");
                 }
@@ -91,9 +118,33 @@ namespace DaggerfallWorkshop.Game
                 EnemySounds enemySounds = GetComponent<Game.EnemySounds>();
                 if (enemySounds)
                 {
-                    enemySounds.MoveSound = (SoundClips)dfMobile.Summary.Enemy.MoveSound;
-                    enemySounds.BarkSound = (SoundClips)dfMobile.Summary.Enemy.BarkSound;
-                    enemySounds.AttackSound = (SoundClips)dfMobile.Summary.Enemy.AttackSound;
+                    enemySounds.MoveSound = (SoundClips)dfMobile.Enemy.MoveSound;
+                    enemySounds.BarkSound = (SoundClips)dfMobile.Enemy.BarkSound;
+                    enemySounds.AttackSound = (SoundClips)dfMobile.Enemy.AttackSound;
+                }
+
+                MeshRenderer meshRenderer = dfMobile.GetComponent<MeshRenderer>();
+                if (meshRenderer)
+                {
+                    if (dfMobile.Enemy.Behaviour == MobileBehaviour.Spectral)
+                    {
+                        meshRenderer.material.shader = Shader.Find(MaterialReader._DaggerfallGhostShaderName);
+                        meshRenderer.material.SetFloat("_Cutoff", 0.1f);
+                    }
+                    if (dfMobile.Enemy.NoShadow)
+                    {
+                        meshRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    }
+                    if (dfMobile.Enemy.GlowColor != null)
+                    {
+                        meshRenderer.receiveShadows = false;
+                        GameObject enemyLightGameObject = Instantiate(LightAura);
+                        enemyLightGameObject.transform.parent = dfMobile.transform;
+                        enemyLightGameObject.transform.localPosition = new Vector3(0, 0.3f, 0.2f);
+                        Light enemyLight = enemyLightGameObject.GetComponent<Light>();
+                        enemyLight.color = (Color)dfMobile.Enemy.GlowColor;
+                        enemyLight.shadows = DaggerfallUnity.Settings.DungeonLightShadows ? LightShadows.Soft : LightShadows.None;
+                    }
                 }
 
                 // Setup entity
@@ -116,10 +167,33 @@ namespace DaggerfallWorkshop.Game
                         entityBehaviour.EntityType = EntityTypes.EnemyClass;
                         entity.SetEnemyCareer(mobileEnemy, entityBehaviour.EntityType);
                     }
+                    else if (DaggerfallEntity.GetCustomCareerTemplate(enemyIndex) != null)
+                    {
+                        // For custom enemies, we use the 7th bit to tell whether a class or monster was intended
+                        // 0-127 is monster
+                        // 128-255 is class
+                        // 256-383 is monster again
+                        // etc
+                        if ((enemyIndex & 128) != 0)
+                        {
+                            entityBehaviour.EntityType = EntityTypes.EnemyClass;
+                        }
+                        else
+                        {
+                            entityBehaviour.EntityType = EntityTypes.EnemyMonster;
+                        }
+                        entity.SetEnemyCareer(mobileEnemy, entityBehaviour.EntityType);
+                    }
                     else
                     {
                         entityBehaviour.EntityType = EntityTypes.None;
                     }
+                }
+
+                // Add special behaviour for Daedra Seducer mobiles
+                if (dfMobile.Enemy.ID == (int)MobileTypes.DaedraSeducer)
+                {
+                    dfMobile.gameObject.AddComponent<DaedraSeducerMobileBehaviour>();
                 }
             }
         }
@@ -165,12 +239,19 @@ namespace DaggerfallWorkshop.Game
         }
 
         /// <summary>
-        /// Finds mobile billboard in children.
+        /// Finds mobile billboard or custom implementation in children.
         /// </summary>
-        /// <returns>DaggerfallMobileUnit.</returns>
-        public DaggerfallMobileUnit GetMobileBillboardChild()
+        /// <returns>Mobile Unit component.</returns>
+        public MobileUnit GetMobileBillboardChild()
         {
-            return GetComponentInChildren<DaggerfallMobileUnit>();
+#if UNITY_EDITOR
+            // Get component from prefab in edit mode
+            if (!Application.isPlaying)
+                return GetComponentInChildren<DaggerfallMobileUnit>();
+#endif
+
+            // Get default or custom implementation
+            return GetComponent<DaggerfallEnemy>().MobileUnit;
         }
     }
 }

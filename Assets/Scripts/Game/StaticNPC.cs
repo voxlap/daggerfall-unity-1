@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -61,6 +61,14 @@ namespace DaggerfallWorkshop.Game
             get { return GetDisplayName(); }
         }
 
+        /// <summary>
+        /// Checks if this is a child NPC using texture or faction.
+        /// </summary>
+        public bool IsChildNPC
+        {
+            get { return IsChildNPCData(Data); }
+        }
+
         #endregion
 
         #region Structs & Enums
@@ -77,10 +85,11 @@ namespace DaggerfallWorkshop.Game
             public int factionID;
             public int nameSeed;
             public Genders gender;
+            public Races race;
             public Context context;
+            public int mapID;
 
             // Derived at runtime
-            public int mapID;
             public int locationID;
             public int buildingKey;
             public NameHelper.BankTypes nameBank;
@@ -122,6 +131,7 @@ namespace DaggerfallWorkshop.Game
         /// </summary>
         public void SetLayoutData(DFBlock.RdbObject obj)
         {
+            PlayerGPS playerGPS = GameManager.Instance.PlayerGPS;
             SetLayoutData(ref npcData,
                 obj.XPos, obj.YPos, obj.ZPos,
                 obj.Resources.FlatResource.Flags,
@@ -129,6 +139,8 @@ namespace DaggerfallWorkshop.Game
                 obj.Resources.FlatResource.TextureArchive,
                 obj.Resources.FlatResource.TextureRecord,
                 obj.Resources.FlatResource.Position,
+                playerGPS.CurrentMapID,
+                playerGPS.CurrentLocation.LocationIndex,
                 0);
             npcData.context = Context.Dungeon;
         }
@@ -138,6 +150,7 @@ namespace DaggerfallWorkshop.Game
         /// </summary>
         public void SetLayoutData(DFBlock.RmbBlockPeopleRecord obj, int buildingKey = 0)
         {
+            PlayerGPS playerGPS = GameManager.Instance.PlayerGPS;
             SetLayoutData(ref npcData,
                 obj.XPos, obj.YPos, obj.ZPos,
                 obj.Flags,
@@ -145,15 +158,28 @@ namespace DaggerfallWorkshop.Game
                 obj.TextureArchive,
                 obj.TextureRecord,
                 obj.Position,
+                playerGPS.CurrentMapID,
+                playerGPS.CurrentLocation.LocationIndex,
                 buildingKey);
             npcData.context = Context.Building;
         }
 
         /// <summary>
         /// Sets NPC data from RMB layout flat record. (exterior NPCs)
+        /// Requires mapID and locationIndex to be passed in as layout may occur without player being in the location.
         /// </summary>
-        public void SetLayoutData(DFBlock.RmbBlockFlatObjectRecord obj)
+        public void SetLayoutData(DFBlock.RmbBlockFlatObjectRecord obj, int mapId, int locationIndex)
         {
+            // Gender flag is invalid for RMB exterior NPCs: get it from FLATS.CFG instead
+            int flatID = FlatsFile.GetFlatID(obj.TextureArchive, obj.TextureRecord);
+            if (DaggerfallUnity.Instance.ContentReader.FlatsFileReader.GetFlatData(flatID, out FlatsFile.FlatData flatCFG))
+            {
+                if (flatCFG.gender.Contains("2"))
+                    obj.Flags |= 32;
+                else
+                    obj.Flags &= 223;
+            }
+
             SetLayoutData(ref npcData,
                 obj.XPos, obj.YPos, obj.ZPos,
                 obj.Flags,
@@ -161,11 +187,13 @@ namespace DaggerfallWorkshop.Game
                 obj.TextureArchive,
                 obj.TextureRecord,
                 obj.Position,
+                mapId,
+                locationIndex,
                 0);
             npcData.context = Context.Custom;
         }
 
-        public static void SetLayoutData(ref NPCData data, int XPos, int YPos, int ZPos, int flags, int factionId, int archive, int record, long position, int buildingKey)
+        public static void SetLayoutData(ref NPCData data, int XPos, int YPos, int ZPos, int flags, int factionId, int archive, int record, long position, int mapId, int locationIndex, int buildingKey)
         {
             // Store common layout data
             data.hash = GetPositionHash(XPos, YPos, ZPos);
@@ -173,9 +201,11 @@ namespace DaggerfallWorkshop.Game
             data.factionID = factionId;
             data.billboardArchiveIndex = archive;
             data.billboardRecordIndex = record;
-            data.nameSeed = (int)position ^ buildingKey;
+            data.nameSeed = (int)position ^ buildingKey + locationIndex;
             data.gender = ((flags & 32) == 32) ? Genders.Female : Genders.Male;
+            data.race = GetRaceFromFaction(factionId);
             data.buildingKey = buildingKey;
+            data.mapID = mapId;
         }
 
         /// <summary>
@@ -198,6 +228,7 @@ namespace DaggerfallWorkshop.Game
             npcData.factionID = factionID;
             npcData.nameSeed = (nameSeed == -1) ? npcData.hash : nameSeed;
             npcData.gender = gender;
+            npcData.race = GetRaceFromFaction(factionID);
             npcData.context = Context.Custom;
         }
 
@@ -240,9 +271,6 @@ namespace DaggerfallWorkshop.Game
             PlayerEnterExit playerEnterExit = GameManager.Instance.PlayerEnterExit;
             PlayerGPS playerGPS = GameManager.Instance.PlayerGPS;
 
-            // Store map ID
-            npcData.mapID = playerGPS.CurrentMapID;
-
             // Store location ID (if any - not all locations carry a unique ID)
             npcData.locationID = (int)playerGPS.CurrentLocation.Exterior.ExteriorData.LocationId;
 
@@ -283,6 +311,39 @@ namespace DaggerfallWorkshop.Game
         public static int GetPositionHash(int x, int y, int z)
         {
             return x ^ y << 2 ^ z >> 2;
+        }
+
+        /// <summary>
+        /// Check if a known child NPC.
+        /// </summary>
+        /// <returns>True if NPC data matches known children textures or faction.</returns>
+        public static bool IsChildNPCData(NPCData data)
+        {
+            const int childrenFactionID = 514;
+
+            bool isChildNPCTexture = DaggerfallWorkshop.Utility.TextureReader.IsChildNPCTexture(data.billboardArchiveIndex, data.billboardRecordIndex);
+            bool isChildrenFaction = data.factionID == childrenFactionID;
+
+            return isChildNPCTexture || isChildrenFaction;
+        }
+
+        /// <summary>
+        /// Return the race corresponding to a given faction ID.
+        /// </summary>
+        /// <param name="factionId"></param>
+        /// <returns>The faction race if available, otherwise the race of the current region.</returns>
+        public static Races GetRaceFromFaction(int factionId)
+        {
+            if (factionId != 0)
+            {
+                FactionFile.FactionData fd;
+                GameManager.Instance.PlayerEntity.FactionData.GetFactionData(factionId, out fd);
+                Races race = RaceTemplate.GetRaceFromFactionRace((FactionFile.FactionRaces)fd.race);
+                if (race != Races.None)
+                    return race;
+            }
+
+            return GameManager.Instance.PlayerGPS.GetRaceOfCurrentRegion();
         }
 
         #endregion

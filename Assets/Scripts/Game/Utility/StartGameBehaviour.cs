@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -10,6 +10,7 @@
 //
 
 using UnityEngine;
+using UnityEngine.Rendering.PostProcessing;
 using System;
 using System.Collections.Generic;
 using DaggerfallConnect;
@@ -45,8 +46,8 @@ namespace DaggerfallWorkshop.Game.Utility
         public bool GodMode = false;
 
         //events used to update state in state manager
-        public static System.EventHandler OnStartMenu;
-        public static System.EventHandler OnStartGame;
+        public static EventHandler OnStartMenu;
+        public static EventHandler OnStartGame;
 
         // Private fields
         CharacterDocument characterDocument;
@@ -54,6 +55,8 @@ namespace DaggerfallWorkshop.Game.Utility
         GameObject player;
         PlayerEnterExit playerEnterExit;
         StartMethods lastStartMethod;
+        PostProcessLayer postProcessLayer;
+        PostProcessVolume postProcessVolume;
 
         #endregion
 
@@ -75,6 +78,12 @@ namespace DaggerfallWorkshop.Game.Utility
         {
             get { return lastStartMethod; }
         }
+
+        public delegate void PlayerStartingEquipment(PlayerEntity playerEntity, CharacterDocument characterDocument);
+        public PlayerStartingEquipment AssignStartingEquipment { get; set; }
+
+        public delegate void PlayerStartingSpells(PlayerEntity playerEntity, CharacterDocument characterDocument);
+        public PlayerStartingSpells AssignStartingSpells { get; set; }
 
         #endregion
 
@@ -100,6 +109,10 @@ namespace DaggerfallWorkshop.Game.Utility
             // Get player objects
             player = FindPlayer();
             playerEnterExit = FindPlayerEnterExit(player);
+
+            // Assign default player equipment & spells allocation methods
+            AssignStartingEquipment = DaggerfallUnity.Instance.ItemHelper.AssignStartingGear;
+            AssignStartingSpells = SetStartingSpells;
         }
 
         void Start()
@@ -162,7 +175,7 @@ namespace DaggerfallWorkshop.Game.Utility
 
         #region Common Startup
 
-        void ApplyStartSettings()
+        public void ApplyStartSettings()
         {
             // Resolution
             if (DaggerfallUnity.Settings.ExclusiveFullscreen && DaggerfallUnity.Settings.Fullscreen)
@@ -192,20 +205,28 @@ namespace DaggerfallWorkshop.Game.Utility
                 // Set mouse look
                 PlayerMouseLook mouseLook = cameraObject.GetComponent<PlayerMouseLook>();
                 if (mouseLook)
+                {
                     mouseLook.invertMouseY = DaggerfallUnity.Settings.InvertMouseVertical;
-
-                // Set mouse look smoothing
-                if (mouseLook)
+                    // Set mouse look smoothing
                     mouseLook.enableSmoothing = DaggerfallUnity.Settings.MouseLookSmoothing;
-
-                // Set mouse look sensitivity
-                if (mouseLook)
+                    // Set mouse look sensitivity
                     mouseLook.sensitivityScale = DaggerfallUnity.Settings.MouseLookSensitivity;
 
-                // Set rendering path
-                if (DaggerfallUnity.Settings.UseLegacyDeferred)
-                    camera.renderingPath = RenderingPath.DeferredLighting;
+                    mouseLook.joystickSensitivityScale = DaggerfallUnity.Settings.JoystickLookSensitivity;
+                }
             }
+
+            DeployCoreGameEffectSettings(CoreGameEffectSettingsGroups.Everything);
+
+            InputManager.Instance.JoystickCursorSensitivity = DaggerfallUnity.Settings.JoystickCursorSensitivity;
+
+            InputManager.Instance.JoystickMovementThreshold = DaggerfallUnity.Settings.JoystickMovementThreshold;
+
+            InputManager.Instance.JoystickDeadzone = DaggerfallUnity.Settings.JoystickDeadzone;
+
+            InputManager.Instance.EnableController = DaggerfallUnity.Settings.EnableController;
+
+            Application.runInBackground = DaggerfallUnity.Settings.RunInBackground;
 
             // Set shadow resolution
             GameManager.UpdateShadowResolution();
@@ -215,6 +236,14 @@ namespace DaggerfallWorkshop.Game.Utility
                 QualitySettings.vSyncCount = 1;
             else
                 QualitySettings.vSyncCount = 0;
+
+            // Target frame rate settings
+            // Does nothing if VSync enabled
+            // Default is 0 but anything below 30 is ignored and treated as disabled
+            if (DaggerfallUnity.Settings.TargetFrameRate >= 30 && !DaggerfallUnity.Settings.VSync)
+            {
+                Application.targetFrameRate = DaggerfallUnity.Settings.TargetFrameRate;
+            }
 
             // Filter settings
             DaggerfallUnity.Instance.MaterialReader.MainFilterMode = (FilterMode)DaggerfallUnity.Settings.MainFilterMode;
@@ -239,6 +268,9 @@ namespace DaggerfallWorkshop.Game.Utility
             // GodMode setting
             PlayerEntity playerEntity = FindPlayerEntity();
             playerEntity.GodMode = GodMode;
+
+            PlayerSpeedChanger speedChanger = FindPlayerSpeedChanger();
+            speedChanger.ToggleSneak = DaggerfallUnity.Settings.ToggleSneak;
 
             // Enable/disable videos
             DaggerfallUI.Instance.enableVideos = EnableVideos;
@@ -369,20 +401,21 @@ namespace DaggerfallWorkshop.Game.Utility
                     playerEnterExit.EnableExteriorParent();
                     if (streamingWorld)
                     {
+                        streamingWorld.TeleportToCoordinates(mapPixel.X, mapPixel.Y);
                         streamingWorld.SetAutoReposition(StreamingWorld.RepositionMethods.Origin, Vector3.zero);
                         streamingWorld.suppressWorld = false;
                     }
                 }
             }
 
-            // Assign starting gear to player entity
-            DaggerfallUnity.Instance.ItemHelper.AssignStartingGear(playerEntity, characterDocument.classIndex, characterDocument.isCustom);
-
-            // Assign starting spells to player entity
-            SetStartingSpells(playerEntity);
-
             // Apply biography effects to player entity
             BiogFile.ApplyEffects(characterDocument.biographyEffects, playerEntity);
+
+            // Assign starting gear to player entity
+            AssignStartingEquipment(playerEntity, characterDocument);
+            
+            // Assign starting spells to player entity
+            AssignStartingSpells(playerEntity, characterDocument);
 
             // Assign starting level up skill sum
             playerEntity.SetCurrentLevelUpSkillSum();
@@ -406,13 +439,13 @@ namespace DaggerfallWorkshop.Game.Utility
             lastStartMethod = StartMethods.NewCharacter;
 
             // Start main quest
-            QuestMachine.Instance.InstantiateQuest("_TUTOR__");
-            QuestMachine.Instance.InstantiateQuest("_BRISIEN");
+            QuestMachine.Instance.StartQuest("_TUTOR__");
+            QuestMachine.Instance.StartQuest("_BRISIEN");
 
             // Launch startup optional quest
             if (!string.IsNullOrEmpty(LaunchQuest))
             {
-                QuestMachine.Instance.InstantiateQuest(LaunchQuest);
+                QuestMachine.Instance.StartQuest(LaunchQuest);
                 LaunchQuest = string.Empty;
             }
             // Launch any InitAtGameStart quests
@@ -431,6 +464,7 @@ namespace DaggerfallWorkshop.Game.Utility
             SaveLoadManager.ClearSceneCache(true);
             GameManager.Instance.GuildManager.ClearMembershipData();
             GameManager.Instance.PlayerGPS.ClearDiscoveryData();
+            Banking.DaggerfallBankManager.ResetShip();
             RaiseOnNewGameEvent();
             ResetWeaponManager();
         }
@@ -559,7 +593,7 @@ namespace DaggerfallWorkshop.Game.Utility
             playerEntity.AssignItemsAndSpells(saveTree);
 
             // Assign guild memberships
-            playerEntity.AssignGuildMemberships(saveTree);
+            playerEntity.AssignGuildMemberships(saveTree, characterDocument.classicTransformedRace == Races.Vampire);
 
             // Assign gold pieces
             playerEntity.GoldPieces = (int)characterRecord.ParsedData.physicalGold;
@@ -743,6 +777,14 @@ namespace DaggerfallWorkshop.Game.Utility
             return playerEntity;
         }
 
+        PlayerSpeedChanger FindPlayerSpeedChanger()
+        {
+            GameObject player = FindPlayer();
+            PlayerSpeedChanger speedChanger = player.GetComponent<PlayerSpeedChanger>();
+
+            return speedChanger;
+        }
+
         void ResetWeaponManager()
         {
             // Weapon hand and equip state not serialized currently
@@ -750,7 +792,10 @@ namespace DaggerfallWorkshop.Game.Utility
             GameManager.Instance.WeaponManager.Reset();
         }
 
-        void SetStartingSpells(PlayerEntity playerEntity)
+        /// <summary>
+        /// Assigns starting spells to the spellbook item for a new character.
+        /// </summary>
+        void SetStartingSpells(PlayerEntity playerEntity, CharacterDocument characterDocument)
         {
             if (characterDocument.classIndex > 6 && !characterDocument.isCustom) // Class does not have starting spells
                 return;
@@ -810,6 +855,124 @@ namespace DaggerfallWorkshop.Game.Utility
             }
         }
 
+        public void DeployCoreGameEffectSettings(CoreGameEffectSettingsGroups groups)
+        {
+            // Get layer
+            if (!postProcessLayer)
+            {
+                postProcessLayer = GameManager.Instance.MainCamera.GetComponent<PostProcessLayer>();
+                if (!postProcessLayer)
+                {
+                    Debug.LogError("Could not locate PostProcessLayer on MainCamera");
+                    return;
+                }
+            }
+
+            // Get volume
+            if (!postProcessVolume)
+            {
+                postProcessVolume = GameManager.Instance.PostProcessVolume;
+                if (!postProcessVolume)
+                {
+                    Debug.LogError("Could not locate PostProcessVolume in scene");
+                    return;
+                }
+            }
+
+            // Antialiasing
+            if (groups.HasFlag(CoreGameEffectSettingsGroups.Antialiasing))
+            {
+                switch ((AntiAliasingMethods)DaggerfallUnity.Settings.AntialiasingMethod)
+                {
+                    case AntiAliasingMethods.None:
+                        postProcessLayer.antialiasingMode = PostProcessLayer.Antialiasing.None;
+                        break;
+                    case AntiAliasingMethods.FXAA:
+                        postProcessLayer.antialiasingMode = PostProcessLayer.Antialiasing.FastApproximateAntialiasing;
+                        postProcessLayer.fastApproximateAntialiasing.fastMode = DaggerfallUnity.Settings.AntialiasingFXAAFastMode;
+                        break;
+                    case AntiAliasingMethods.SMAA:
+                        postProcessLayer.antialiasingMode = PostProcessLayer.Antialiasing.SubpixelMorphologicalAntialiasing;
+                        postProcessLayer.subpixelMorphologicalAntialiasing.quality = (SubpixelMorphologicalAntialiasing.Quality)DaggerfallUnity.Settings.AntialiasingSMAAQuality;
+                        break;
+                    case AntiAliasingMethods.TAA:
+                        postProcessLayer.antialiasingMode = PostProcessLayer.Antialiasing.TemporalAntialiasing;
+                        postProcessLayer.temporalAntialiasing.sharpness = DaggerfallUnity.Settings.AntialiasingTAASharpness;
+                        break;
+                }
+            }
+
+            // Ambient Occlusion
+            if (groups.HasFlag(CoreGameEffectSettingsGroups.AmbientOcclusion))
+            {
+                AmbientOcclusion ambientOcclusionSettings;
+                if (postProcessVolume.profile.TryGetSettings<AmbientOcclusion>(out ambientOcclusionSettings))
+                {
+                    ambientOcclusionSettings.enabled.value = DaggerfallUnity.Settings.AmbientOcclusionEnable;
+                    ambientOcclusionSettings.mode.overrideState = true;
+                    ambientOcclusionSettings.mode.value = (AmbientOcclusionMode)DaggerfallUnity.Settings.AmbientOcclusionMethod;
+                    ambientOcclusionSettings.intensity.overrideState = true;
+                    ambientOcclusionSettings.intensity.value = DaggerfallUnity.Settings.AmbientOcclusionIntensity;
+                    ambientOcclusionSettings.radius.overrideState = true;
+                    ambientOcclusionSettings.radius.value = DaggerfallUnity.Settings.AmbientOcclusionRadius;
+                    ambientOcclusionSettings.quality.overrideState = true;
+                    ambientOcclusionSettings.quality.value = (AmbientOcclusionQuality)DaggerfallUnity.Settings.AmbientOcclusionQuality;
+                    ambientOcclusionSettings.thicknessModifier.overrideState = true;
+                    ambientOcclusionSettings.thicknessModifier.value = DaggerfallUnity.Settings.AmbientOcclusionThickness;
+                }
+            }
+
+            // Bloom
+            if (groups.HasFlag(CoreGameEffectSettingsGroups.Bloom))
+            {
+                Bloom bloomSettings;
+                if (postProcessVolume.profile.TryGetSettings<Bloom>(out bloomSettings))
+                {
+                    bloomSettings.enabled.value = DaggerfallUnity.Settings.BloomEnable;
+                    bloomSettings.intensity.overrideState = true;
+                    bloomSettings.intensity.value = DaggerfallUnity.Settings.BloomIntensity;
+                    bloomSettings.threshold.overrideState = true;
+                    bloomSettings.threshold.value = DaggerfallUnity.Settings.BloomThreshold;
+                    bloomSettings.diffusion.overrideState = true;
+                    bloomSettings.diffusion.value = DaggerfallUnity.Settings.BloomDiffusion;
+                    bloomSettings.fastMode.overrideState = true;
+                    bloomSettings.fastMode.value = DaggerfallUnity.Settings.BloomFastMode;
+                }
+            }
+
+            // Motion Blur
+            if (groups.HasFlag(CoreGameEffectSettingsGroups.MotionBlur))
+            {
+                MotionBlur motionBlurSettings;
+                if (postProcessVolume.profile.TryGetSettings<MotionBlur>(out motionBlurSettings))
+                {
+                    motionBlurSettings.enabled.value = DaggerfallUnity.Settings.MotionBlurEnable;
+                    motionBlurSettings.shutterAngle.overrideState = true;
+                    motionBlurSettings.shutterAngle.value = DaggerfallUnity.Settings.MotionBlurShutterAngle;
+                    motionBlurSettings.sampleCount.overrideState = true;
+                    motionBlurSettings.sampleCount.value = DaggerfallUnity.Settings.MotionBlurSampleCount;
+                }
+            }
+
+            // Vignette
+            if (groups.HasFlag(CoreGameEffectSettingsGroups.Vignette))
+            {
+                Vignette vignetteSettings;
+                if (postProcessVolume.profile.TryGetSettings<Vignette>(out vignetteSettings))
+                {
+                    vignetteSettings.enabled.value = DaggerfallUnity.Settings.VignetteEnable;
+                    vignetteSettings.intensity.overrideState = true;
+                    vignetteSettings.intensity.value = DaggerfallUnity.Settings.VignetteIntensity;
+                    vignetteSettings.smoothness.overrideState = true;
+                    vignetteSettings.smoothness.value = DaggerfallUnity.Settings.VignetteSmoothness;
+                    vignetteSettings.roundness.overrideState = true;
+                    vignetteSettings.roundness.value = DaggerfallUnity.Settings.VignetteRoundness;
+                    vignetteSettings.rounded.overrideState = true;
+                    vignetteSettings.rounded.value = DaggerfallUnity.Settings.VignetteRounded;
+                }    
+            }
+        }
+
         #endregion
 
         #region Event Handlers
@@ -823,7 +986,7 @@ namespace DaggerfallWorkshop.Game.Utility
         {
             if (!string.IsNullOrEmpty(LaunchQuest))
             {
-                QuestMachine.Instance.InstantiateQuest(LaunchQuest);
+                QuestMachine.Instance.StartQuest(LaunchQuest);
                 LaunchQuest = string.Empty;
             }
         }

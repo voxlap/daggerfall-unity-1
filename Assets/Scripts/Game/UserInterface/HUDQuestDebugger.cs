@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -22,10 +22,13 @@ namespace DaggerfallWorkshop.Game.UserInterface
 {
     /// <summary>
     /// Output quest information on HUD to view state in real-time and optionally step-through execution.
-    /// Uses some non-bindable keys (not all implemented):
-    ///  * ]            Show next quest tasks/vars/timers (only when debugger HUD open)
-    ///  * [            Show previous quest tasks/vars/timers (only when debugger HUD open)
-    ///  * Shift+Tab    Toggle global variables display
+    /// Uses default keys (set in DialogShortcuts.txt file):
+    ///  * Ctrl+Shift+D             Cycle through debugger and global variables display state
+    ///  * Ctrl+Shift+RightArrow    Show next quest tasks/vars/timers (only when debugger HUD open)
+    ///  * Ctrl+Shift+LeftArrow     Show previous quest tasks/vars/timers (only when debugger HUD open)
+    ///  * Ctrl+Shift+UpArrow       Teleport to next dungeon marker (only when debugger HUD open inside dungeon)
+    ///  * Ctrl+Shift+DownArrow     Teleport to next dungeon marker (only when debugger HUD open inside dungeon)
+    /// NOTE: EnableQuestDebugger must be True in settings.ini
     /// </summary>
     public class HUDQuestDebugger : Panel
     {
@@ -35,10 +38,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
         const int rowHeight = 10;
         const int taskColWidth = 60;
         const int timerColWidth = 100;
-        const string noQuestsRunning = "NO QUESTS RUNNING";
-        const string questRunning = "Running";
-        const string questFinishedSuccess = "Finished (success)";
-        const string questFinishedEnded = "Finished (ended)";
+        public const string noQuestsRunning = "NO QUESTS RUNNING";
+        public const string questRunning = "Running";
+        public const string questFinishedSuccess = "Finished (success)";
+        public const string questFinishedEnded = "Finished (ended)";
         const int taskLabelPoolCount = 84;
         const int timerLabelPoolCount = 20;
         const int globalLabelPoolCount = 64;
@@ -46,6 +49,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         ulong[] allQuests;
         int currentQuestIndex;
         Quest currentQuest;
+        int currentMarkerIndex = -1;
 
         DisplayState displayState = DisplayState.Nothing;
 
@@ -129,6 +133,13 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             base.Update();
 
+            // Display nothing and exit if quest debugger not enabled
+            if (!DaggerfallUnity.Settings.EnableQuestDebugger)
+            {
+                displayState = DisplayState.Nothing;
+                return;
+            }
+
             // Do not tick while HUD fading or load in progress
             // This is to prevent quest popups or other actions while player/world unavailable
             if (DaggerfallUI.Instance.FadeBehaviour.FadeInProgress || SaveLoadManager.Instance.LoadInProgress)
@@ -148,10 +159,18 @@ namespace DaggerfallWorkshop.Game.UserInterface
             if (displayState < DisplayState.Nothing || displayState > DisplayState.QuestStateFull)
                 displayState = DisplayState.Nothing;
 
-            if (Input.GetKeyDown(KeyCode.LeftBracket))
+            // Change quest selection
+            HotkeySequence.KeyModifiers keyModifiers = HotkeySequence.GetKeyboardKeyModifiers();
+            if (DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.DebuggerPrevQuest).IsDownWith(keyModifiers))
                 MovePreviousQuest();
-            else if (Input.GetKeyDown(KeyCode.RightBracket))
+            else if (DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.DebuggerNextQuest).IsDownWith(keyModifiers))
                 MoveNextQuest();
+
+            // Change marker selection
+            if (DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.DebuggerPrevMarker).IsDownWith(keyModifiers))
+                MovePreviousMarker();
+            else if (DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.DebuggerNextMarker).IsDownWith(keyModifiers))
+                MoveNextMarker();
         }
 
         private void QuestMachine_OnTick()
@@ -204,7 +223,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             // Set global vars status
             PersistentGlobalVars playerGlovalVars = GameManager.Instance.PlayerEntity.GlobalVars;
-            for (int i = 0; i < globalLabelPoolCount; i++)
+            for (int i = 0; i < globalsLabelPool.Length; i++)
             {
                 if (playerGlovalVars.GetGlobalVar(i))
                     globalsLabelPool[i].TextColor = Color.green;
@@ -217,7 +236,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             // Set task status
             Quest.TaskState[] states = currentQuest.GetTaskStates();
-            for (int i = 0; i < states.Length; i++)
+            for (int i = 0; i < states.Length && i < taskLabelPool.Length; i++)
             {
                 if (!states[i].set)
                     taskLabelPool[i].TextColor = Color.gray;
@@ -227,7 +246,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Set timer status
             QuestResource[] clocks = currentQuest.GetAllResources(typeof(Clock));
-            for (int i = 0; i < clocks.Length; i++)
+            for (int i = 0; i < clocks.Length && i < timerLabelPool.Length; i++)
             {
                 Clock clock = (Clock)clocks[i];
                 timerLabelPool[i].Text = string.Format("{0} [{1}]", clock.Symbol.Original, clock.GetTimeString(clock.RemainingTimeInSeconds));
@@ -258,7 +277,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             // Create a pool of labels for output
             int row = 0, col = 0;
-            for (int i = 0; i < taskLabelPoolCount; i++)
+            for (int i = 0; i < taskLabelPool.Length; i++)
             {
                 // Get current position
                 Vector2 position = startPosition + new Vector2(col * taskColWidth, row * rowHeight);
@@ -286,7 +305,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
         {
             // Create a pool of labels for output
             int row = 0, col = 0;
-            for (int i = 0; i < timerLabelPoolCount; i++)
+            for (int i = 0; i < timerLabelPool.Length; i++)
             {
                 // Get current position
                 Vector2 position = startPosition + new Vector2(col * timerColWidth, row * rowHeight);
@@ -317,7 +336,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Create a pool of labels for output
             int row = 0, col = 0;
-            for (int i = 0; i < globalLabelPoolCount; i++)
+            for (int i = 0; i < globalsLabelPool.Length; i++)
             {
                 // Get current position
                 Vector2 position = startPosition + new Vector2(col * timerColWidth, row * rowHeight);
@@ -393,7 +412,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Set task labels
             Quest.TaskState[] states = currentQuest.GetTaskStates();
-            for (int i = 0; i < states.Length; i++)
+            for (int i = 0; i < states.Length && i < taskLabelPool.Length; i++)
             {
                 taskLabelPool[i].Enabled = true;
                 if (states[i].type == Task.TaskType.Headless)
@@ -409,7 +428,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Set timer status
             QuestResource[] clocks = currentQuest.GetAllResources(typeof(Clock));
-            for (int i = 0; i < clocks.Length; i++)
+            for (int i = 0; i < clocks.Length && i < timerLabelPool.Length; i++)
             {
                 timerLabelPool[i].Enabled = true;
             }
@@ -480,6 +499,50 @@ namespace DaggerfallWorkshop.Game.UserInterface
                 currentQuestIndex = allQuests.Length - 1;
 
             SetCurrentQuest(QuestMachine.Instance.GetQuest(allQuests[currentQuestIndex]));
+        }
+
+        void MoveNextMarker()
+        {
+            // Must be inside a dungeon
+            if (!GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
+                return;
+
+            // Get markers
+            Vector3[] markerPositions = GameManager.Instance.PlayerEnterExit.Dungeon.GetAllDebuggerMarkerPositions();
+            if (markerPositions == null || markerPositions.Length == 0)
+                return;
+
+            // Select next index
+            if (++currentMarkerIndex >= markerPositions.Length)
+                currentMarkerIndex = 0;
+
+            // Move player object to marker position
+            GameManager.Instance.PlayerObject.transform.localPosition = markerPositions[currentMarkerIndex];
+            GameManager.Instance.PlayerMotor.FixStanding();
+
+            Debug.LogFormat("Moved to next marker - index {0}", currentMarkerIndex);
+        }
+
+        void MovePreviousMarker()
+        {
+            // Must be inside a dungeon
+            if (!GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
+                return;
+
+            // Get markers
+            Vector3[] markerPositions = GameManager.Instance.PlayerEnterExit.Dungeon.GetAllDebuggerMarkerPositions();
+            if (markerPositions == null || markerPositions.Length == 0)
+                return;
+
+            // Select previous index
+            if (--currentMarkerIndex < 0)
+                currentMarkerIndex = markerPositions.Length - 1;
+
+            // Move player object to marker position
+            GameManager.Instance.PlayerObject.transform.localPosition = markerPositions[currentMarkerIndex];
+            GameManager.Instance.PlayerMotor.FixStanding();
+
+            Debug.LogFormat("Moved to previous marker - index {0}", currentMarkerIndex);
         }
 
         void EnableGlobalVars(bool value)

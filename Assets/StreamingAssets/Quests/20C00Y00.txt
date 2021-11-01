@@ -6,6 +6,7 @@
 -- QuestId: 0
 Messages: 61
 Quest: 20C00Y00
+DisplayName: Molag Bal's Quest
 -- Message panels
 QRC:
 
@@ -127,18 +128,18 @@ Message:  1060
 --          _tavern_ occurs 2 times.
 
 QBN:
-Item _artifact_ artifact Mace_of_Molag_Bal used 1013
+Item _artifact_ artifact Mace_of_Molag_Bal anyInfo 1013
 Item _map_ letter used 1060
 
-Person _contact_ face 233 faction The_Cabal anyInfo 1012
-Person _dummy_ face 1 group Spellcaster
+Person _questgiver_ face 112 named Molag_Bal anyInfo 1011
+Person _contact_ face 233 faction The_Cabal remote anyInfo 1012
+Person _dummy_ face 1 group Spellcaster remote
 
 Place _mondung_ remote dungeon9
 Place _tavern_ remote tavern
 Place _hideout_ remote dungeon11
 
 Clock _1stparton_ 00:00 0 flag 1 range 0 5
-Clock _delay_ 01:00 0 flag 1 range 0 1
 Clock _S.08_ 00:01 00:04
 
 Foe _monster_ is Mage
@@ -156,7 +157,8 @@ Foe _monster1_ is Mage
 _pcgetsgold_ task:
 	when _qgclicked_ and _mondead_ 
 	give pc _artifact_ 
-	start timer _delay_ 
+	end quest 
+--removed unnecessary delay
 
 variable _queston_
 --unused variable
@@ -177,9 +179,6 @@ _clearclick_ task:
 	--this used the timer 2ndparton erroneously. properly changed to mondead.
 	say 1003
 	clear _qgclicked_ _clearclick_ 
-
-_delay_ task:
-	end quest 
 
 variable _S.08_
 _S.09_ task:

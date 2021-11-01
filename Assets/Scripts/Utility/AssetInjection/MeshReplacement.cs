@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -37,23 +37,39 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         static Func<Color32> getTreeColorCallback = () => Color.Lerp(Color.white, Color.grey, Random.value);
         static Action<Terrain> setTreesSettingsCallback = SetTreesSettings;
 
-        static HashSet<Vector2Int> triedBillboards = new HashSet<Vector2Int>();
-        static HashSet<uint> triedModels = new HashSet<uint>();
+        static readonly HashSet<Vector2Int> triedBillboards = new HashSet<Vector2Int>();
+        static readonly HashSet<(uint, ClimateBases, DaggerfallDateTime.Seasons)> triedModels = new HashSet<(uint, ClimateBases, DaggerfallDateTime.Seasons)>();
 
         #endregion
 
         #region Properties
 
+        /// <summary>
+        /// Generates the scale for a <see cref="TreeInstance"/> where <c>1</c> is the reference value;
+        /// should return a different value each time for variety.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">This callback must not be set to null.</exception>
         public static Func<float> GetTreeScaleCallback
         {
             set { SetCallback(ref getTreeScaleCallback, value); }
         }
 
+        /// <summary>
+        /// Generates the color for a <see cref="TreeInstance"/>;
+        /// should return a different value each time for variety.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">This callback must not be set to null.</exception>
         public static Func<Color32> GetTreeColorCallback
         {
             set { SetCallback(ref getTreeColorCallback, value); }
         }
 
+        /// <summary>
+        /// Customizes terrain settings, such as tree distance or lod, before instantiating trees.
+        /// Note that many settings only affect objects of type <see cref="Tree"/> created with the
+        /// Unity Tree Editor and not other solutions like SpeedTree.
+        /// </summary>
+        /// <exception cref="ArgumentNullException">This callback must not be set to null.</exception>
         public static Action<Terrain> SetTreesSettingsCallback
         {
             set { SetCallback(ref setTreesSettingsCallback, value); }
@@ -63,6 +79,9 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
 
         #region Public Methods
 
+        /// <summary>
+        /// Clears records of import attempts for assets from loose files and mods.
+        /// </summary>
         public static void RetryAssetImports()
         {
             triedBillboards.Clear();
@@ -75,21 +94,34 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         /// <param name="modelID">Daggerfall model ID.</param>
         /// <param name="parent">Parent to assign to GameObject.</param>
         /// <param name="matrix">Matrix with position and rotation of GameObject.</param>
+        /// <param name="isAutomapRun">True if current model is being created for an Automap?</param>
         /// <returns>Returns the imported model or null if not found.</returns>
-        public static GameObject ImportCustomGameobject (uint modelID, Transform parent, Matrix4x4 matrix)
+        public static GameObject ImportCustomGameobject(uint modelID, Transform parent, Matrix4x4 matrix, bool isAutomapRun = false)
         {
-            GameObject go;
-            if (!TryImportGameObject(modelID, true, out go))
+            GameObject modelGO;
+            if (!TryImportGameObject(modelID, true, out modelGO))
                 return null;
 
-            go.name = string.Format("DaggerfallMesh[Replacement][ID ={0}]", modelID);
-            go.transform.parent = parent;
-            go.transform.position = matrix.GetColumn(3);
-            go.transform.rotation = GameObjectHelper.QuaternionFromMatrix(matrix);
+            modelGO.name = GameObjectHelper.GetGoModelName(modelID) + " [Replacement]";
+            modelGO.transform.parent = parent;
+            modelGO.transform.position = matrix.GetColumn(3);
+            modelGO.transform.rotation = matrix.rotation;
+
+            //Multiply the scale instead of applying it, since custom 3D models doesn't necessary have (1,1,1) scale
+            modelGO.transform.localScale = Vector3.Scale(modelGO.transform.localScale, matrix.lossyScale);
 
             // Finalise gameobject
-            FinaliseMaterials(go);
-            return go;
+            FinaliseMaterials(modelGO);
+
+            if (isAutomapRun)
+                modelGO.AddComponent<AutomapModel>();
+
+            return modelGO;
+        }
+
+        public static string GetFlatReplacementName(int archive, int record)
+        {
+            return string.Format("DaggerfallBillboard [TEXTURE.{0:000}, Index={1}] [Replacement]", archive, record);
         }
 
         /// <summary>
@@ -101,13 +133,13 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         /// <param name="parent">Parent to assign to GameObject.</param>
         /// <param name="inDungeon">Fix position for dungeon models.</param>
         /// <returns>Returns the imported model or null if not found.</returns>
-        public static GameObject ImportCustomFlatGameobject (int archive, int record, Vector3 position, Transform parent, bool inDungeon = false)
+        public static GameObject ImportCustomFlatGameobject(int archive, int record, Vector3 position, Transform parent, bool inDungeon = false)
         {
             GameObject go;
             if (!TryImportGameObject(archive, record, true, out go))
                 return null;
 
-            go.name = string.Format("DaggerfallBillboard [Replacement] [TEXTURE.{0:000}, Index={1}]", archive, record);
+            go.name = GetFlatReplacementName(archive, record);
             go.transform.parent = parent;
 
             // Assign position
@@ -136,7 +168,7 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         /// <summary>
         /// Ensures that the requested imported model is assigned to the given transform and is positioned correctly.
         /// If archive and record mismatch, the requested prefab is imported while currently loaded gameobject is destroyed.
-        /// This has a similar purpose to <see cref="DaggerfallBillboard.SetMaterial()"/>.
+        /// This has a similar purpose to <see cref="DaggerfallBillboard.SetMaterial(int, int, int)"/>.
         /// </summary>
         /// <param name="archive">Texture archive for original billboard.</param>
         /// <param name="record">Texture record for original billboard.</param>
@@ -148,13 +180,13 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         {
             GameObject go = null;
 
-            string name = string.Format("DaggerfallBillboard [Replacement] [TEXTURE.{0:000}, Index={1}]", archive, record);
+            string name = GetFlatReplacementName(archive, record);
             for (int i = 0; i < parent.childCount; i++)
             {
                 Transform transform = parent.GetChild(i);
                 if (transform.name == name)
                     AlignToBase((go = transform.gameObject).transform, position, archive, record, inDungeon);
-                else if (transform.name.StartsWith("DaggerfallBillboard [Replacement]"))
+                else if (transform.name.EndsWith(" [Replacement]"))
                     GameObject.Destroy(transform.gameObject);
             }
 
@@ -178,6 +210,9 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             if (!TryImportGameObject(archive, record, false, out prefab))
                 return false;
 
+            // Store state of random sequence
+            Random.State prevState = Random.state;
+
             // Get instance properties
             Vector3 position = new Vector3(x / (float)tilemapDim, 0.0f, y / (float)tilemapDim);
             float scale = getTreeScaleCallback();
@@ -198,6 +233,7 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             };
             terrain.AddTreeInstance(treeInstance);
 
+            Random.state = prevState;   // Restore random state
             return true;
         }
 
@@ -235,12 +271,13 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             {
                 if (ModManager.Instance != null)
                 {
-                    if (!triedModels.Contains(modelID))
+                    var key = MakeModelKey(modelID);
+                    if (!triedModels.Contains(key))
                     {
-                        if (ModManager.Instance.TryGetAsset(GetName(modelID), clone, out go))
+                        if (ModManager.Instance.TryGetAsset(GetName(key), clone, out go))
                             return true;
                         else
-                            triedModels.Add(modelID);
+                            triedModels.Add(key);
                     }
                 }
             }
@@ -273,22 +310,32 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             return false;
         }
 
+        /// <summary>
+        /// Makes a key for climate/season variant of given model id.
+        /// </summary>
+        /// <param name="modelID">Id of target model.</param>
+        /// <returns>Unique key for model variant.</returns>
+        private static (uint modelID, ClimateBases climateBase, DaggerfallDateTime.Seasons season) MakeModelKey(uint modelID)
+        {
+            if (!GameManager.HasInstance)
+                return (modelID, (ClimateBases)(-1), (DaggerfallDateTime.Seasons)(-1));
+
+            return (modelID, ClimateSwaps.FromAPIClimateBase(GameManager.Instance.PlayerGPS.ClimateSettings.ClimateType), DaggerfallUnity.Instance.WorldTime.Now.SeasonValue);
+        }
+
         ///<summary>
         /// Get all accepted names for a model ordered by priority.
         ///</summary>
-        private static string[] GetName(uint modelID)
+        private static string[] GetName((uint modelID, ClimateBases climateBase, DaggerfallDateTime.Seasons season) key)
         {
-            if (!GameManager.HasInstance)
-                return new string[] {modelID.ToString()};
+            (uint modelID, ClimateBases climateBase, DaggerfallDateTime.Seasons season) = key;
 
-            ClimateBases climateBase = ClimateSwaps.FromAPIClimateBase(GameManager.Instance.PlayerGPS.ClimateSettings.ClimateType);
-            string climateName = climateBase == ClimateBases.Desert ?
-                string.Format("{0}_{1}", modelID, climateBase):
-                string.Format("{0}_{1}{2}", modelID, climateBase, DaggerfallUnity.Instance.WorldTime.Now.SeasonValue);
+            if ((int)climateBase == -1)
+                return new string[] { modelID.ToString() };
 
             return new string[]
             {
-                climateName,
+                climateBase == ClimateBases.Desert ? $"{modelID}_{climateBase}" : $"{modelID}_{climateBase}{season}",
                 modelID.ToString()
             };
         }
@@ -358,6 +405,9 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
             // Check object and all children
             foreach (var meshRenderer in go.GetComponentsInChildren<MeshRenderer>())
             {
+                if (meshRenderer.gameObject.GetComponent<RuntimeMaterials>())
+                    continue;
+
                 // Check all materials
                 Material[] materials = meshRenderer.sharedMaterials;
                 for (int i = 0; i < materials.Length; i++)
@@ -409,7 +459,7 @@ namespace DaggerfallWorkshop.Utility.AssetInjection
         {
             if (value == null)
                 throw new ArgumentNullException("callback", "This callback must not be set to null.");
-            
+
             callback = value;
         }
 

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -290,8 +290,8 @@ namespace DaggerfallWorkshop
             DFPosition pos = CurrentMapPixel;
             if (pos.X != lastMapPixelX || pos.Y != lastMapPixelY)
             {
-                RaiseOnMapPixelChangedEvent(pos);
                 UpdateWorldInfo(pos.X, pos.Y);
+                RaiseOnMapPixelChangedEvent(pos);
 
                 // Clear non-permanent scenes from cache, unless going to/from owned ship
                 DFPosition shipCoords = DaggerfallBankManager.GetShipCoords();
@@ -315,17 +315,20 @@ namespace DaggerfallWorkshop
                 UpdateNearbyObjects();
                 nearbyObjectsUpdateTimer = 0;
             }
+        }
 
+        private void LateUpdate()
+        {
             // Snap back to physical world boundary to prevent player running off edge of world
             // Setting to approx. 10000 inches (254 metres) in from edge so end of world not so visible
             if (WorldX < 10000 ||       // West
                 WorldZ > 16370000 ||    // North
                 WorldZ < 10000 ||       // South
                 WorldX > 32750000)      // East
-            {    
+            {
                 gameObject.transform.position = lastFramePosition;
             }
-            
+
             // Record player's last frame position
             lastFramePosition = gameObject.transform.position;
         }
@@ -385,27 +388,10 @@ namespace DaggerfallWorkshop
 
         /// <summary>
         /// Gets the dominant race in player's current region.
-        /// This seems to be based on subclimate rather than FACTION.TXT.
-        /// The faction data has very little diversity and does not match observed race in many regions.
         /// </summary>
         public Races GetRaceOfCurrentRegion()
         {
-            // Racial distribution in Daggerfall:
-            //  * Desert, Desert2, Rainforest = Redguard
-            //  * Mountain, MountainWoods = Nord
-            //  * Swamp, Subtropical, Woodlands, Default = Breton
-
-            DFLocation.ClimateSettings settings = MapsFile.GetWorldClimateSettings(climateSettings.WorldClimate);
-            switch(settings.People)
-            {
-                case FactionFile.FactionRaces.Redguard:
-                    return Races.Redguard;
-                case FactionFile.FactionRaces.Nord:
-                    return Races.Nord;
-                case FactionFile.FactionRaces.Breton:
-                default:
-                    return Races.Breton;
-            }
+            return (Races) MapsFile.RegionRaces[GameManager.Instance.PlayerGPS.CurrentRegionIndex] + 1;
         }
 
         /// <summary>
@@ -454,6 +440,21 @@ namespace DaggerfallWorkshop
                 throw new Exception("GetCourtOfCurrentRegion() did not find exactly 1 match.");
 
             return factions[0].id;
+        }
+
+        public int GetCurrentRegionVampireClan()
+        {
+            FactionFile.FactionData factionData;
+            GameManager.Instance.PlayerEntity.FactionData.GetRegionFaction(CurrentRegionIndex, out factionData);
+            return factionData.vam;
+        }
+
+        /// <summary>
+        /// Gets the dominant temple in player's current region.
+        /// </summary>
+        public int GetTempleOfCurrentRegion()
+        {
+            return MapsFile.RegionTemples[GameManager.Instance.PlayerGPS.CurrentRegionIndex];
         }
 
         /// <summary>
@@ -626,6 +627,8 @@ namespace DaggerfallWorkshop
 
         private void PlayerLocationRectCheck()
         {
+            int extraRect = 4096;
+
             // Bail if no current location at this map pixel
             if (!hasCurrentLocation)
             {
@@ -642,9 +645,10 @@ namespace DaggerfallWorkshop
 
             // Player can be inside a map pixel with location but not inside location rect
             // So check if player currently inside location rect
+            // Virtual location rect check is extended by 4096 units (size of a full city block) around physical town border to better match classic
             bool check;
-            if (WorldX >= locationWorldRectMinX && WorldX <= locationWorldRectMaxX &&
-                WorldZ >= locationWorldRectMinZ && WorldZ <= locationWorldRectMaxZ)
+            if (WorldX >= locationWorldRectMinX - extraRect && WorldX <= locationWorldRectMaxX + extraRect &&
+                WorldZ >= locationWorldRectMinZ - extraRect && WorldZ <= locationWorldRectMaxZ + extraRect)
             {
                 check = true;
             }
@@ -656,20 +660,19 @@ namespace DaggerfallWorkshop
             // Call events based on location rect change
             if (check && !isPlayerInLocationRect)
             {
-                // Player has entered location rect
-                RaiseOnEnterLocationRectEvent(CurrentLocation);
-
                 // Perform location discovery
                 DiscoverCurrentLocation();
+
+                // Player has entered location rect
+                isPlayerInLocationRect = check;
+                RaiseOnEnterLocationRectEvent(CurrentLocation);
             }
             else if (!check && isPlayerInLocationRect)
             {
                 // Player has left a location rect
+                isPlayerInLocationRect = check;
                 RaiseOnExitLocationRectEvent();
             }
-
-            // Update last known state
-            isPlayerInLocationRect = check;
         }
 
         public bool ReadyCheck()
@@ -966,6 +969,11 @@ namespace DaggerfallWorkshop
             if (onlyIfResidence && !RMBLayout.IsResidence(db.buildingType))
                 return;
 
+            // Do not undiscover residence if it's a Thieves Guild or Dark Brotherhood hideout
+            if (db.factionID == (int)FactionFile.FactionIDs.The_Thieves_Guild ||
+                db.factionID == (int)FactionFile.FactionIDs.The_Dark_Brotherhood)
+                return;
+
             // do nothing if matchName was provided but matchName does not match displayName of building
             if (matchName != null && matchName != db.displayName)
                 return;
@@ -1185,7 +1193,7 @@ namespace DaggerfallWorkshop
             if (RMBLayout.IsResidence(buildingSummary.BuildingType))
             {
                 // Residence                
-                buildingDiscoveryData.displayName = HardStrings.residence;
+                buildingDiscoveryData.displayName = TextManager.Instance.GetLocalizedText("residence");
             }
             else
             {
@@ -1218,7 +1226,7 @@ namespace DaggerfallWorkshop
                 if (discoveredLocation.Value.discoveredBuildings != null)
                 {
                     foreach (var discoveredBuilding in discoveredLocation.Value.discoveredBuildings)
-                        if (discoveredBuilding.Value.displayName == HardStrings.residence)
+                        if (discoveredBuilding.Value.displayName == TextManager.Instance.GetLocalizedText("residence"))
                             keysToRemove.Add(discoveredBuilding.Key);
 
                     foreach (int key in keysToRemove)

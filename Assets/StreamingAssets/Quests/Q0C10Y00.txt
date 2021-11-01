@@ -138,7 +138,7 @@ Item _reward2_ turquoise
 Item _reward3_ jade
 --added messages 1024, 1025 and 1026 and their handling in the quest. previously you had to click the witch 3 times and turn in the items with no confirmation.
 
-Person _qgiver_ group Questor male anyInfo 1011
+Person _qgiver_ group Questor anyInfo 1011
 
 Place _dungeon1_ remote dungeon6
 Place _dungeon2_ remote dungeon12
@@ -221,5 +221,8 @@ _S.14_ task:
 
 _S.15_ task:
 	when _pchasitem1_ and _pchasitem2_ and _pchasitem3_ 
-	give pc _reward1_ and _reward2_ and _reward3_ 
+	give pc _reward1_
+	give pc _reward2_
+	give pc _reward3_ 
 	end quest 
+--changed to multi-line give pc reward, as I know this implementation works fine. --JayH

@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -41,6 +41,7 @@ namespace DaggerfallWorkshop
 
         GameObject startMarker = null;
         GameObject enterMarker = null;
+        List<Vector3> debuggerMarkerPositions = null;
 
         /// <summary>
         /// Gets the scene name for the dungeon at the given location.
@@ -110,13 +111,11 @@ namespace DaggerfallWorkshop
 
             // Perform layout
             startMarker = null;
-            if (location.Name == "Orsinium")
-                LayoutOrsinium(ref location, importEnemies);
-            else
-                LayoutDungeon(ref location, importEnemies);
+            LayoutDungeon(location, importEnemies);
 
             // Seal location
             isSet = true;
+            RaiseOnSetDungeonEvent();
         }
 
         public void ResetDungeonTextureTable()
@@ -265,9 +264,23 @@ namespace DaggerfallWorkshop
             return dungeonName.TrimEnd('.');
         }
 
+        /// <summary>
+        /// Gets all debugger marker positions for this dungeon.
+        /// Not related to gameplay systems like quests. Only used for teleporting player around marker positions using quest debugger.
+        /// </summary>
+        /// <returns>Array of all debugger marker positions. Can return null or empty.</returns>
+        public Vector3[] GetAllDebuggerMarkerPositions()
+        {
+            EnumerateDebuggerMarkers();
+            if (debuggerMarkerPositions != null && debuggerMarkerPositions.Count > 0)
+                return debuggerMarkerPositions.ToArray();
+            else
+                return null;
+        }
+
         #region Private Methods
 
-        private void LayoutDungeon(ref DFLocation location, bool importEnemies = true)
+        private void LayoutDungeon(in DFLocation location, bool importEnemies = true)
         {
 #if SHOW_LAYOUT_TIMES
             // Start timing
@@ -320,48 +333,6 @@ namespace DaggerfallWorkshop
             long totalTime = stopwatch.ElapsedMilliseconds - startTime;
             DaggerfallUnity.LogMessage(string.Format("Time to layout dungeon: {0}ms", totalTime), true);
 #endif
-        }
-
-        // Orsinium defines two blocks at [-1,-1]
-        private void LayoutOrsinium(ref DFLocation location, bool importEnemies = true)
-        {
-            // Calculate monster power - this is a clamped 0-1 value based on player's level from 1-20
-            float monsterPower = Mathf.Clamp01(GameManager.Instance.PlayerEntity.Level / 20f);
-
-            // Create dungeon layout and handle misplaced block
-            for (int i = 0; i < summary.LocationData.Dungeon.Blocks.Length; i++)
-            {
-                DFLocation.DungeonBlock block = summary.LocationData.Dungeon.Blocks[i];
-                if (block.X == -1 && block.Z == -1 && block.BlockName == "N0000065.RDB")
-                    continue;
-
-                GameObject go = GameObjectHelper.CreateRDBBlockGameObject(
-                    block.BlockName,
-                    DungeonTextureTable,
-                    block.IsStartingBlock,
-                    Summary.DungeonType,
-                    monsterPower,
-                    RandomMonsterVariance,
-                    (int)DateTime.Now.Ticks/*Summary.ID*/,      // TODO: Add more options for seed
-                    dfUnity.Option_DungeonBlockPrefab,
-                    importEnemies);
-                go.transform.parent = this.transform;
-                go.transform.position = new Vector3(block.X * RDBLayout.RDBSide, 0, block.Z * RDBLayout.RDBSide);
-
-                DaggerfallRDBBlock daggerfallBlock = go.GetComponent<DaggerfallRDBBlock>();
-                if (block.IsStartingBlock)
-                    FindMarkers(daggerfallBlock, ref block, true); // Assign start marker and enter marker
-                else
-                    FindMarkers(daggerfallBlock, ref block, false); // Only find water level and castle block info from start marker
-
-                summary.LocationData.Dungeon.Blocks[i].WaterLevel = block.WaterLevel;
-                summary.LocationData.Dungeon.Blocks[i].CastleBlock = block.CastleBlock;
-
-                // Add water blocks
-                RDBLayout.AddWater(go, go.transform.position, block.WaterLevel);
-            }
-
-            RemoveOverlappingDoors();
         }
 
         // Remove duplicate/overlapping action doors in dungeons
@@ -460,6 +431,65 @@ namespace DaggerfallWorkshop
             return GetComponentsInChildren<DaggerfallStaticDoors>();
         }
 
+        // Enumerates marker positions in dungeon for player to teleport around using quest debugger
+        // Not used for any gameplay system and does not collect any other information about marker other than position
+        // Currently collects all Enter, Start, Quest, Item markers
+        void EnumerateDebuggerMarkers()
+        {
+            const int editorFlatArchive = 199;
+            const int enterMarkerIndex = 8;
+            const int startMarkerIndex = 10;
+            const int spawnMarkerFlatIndex = 11;
+            const int itemMarkerFlatIndex = 18;
+
+            // Only enumerate debugger marker positions once for this dungeon object
+            if (debuggerMarkerPositions != null)
+                return;
+            else
+                debuggerMarkerPositions = new List<Vector3>();
+
+            // Step through dungeon layout to find all blocks with markers
+            foreach (var dungeonBlock in summary.LocationData.Dungeon.Blocks)
+            {
+                // Get block data
+                DFBlock blockData = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(dungeonBlock.BlockName);
+
+                // Iterate all groups
+                foreach (DFBlock.RdbObjectRoot group in blockData.RdbBlock.ObjectRootList)
+                {
+                    // Skip empty object groups
+                    if (null == group.RdbObjects)
+                        continue;
+
+                    // Look for flats in this group
+                    foreach (DFBlock.RdbObject obj in group.RdbObjects)
+                    {
+                        // Get marker ID
+                        ulong markerID = (ulong)(blockData.Position + obj.Position);
+
+                        // Look for editor flats and collect marker positions adjusted for dungeon block position
+                        Vector3 position = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
+                        if (obj.Type == DFBlock.RdbResourceTypes.Flat)
+                        {
+                            if (obj.Resources.FlatResource.TextureArchive == editorFlatArchive)
+                            {
+                                Vector3 dungeonBlockPosition = new Vector3(dungeonBlock.X * RDBLayout.RDBSide, 0, dungeonBlock.Z * RDBLayout.RDBSide);
+                                switch (obj.Resources.FlatResource.TextureRecord)
+                                {
+                                    case enterMarkerIndex:
+                                    case startMarkerIndex:
+                                    case itemMarkerFlatIndex:
+                                    case spawnMarkerFlatIndex:
+                                        debuggerMarkerPositions.Add(dungeonBlockPosition + position);
+                                        break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         private bool ReadyCheck()
         {
             // Ensure we have a DaggerfallUnity reference
@@ -479,5 +509,15 @@ namespace DaggerfallWorkshop
         }
 
         #endregion
+
+        /// <summary>
+        /// An event raised after a dungeon has been set and its layout has been performed.
+        /// </summary>
+        public static event Action<DaggerfallDungeon> OnSetDungeon;
+        private void RaiseOnSetDungeonEvent()
+        {
+            if (OnSetDungeon != null)
+                OnSetDungeon(this);
+        }
     }
 }

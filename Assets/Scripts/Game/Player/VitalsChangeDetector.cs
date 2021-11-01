@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -58,6 +58,7 @@ namespace DaggerfallWorkshop.Game
             StreamingWorld.OnInitWorld += StreamingWorld_OnInitWorld;
             SaveLoadManager.OnLoad += SaveLoadManager_OnLoad;
             DaggerfallCourtWindow.OnCourtScreen += DaggerfallCourtWindow_OnCourtScreen;
+            DaggerfallHUD.OnLargeHUDToggle += DaggerfallHUD_OnLargeHUDToggle;
         }
 
         void Update()
@@ -134,6 +135,12 @@ namespace DaggerfallWorkshop.Game
         private void DaggerfallCourtWindow_OnCourtScreen()
         {
             // Clear when player goes to court screen
+            ResetVitals();
+        }
+
+        private void DaggerfallHUD_OnLargeHUDToggle()
+        {
+            // Resynchronize indicators that were disabled
             ResetVitals();
         }
     }

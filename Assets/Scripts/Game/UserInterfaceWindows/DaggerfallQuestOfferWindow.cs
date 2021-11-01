@@ -8,6 +8,7 @@ using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.Questing;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Utility;
+using DaggerfallWorkshop.Game.Entity;
 
 namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 {
@@ -16,9 +17,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
     /// </summary>
     public class DaggerfallQuestOfferWindow : DaggerfallQuestPopupWindow
     {
-        StaticNPC.NPCData questorNPC;
-        FactionFile.SocialGroups socialGroup;
-        bool menu;
+        protected StaticNPC.NPCData questorNPC;
+        protected FactionFile.SocialGroups socialGroup;
+        protected bool menu;
 
         #region Constructors
 
@@ -63,11 +64,12 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             // Get the faction id for affecting reputation on success/failure, and current rep
             int factionId = questorNPC.factionID;
+            Genders gender = questorNPC.gender;
             int reputation = GameManager.Instance.PlayerEntity.FactionData.GetReputation(factionId);
             int level = GameManager.Instance.PlayerEntity.Level;
 
             // Select a quest at random from appropriate pool
-            offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, reputation, level);
+            offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, gender, reputation, level);
             if (offeredQuest != null)
             {
                 // Log offered quest

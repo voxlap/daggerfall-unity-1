@@ -6,6 +6,7 @@
 -- QuestId: 3
 Messages: 21
 Quest: R0C11Y03
+DisplayName: The Heartless Daedra
 -- Message panels
 QRC:
 
@@ -97,7 +98,7 @@ _questgiver_? Why, %g's a noble. Involved in some daedric activity lately.
 <--->
 _questgiver_'s a noble, %di of here.
 <--->
-like so many other nobles, _questgiver_ has about a dozen projects brewing.
+Like so many other nobles, _questgiver_ has about a dozen projects brewing.
 <--->
 _questgiver_ has a lot of faith in alchemistry, like a lot of nobles do.
 
@@ -107,8 +108,9 @@ A daedra's heart. It never spoils, but some recipes call for it to be fresh.
 The heart of a daedra. Not the sort of thing daedras like in mortals' hands.
 
 Message:  1015
-%qdt: _questgiver_
- of ___questgiver_ asked me
+%qdt:
+ _questgiver_ of
+ ___questgiver_ asked me
  to bring the heart of a daedra to
  %g3 alchemist in __chemist_ of
  ___chemist_. This alchemist
@@ -155,8 +157,8 @@ Item _reward_ gold
 Item _item_ daedra_heart anyInfo 1013
 
 Person _questgiver_ face 112 group Questor anyInfo 1012
-Person _chemist_ group Chemist female anyInfo 1011
-Person _dummydaedra_ face 102 factiontype Daedra
+Person _chemist_ group Chemist remote anyInfo 1011
+Person _dummydaedra_ face 102 factiontype Daedra female remote
 
 Clock _1stparton_ 00:00 0 flag 1 range 2 5
 Clock _2ndparton_ 00:00 0 flag 1 range 2 5

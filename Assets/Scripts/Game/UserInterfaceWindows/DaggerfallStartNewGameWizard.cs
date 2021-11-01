@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -12,6 +12,8 @@
 using UnityEngine;
 using System;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Collections;
 using System.Collections.Generic;
 using DaggerfallConnect;
@@ -38,6 +40,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         CreateCharRaceSelect createCharRaceSelectWindow;
         CreateCharGenderSelect createCharGenderSelectWindow;
+        CreateCharChooseClassGen createCharChooseClassGenWindow;
+        CreateCharClassQuestions createCharClassQuestionsWindow;
         CreateCharClassSelect createCharClassSelectWindow;
         CreateCharCustomClass createCharCustomClassWindow;
         CreateCharChooseBio createCharChooseBioWindow;
@@ -58,7 +62,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             SelectRace,
             SelectGender,
-            SelectClassMethod,      // Class questions not implemented, goes straight to SelectClassFromList
+            SelectClassMethod,
+            GenerateClass,
             SelectClassFromList,
             CustomClassBuilder,
             SelectBiographyMethod,
@@ -132,6 +137,22 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             uiManager.PushWindow(createCharGenderSelectWindow);
         }
 
+        void SetChooseClassGenWindow()
+        {
+            createCharChooseClassGenWindow = new CreateCharChooseClassGen(uiManager, createCharRaceSelectWindow);
+            createCharChooseClassGenWindow.OnClose += ChooseClassGen_OnClose;
+            wizardStage = WizardStages.SelectClassMethod;
+            uiManager.PushWindow(createCharChooseClassGenWindow);
+        }
+
+        void SetClassQuestionsWindow()
+        {
+            createCharClassQuestionsWindow = new CreateCharClassQuestions(uiManager);
+            createCharClassQuestionsWindow.OnClose += CreateCharClassQuestions_OnClose;
+            wizardStage = WizardStages.GenerateClass;
+            uiManager.PushWindow(createCharClassQuestionsWindow);
+        }
+
         void SetClassSelectWindow()
         {
             if (createCharClassSelectWindow == null)
@@ -163,10 +184,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         void SetBiographyWindow()
         {
-            if (!characterDocument.isCustom)
-            {
-                characterDocument.classIndex = createCharClassSelectWindow.SelectedClassIndex;
-            }
             createCharBiographyWindow = new CreateCharBiography(uiManager, characterDocument);
             createCharBiographyWindow.OnClose += CreateCharBiographyWindow_OnClose;
                 
@@ -232,6 +249,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 createCharAddBonusSkillsWindow = new CreateCharAddBonusSkills(uiManager);
                 createCharAddBonusSkillsWindow.OnClose += AddBonusSkillsWindow_OnClose;
                 createCharAddBonusSkillsWindow.DFClass = characterDocument.career;
+                createCharAddBonusSkillsWindow.SkillBonuses = BiogFile.GetSkillEffects(characterDocument.biographyEffects);
             }
 
             // Update class if player changes class selection
@@ -293,11 +311,45 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (!createCharGenderSelectWindow.Cancelled)
             {
                 characterDocument.gender = createCharGenderSelectWindow.SelectedGender;
-                SetClassSelectWindow();
+                SetChooseClassGenWindow();
             }
             else
             {
                 SetRaceSelectWindow();
+            }
+        }
+
+        void ChooseClassGen_OnClose()
+        {
+            if (createCharChooseClassGenWindow.ChoseGenerate)
+            {
+                SetClassQuestionsWindow();
+            }
+            else
+            {
+                SetClassSelectWindow();
+            }
+        }
+
+        void CreateCharClassQuestions_OnClose()
+        {
+            byte classIndex = createCharClassQuestionsWindow.ClassIndex;
+            if (classIndex != CreateCharClassQuestions.noClassIndex)
+            {
+                string fileName = "CLASS" + classIndex.ToString("00") + ".CFG";
+                string[] files = Directory.GetFiles(DaggerfallUnity.Instance.Arena2Path, fileName);
+                if (files == null)
+                {
+                    throw new Exception("Could not load class file: " + fileName);
+                }
+                ClassFile classFile = new ClassFile(files[0]);
+                characterDocument.career = classFile.Career;
+                characterDocument.classIndex = classIndex;
+                SetChooseBioWindow();
+            }
+            else
+            {
+                SetClassSelectWindow();
             }
         }
 
@@ -362,14 +414,24 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             if (!createCharChooseBioWindow.Cancelled)
             {
+                // Pick a biography template, 0 by default
+                // Classic only has a T0 template for each class, but mods can add more
+                Regex reg = new Regex($"BIOG{characterDocument.classIndex:D2}T([0-9]+).TXT");
+                IEnumerable<Match> biogMatches = Directory.EnumerateFiles(BiogFile.BIOGSourceFolder, "*.TXT")
+                    .Select(FilePath => reg.Match(FilePath))
+                    .Where(FileMatch => FileMatch.Success);
+
+                // For now, we choose at random between all available ones
+                // Maybe eventually, have a window for selecting a biography template when more than 1 is available?
+                int biogCount = biogMatches.Count();
+                int selectedBio = UnityEngine.Random.Range(0, biogCount);
+                Match selectedMatch = biogMatches.ElementAt(selectedBio);
+                characterDocument.biographyIndex = int.Parse(selectedMatch.Groups[1].Value);
+
                 if (!createCharChooseBioWindow.ChoseQuestions)
                 {
                     // Choose answers at random
                     System.Random rand = new System.Random(System.DateTime.Now.Millisecond);
-                    if (!characterDocument.isCustom)
-                    {
-                        characterDocument.classIndex = createCharClassSelectWindow.SelectedClassIndex;
-                    }
                     BiogFile autoBiog = new BiogFile(characterDocument);
                     for (int i = 0; i < autoBiog.Questions.Length; i++)
                     {
@@ -390,7 +452,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     messageBox.OnClose += ReputationBox_OnClose;
 
                     characterDocument.biographyEffects = autoBiog.AnswerEffects;
-                    characterDocument.backStory = autoBiog.GenerateBackstory(characterDocument.classIndex);
+                    characterDocument.backStory = autoBiog.GenerateBackstory();
                 }
                 else
                 {
@@ -519,9 +581,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (DaggerfallUI.Instance.enableVideos)
             {
                 // Create cinematics
-                DaggerfallVidPlayerWindow cinematic1 = new DaggerfallVidPlayerWindow(uiManager, newGameCinematic1);
-                DaggerfallVidPlayerWindow cinematic2 = new DaggerfallVidPlayerWindow(uiManager, newGameCinematic2);
-                DaggerfallVidPlayerWindow cinematic3 = new DaggerfallVidPlayerWindow(uiManager, newGameCinematic3);
+                DaggerfallVidPlayerWindow cinematic1 = (DaggerfallVidPlayerWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.VidPlayer, new object[] { uiManager, newGameCinematic1 });
+                DaggerfallVidPlayerWindow cinematic2 = (DaggerfallVidPlayerWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.VidPlayer, new object[] { uiManager, newGameCinematic2 });
+                DaggerfallVidPlayerWindow cinematic3 = (DaggerfallVidPlayerWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.VidPlayer, new object[] { uiManager, newGameCinematic3 });
 
                 // End of final cinematic will launch game
                 cinematic3.OnVideoFinished += TriggerGame;

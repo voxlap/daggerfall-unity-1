@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -186,13 +186,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (housesForSale == null)
             {
                 for (int i = 0; i < 2; i++)
-                    priceListBox.AddItem(HardStrings.bankPurchasePrice.Replace("%s", DaggerfallBankManager.GetShipPrice((ShipType) i).ToString()), i);
+                    priceListBox.AddItem(TextManager.Instance.GetLocalizedText("bankPurchasePrice").Replace("%s", DaggerfallBankManager.GetShipPrice((ShipType) i).ToString()), i);
             }
             else
             {   // List all the houses for sale in this location
                 foreach (BuildingSummary house in housesForSale)
                 {
-                    priceListBox.AddItem(HardStrings.bankPurchasePrice.Replace("%s", DaggerfallBankManager.GetHousePrice(house).ToString()));
+                    priceListBox.AddItem(TextManager.Instance.GetLocalizedText("bankPurchasePrice").Replace("%s", DaggerfallBankManager.GetHousePrice(house).ToString()));
                 }
             }
         }
@@ -373,11 +373,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         private void ExitButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             CloseWindow();
         }
 
         private void BuyButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             if (priceListBox.SelectedIndex < 0)
                 return;
 
@@ -409,11 +411,13 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         void PriceUpButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             priceListBox.ScrollUp();
         }
 
         void PriceDownButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
             priceListBox.ScrollDown();
         }
 

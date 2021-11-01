@@ -6,6 +6,7 @@
 -- QuestId: 22
 Messages: 31
 Quest: R0C20Y22
+DisplayName: Business with Orcs
 -- Message panels
 QRC:
 
@@ -73,8 +74,9 @@ QuestorPostfailure:  [1009]
 <ce>                         question, by the way.
 
 QuestLogEntry:  [1010]
-%qdt: _questgiver_ has
- hired me to deliver a _item_ to someone
+%qdt: 
+ _questgiver_ has hired me
+ to deliver a _item_ to someone
  in ___contact_ named _contact_.
  %g will meet me at __contact_
  in =queston_ days to reward me if I have not
@@ -159,13 +161,14 @@ QBN:
 Item _reward_ ruby
 Item _item_ trinket
 
-Person _questgiver_ group Questor male anyInfo 1015 rumors 1016
-Person _contact_ group Local_3.0 female
-Person _orsinium_ face 184 named Orsinium anyInfo 1012 rumors 1013
+Person _questgiver_ group Questor anyInfo 1015 rumors 1016
+Person _contact_ group Local_3.0 remote
+Person _orsinium_ face 184 faction Orsinium remote anyInfo 1012 rumors 1013
 
 Place orcCastle permanent OrsiniumCastle3
 
-Clock _queston_ 00:00 0 flag 2 range 3 5
+--changed flags on timer, was giving very short time limits before
+Clock _queston_ 00:00 0 flag 3 range 3 5
 
 Foe _note_ is 3 Orc
 Foe _F.01_ is Orc_sergeant

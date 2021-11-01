@@ -1,5 +1,5 @@
 // Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -423,11 +423,13 @@ namespace DaggerfallWorkshop
                         //miscBillboardBatch.BlockOrigin = blockOrigin;
                     }
 
-                    string blockName = dfUnity.ContentReader.BlockFileReader.CheckName(dfUnity.ContentReader.MapFileReader.GetRmbBlockName(ref location, x, y));
+                    string blockName = dfUnity.ContentReader.BlockFileReader.CheckName(dfUnity.ContentReader.MapFileReader.GetRmbBlockName(location, x, y));
                     GameObject go = GameObjectHelper.CreateRMBBlockGameObject(
                         blockName,
                         x,
                         y,
+                        location.MapTableData.MapId,
+                        location.LocationIndex,
                         dfUnity.Option_RMBGroundPlane,
                         dfUnity.Option_CityBlockPrefab,
                         summary.NatureBillboardBatch,

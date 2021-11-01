@@ -1,5 +1,5 @@
-﻿// Project:         Daggerfall Tools For Unity
-// Copyright:       Copyright (C) 2009-2019 Daggerfall Workshop
+// Project:         Daggerfall Tools For Unity
+// Copyright:       Copyright (C) 2009-2021 Daggerfall Workshop
 // Web Site:        http://www.dfworkshop.net
 // License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
 // Source Code:     https://github.com/Interkarma/daggerfall-unity
@@ -100,6 +100,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             this.skillsRollout.SetClassSkills(characterDocument.career);
             this.skillsRollout.StartingSkills = characterDocument.startingSkills;
             this.skillsRollout.WorkingSkills = characterDocument.workingSkills;
+            this.skillsRollout.SkillBonuses = BiogFile.GetSkillEffects(characterDocument.biographyEffects);
             this.skillsRollout.PrimarySkillBonusPoints = 0;
             this.skillsRollout.MajorSkillBonusPoints = 0;
             this.skillsRollout.MinorSkillBonusPoints = 0;
@@ -144,7 +145,20 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         void OkButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
-            CloseWindow();
+            if (statsRollout.BonusPool > 0 || 
+                skillsRollout.PrimarySkillBonusPoints > 0 ||
+                skillsRollout.MajorSkillBonusPoints > 0 ||
+                skillsRollout.MinorSkillBonusPoints > 0)
+            {
+                DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
+                messageBox.SetTextTokens(strYouMustDistributeYourBonusPoints);
+                messageBox.ClickAnywhereToClose = true;
+                messageBox.Show();
+            }
+            else
+            {
+                CloseWindow();
+            }
         }
 
         #endregion
